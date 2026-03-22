@@ -1,0 +1,17 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.1.3">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <UserSecretsId>1e6b8c9d-4f2a-4b6e-8a1c-5d9e3f7a2b0c</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\JustGo.Api\JustGo.Api.csproj" IsAspireProjectResource="true" />
+    <ProjectReference Include="..\JustGo.Extractor.Worker\JustGo.Extractor.Worker.csproj" IsAspireProjectResource="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+  </ItemGroup>
+  
+</Project>
