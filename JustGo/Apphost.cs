@@ -1,9 +1,14 @@
-
 var builder = DistributedApplication.CreateBuilder(args);
 
 var apiKey = builder.AddParameter("justgo-apikey", secret: true);
-var postgres = builder.AddPostgres("justgopostgres");
-var extractionDb = postgres.AddDatabase("justgoextractiondb");
+
+var db = builder
+    .AddPostgres("just-go")
+    .WithDataVolume();
+
+var extractionDb = db.AddDatabase("tkd-nz");
+
+extractionDb.WithChildRelationship(db);
 
 builder.AddProject<Projects.JustGo_Api>("api")
     .WithEnvironment("JustGo__ApiKey", apiKey)
@@ -12,6 +17,7 @@ builder.AddProject<Projects.JustGo_Api>("api")
 builder.AddProject<Projects.JustGo_Extractor_Worker>("extractor")
     .WithEnvironment("JustGo__ApiKey", apiKey)
     .WithReference(extractionDb)
+    .WaitFor(extractionDb)
     .WithHttpHealthCheck("/health");
 
-builder.Build().Run();
+await builder.Build().RunAsync();
