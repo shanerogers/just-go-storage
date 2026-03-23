@@ -1,8 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
-  <PropertyGroup>
-  </PropertyGroup>
-
+  <PropertyGroup />
   <ItemGroup>
     <ProjectReference Include="..\JustGo.Integrations.JustGo\JustGo.Integrations.JustGo.csproj" />
+    <ProjectReference Include="..\JustGo.ServiceDefaults\JustGo.ServiceDefaults.csproj" />
   </ItemGroup>
 </Project>

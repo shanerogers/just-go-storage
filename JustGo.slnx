@@ -2,5 +2,6 @@
   <Project Path="JustGo.Api/JustGo.Api.csproj" />
   <Project Path="JustGo.Extractor.Worker/JustGo.Extractor.Worker.csproj" />
   <Project Path="JustGo.Integrations.JustGo/JustGo.Integrations.JustGo.csproj" />
+  <Project Path="JustGo.ServiceDefaults/JustGo.ServiceDefaults.csproj" />
   <Project Path="JustGo/JustGo.AppHost.csproj" />
 </Solution>

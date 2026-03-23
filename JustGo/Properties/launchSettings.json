@@ -4,7 +4,7 @@
     "https": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "launchBrowser": true,
+      "launchBrowser": false,
       "applicationUrl": "https://justgo.dev.localhost:17007;http://justgo.dev.localhost:15227",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
@@ -17,7 +17,7 @@
     "http": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "launchBrowser": true,
+      "launchBrowser": false,
       "applicationUrl": "http://justgo.dev.localhost:15227",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",

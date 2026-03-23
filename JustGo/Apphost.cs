@@ -3,6 +3,7 @@ var builder = DistributedApplication.CreateBuilder(args);
 var db = builder.AddPostgres("justgo-db")
     .WithDbGate()
     .WithDataVolume()
+    .WithLifetime(ContainerLifetime.Persistent)
     .AddDatabase("tkd-nz");
 
 var apiKey = builder.AddParameter("justgo-apikey", secret: true);
