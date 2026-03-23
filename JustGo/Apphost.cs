@@ -19,10 +19,4 @@ builder.AddProject<Projects.JustGo_Api>("api")
     .WithReference(db)
     .WaitFor(db);
 
-// builder.AddProject<Projects.JustGo_Extractor_Worker>("extractor")
-//     .WithHttpHealthCheck("/health")
-//     .WithEnvironment("JustGo__ApiKey", apiKey)
-//     .WithReference(db)
-//     .WaitFor(db);
-
 await builder.Build().RunAsync();
