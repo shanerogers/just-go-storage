@@ -49,21 +49,30 @@ public sealed class JustGoTokenService(
 
         response.EnsureSuccessStatusCode();
 
-        var result = await response.Content.ReadFromJsonAsync<AuthResponse>(cancellationToken: cancellationToken);
-        var token = result?.Token ?? result?.AccessToken ?? result?.AccessTokenAlt;
+        var result = await response.Content.ReadFromJsonAsync<ApiResponse>(cancellationToken: cancellationToken);
+        var token = result?.Data?.AccessToken;
 
         return token ?? throw new InvalidOperationException("Token not found in JustGo authentication response.");
     }
 
-    private sealed class AuthResponse
+    private sealed class ApiResponse
     {
-        [JsonPropertyName("token")]
-        public string? Token { get; set; }
+        [JsonPropertyName("statusCode")]
+        public int StatusCode { get; set; }
 
+        [JsonPropertyName("data")]
+        public AuthData? Data { get; set; }
+    }
+
+    private sealed class AuthData
+    {
         [JsonPropertyName("accessToken")]
         public string? AccessToken { get; set; }
 
-        [JsonPropertyName("access_token")]
-        public string? AccessTokenAlt { get; set; }
+        [JsonPropertyName("expiresIn")]
+        public int ExpiresIn { get; set; }
+
+        [JsonPropertyName("tokenType")]
+        public string? TokenType { get; set; }
     }
 }
