@@ -18,8 +18,8 @@ builder.AddProject<Projects.JustGo_Api>("api")
     .WithUrlForEndpoint("http", endpoint => new()
     {
         Url = "/quartz",
-        DisplayText = "Quartz",
-        Endpoint = endpoint
+        Endpoint = endpoint,
+        DisplayText = "Quartz"
     })
     .WithUrlForEndpoint("http", resource =>
     {
