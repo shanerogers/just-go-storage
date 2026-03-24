@@ -8,7 +8,6 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <NoWarn>$(NoWarn);NU1507</NoWarn>
   </PropertyGroup>
-
   <ItemGroup>
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-w7r3-mgwf-4mqq" />
   </ItemGroup>
