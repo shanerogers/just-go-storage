@@ -8,10 +8,19 @@
     <PackageReference Include="AspNetCore.HealthChecks.UI.Client" />
     <PackageReference Include="AspNetCore.HealthChecks.UI" />
     <PackageReference Include="AspNetCore.HealthChecks.UI.InMemory.Storage" />
+    <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Quartz" />
     <PackageReference Include="Quartz.AspNetCore" />
     <PackageReference Include="Quartz.Dashboard" />
     <PackageReference Include="Quartz.Plugins" />
     <PackageReference Include="Quartz.Serialization.SystemTextJson" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Migrations\quartz_postgres.sql" />
   </ItemGroup>
 </Project>

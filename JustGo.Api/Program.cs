@@ -1,4 +1,5 @@
 using JustGo.Api;
+using JustGo.Api.Data;
 using JustGo.Api.Features.Auth;
 using JustGo.Api.Features.Clubs;
 using JustGo.Api.Features.Competitions;
@@ -9,6 +10,7 @@ using JustGo.Api.Services.Jobs;
 using JustGo.Integrations.JustGo.Services;
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.EntityFrameworkCore;
 using Quartz;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,6 +20,7 @@ builder.AddServiceDefaults();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler(_ => { });
 builder.Services.AddScoped<IJustGoClient, StubJustGoClient>();
+builder.AddNpgsqlDbContext<ApiDbContext>("tkd-nz");
 
 builder.Services.AddHealthChecks()
     .AddCheck<JustGoHealthCheck>("justgo-api", tags: ["ready"])
@@ -54,6 +57,12 @@ builder.Services.AddQuartzDashboard();
 builder.Services.AddQuartzHostedService(options => options.WaitForJobsToComplete = true);
 
 var application = builder.Build();
+
+await using (var scope = application.Services.CreateAsyncScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+    await dbContext.Database.MigrateAsync();
+}
 
 application.UseHttpsRedirection();
 application.UseExceptionHandler();

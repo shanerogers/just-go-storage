@@ -1,20 +1,7 @@
--- Quartz.NET PostgreSQL schema
--- Run this against the tkd-nz database before starting the application.
--- Source: https://github.com/quartznet/quartznet/blob/main/database/tables/tables_postgres.sql
+-- Quartz.NET PostgreSQL schema (idempotent/rerunnable)
+-- Source baseline: https://github.com/quartznet/quartznet/blob/main/database/tables/tables_postgres.sql
 
-DROP TABLE IF EXISTS qrtz_fired_triggers;
-DROP TABLE IF EXISTS qrtz_paused_trigger_grps;
-DROP TABLE IF EXISTS qrtz_scheduler_state;
-DROP TABLE IF EXISTS qrtz_locks;
-DROP TABLE IF EXISTS qrtz_simprop_triggers;
-DROP TABLE IF EXISTS qrtz_simple_triggers;
-DROP TABLE IF EXISTS qrtz_cron_triggers;
-DROP TABLE IF EXISTS qrtz_blob_triggers;
-DROP TABLE IF EXISTS qrtz_triggers;
-DROP TABLE IF EXISTS qrtz_job_details;
-DROP TABLE IF EXISTS qrtz_calendars;
-
-CREATE TABLE qrtz_job_details
+CREATE TABLE IF NOT EXISTS qrtz_job_details
 (
   sched_name        TEXT NOT NULL,
   job_name          TEXT NOT NULL,
@@ -29,7 +16,7 @@ CREATE TABLE qrtz_job_details
   PRIMARY KEY (sched_name, job_name, job_group)
 );
 
-CREATE TABLE qrtz_triggers
+CREATE TABLE IF NOT EXISTS qrtz_triggers
 (
   sched_name     TEXT   NOT NULL,
   trigger_name   TEXT   NOT NULL,
@@ -51,7 +38,7 @@ CREATE TABLE qrtz_triggers
   FOREIGN KEY (sched_name, job_name, job_group) REFERENCES qrtz_job_details (sched_name, job_name, job_group)
 );
 
-CREATE TABLE qrtz_simple_triggers
+CREATE TABLE IF NOT EXISTS qrtz_simple_triggers
 (
   sched_name      TEXT   NOT NULL,
   trigger_name    TEXT   NOT NULL,
@@ -63,7 +50,7 @@ CREATE TABLE qrtz_simple_triggers
   FOREIGN KEY (sched_name, trigger_name, trigger_group) REFERENCES qrtz_triggers (sched_name, trigger_name, trigger_group)
 );
 
-CREATE TABLE qrtz_simprop_triggers
+CREATE TABLE IF NOT EXISTS qrtz_simprop_triggers
 (
   sched_name    TEXT           NOT NULL,
   trigger_name  TEXT           NOT NULL,
@@ -84,7 +71,7 @@ CREATE TABLE qrtz_simprop_triggers
   FOREIGN KEY (sched_name, trigger_name, trigger_group) REFERENCES qrtz_triggers (sched_name, trigger_name, trigger_group)
 );
 
-CREATE TABLE qrtz_cron_triggers
+CREATE TABLE IF NOT EXISTS qrtz_cron_triggers
 (
   sched_name      TEXT NOT NULL,
   trigger_name    TEXT NOT NULL,
@@ -95,7 +82,7 @@ CREATE TABLE qrtz_cron_triggers
   FOREIGN KEY (sched_name, trigger_name, trigger_group) REFERENCES qrtz_triggers (sched_name, trigger_name, trigger_group)
 );
 
-CREATE TABLE qrtz_blob_triggers
+CREATE TABLE IF NOT EXISTS qrtz_blob_triggers
 (
   sched_name    TEXT  NOT NULL,
   trigger_name  TEXT  NOT NULL,
@@ -105,7 +92,7 @@ CREATE TABLE qrtz_blob_triggers
   FOREIGN KEY (sched_name, trigger_name, trigger_group) REFERENCES qrtz_triggers (sched_name, trigger_name, trigger_group)
 );
 
-CREATE TABLE qrtz_calendars
+CREATE TABLE IF NOT EXISTS qrtz_calendars
 (
   sched_name    TEXT  NOT NULL,
   calendar_name TEXT  NOT NULL,
@@ -113,14 +100,14 @@ CREATE TABLE qrtz_calendars
   PRIMARY KEY (sched_name, calendar_name)
 );
 
-CREATE TABLE qrtz_paused_trigger_grps
+CREATE TABLE IF NOT EXISTS qrtz_paused_trigger_grps
 (
   sched_name    TEXT NOT NULL,
   trigger_group TEXT NOT NULL,
   PRIMARY KEY (sched_name, trigger_group)
 );
 
-CREATE TABLE qrtz_fired_triggers
+CREATE TABLE IF NOT EXISTS qrtz_fired_triggers
 (
   sched_name        TEXT   NOT NULL,
   entry_id          TEXT   NOT NULL,
@@ -138,7 +125,7 @@ CREATE TABLE qrtz_fired_triggers
   PRIMARY KEY (sched_name, entry_id)
 );
 
-CREATE TABLE qrtz_scheduler_state
+CREATE TABLE IF NOT EXISTS qrtz_scheduler_state
 (
   sched_name        TEXT   NOT NULL,
   instance_name     TEXT   NOT NULL,
@@ -147,27 +134,27 @@ CREATE TABLE qrtz_scheduler_state
   PRIMARY KEY (sched_name, instance_name)
 );
 
-CREATE TABLE qrtz_locks
+CREATE TABLE IF NOT EXISTS qrtz_locks
 (
   sched_name TEXT NOT NULL,
   lock_name  TEXT NOT NULL,
   PRIMARY KEY (sched_name, lock_name)
 );
 
-CREATE INDEX idx_qrtz_j_req_recovery ON qrtz_job_details (sched_name, requests_recovery);
-CREATE INDEX idx_qrtz_j_grp ON qrtz_job_details (sched_name, job_group);
-CREATE INDEX idx_qrtz_t_j ON qrtz_triggers (sched_name, job_name, job_group);
-CREATE INDEX idx_qrtz_t_jg ON qrtz_triggers (sched_name, job_group);
-CREATE INDEX idx_qrtz_t_c ON qrtz_triggers (sched_name, calendar_name);
-CREATE INDEX idx_qrtz_t_g ON qrtz_triggers (sched_name, trigger_group);
-CREATE INDEX idx_qrtz_t_state ON qrtz_triggers (sched_name, trigger_state);
-CREATE INDEX idx_qrtz_t_nft_st ON qrtz_triggers (sched_name, trigger_state, next_fire_time);
-CREATE INDEX idx_qrtz_t_nft_misfire ON qrtz_triggers (sched_name, misfire_instr, next_fire_time);
-CREATE INDEX idx_qrtz_t_nft_st_misfire ON qrtz_triggers (sched_name, misfire_instr, next_fire_time, trigger_state);
-CREATE INDEX idx_qrtz_t_nft_st_misfire_grp ON qrtz_triggers (sched_name, misfire_instr, next_fire_time, trigger_group, trigger_state);
-CREATE INDEX idx_qrtz_ft_trig_inst_name ON qrtz_fired_triggers (sched_name, instance_name);
-CREATE INDEX idx_qrtz_ft_inst_job_req_rcvry ON qrtz_fired_triggers (sched_name, instance_name, requests_recovery);
-CREATE INDEX idx_qrtz_ft_j_g ON qrtz_fired_triggers (sched_name, job_name, job_group);
-CREATE INDEX idx_qrtz_ft_jg ON qrtz_fired_triggers (sched_name, job_group);
-CREATE INDEX idx_qrtz_ft_t_g ON qrtz_fired_triggers (sched_name, trigger_name, trigger_group);
-CREATE INDEX idx_qrtz_ft_tg ON qrtz_fired_triggers (sched_name, trigger_group);
+CREATE INDEX IF NOT EXISTS idx_qrtz_j_req_recovery ON qrtz_job_details (sched_name, requests_recovery);
+CREATE INDEX IF NOT EXISTS idx_qrtz_j_grp ON qrtz_job_details (sched_name, job_group);
+CREATE INDEX IF NOT EXISTS idx_qrtz_t_j ON qrtz_triggers (sched_name, job_name, job_group);
+CREATE INDEX IF NOT EXISTS idx_qrtz_t_jg ON qrtz_triggers (sched_name, job_group);
+CREATE INDEX IF NOT EXISTS idx_qrtz_t_c ON qrtz_triggers (sched_name, calendar_name);
+CREATE INDEX IF NOT EXISTS idx_qrtz_t_g ON qrtz_triggers (sched_name, trigger_group);
+CREATE INDEX IF NOT EXISTS idx_qrtz_t_state ON qrtz_triggers (sched_name, trigger_state);
+CREATE INDEX IF NOT EXISTS idx_qrtz_t_nft_st ON qrtz_triggers (sched_name, trigger_state, next_fire_time);
+CREATE INDEX IF NOT EXISTS idx_qrtz_t_nft_misfire ON qrtz_triggers (sched_name, misfire_instr, next_fire_time);
+CREATE INDEX IF NOT EXISTS idx_qrtz_t_nft_st_misfire ON qrtz_triggers (sched_name, misfire_instr, next_fire_time, trigger_state);
+CREATE INDEX IF NOT EXISTS idx_qrtz_t_nft_st_misfire_grp ON qrtz_triggers (sched_name, misfire_instr, next_fire_time, trigger_group, trigger_state);
+CREATE INDEX IF NOT EXISTS idx_qrtz_ft_trig_inst_name ON qrtz_fired_triggers (sched_name, instance_name);
+CREATE INDEX IF NOT EXISTS idx_qrtz_ft_inst_job_req_rcvry ON qrtz_fired_triggers (sched_name, instance_name, requests_recovery);
+CREATE INDEX IF NOT EXISTS idx_qrtz_ft_j_g ON qrtz_fired_triggers (sched_name, job_name, job_group);
+CREATE INDEX IF NOT EXISTS idx_qrtz_ft_jg ON qrtz_fired_triggers (sched_name, job_group);
+CREATE INDEX IF NOT EXISTS idx_qrtz_ft_t_g ON qrtz_fired_triggers (sched_name, trigger_name, trigger_group);
+CREATE INDEX IF NOT EXISTS idx_qrtz_ft_tg ON qrtz_fired_triggers (sched_name, trigger_group);
