@@ -8,6 +8,7 @@ var db = builder.AddPostgres("justgo-db")
     .WithDbGate()
     .WithDataVolume()
     .WithLifetime(ContainerLifetime.Persistent)
+    .WithUrlForEndpoint("tcp", resource => resource.DisplayLocation = UrlDisplayLocation.DetailsOnly)
     .AddDatabase("tkd-nz");
 
 var apiKey = builder.AddParameter("justgo-apikey", secret: true);
@@ -17,13 +18,13 @@ builder.AddProject<Projects.JustGo_Api>("api")
     .WithUrlForEndpoint("http", endpoint => new()
     {
         Url = "/quartz",
-        DisplayText = "Quartz Dashboard",
+        DisplayText = "Quartz",
         Endpoint = endpoint
     })
     .WithUrlForEndpoint("http", resource =>
     {
-        resource.Url = "/health";
-        resource.DisplayText = "Health Checks";
+        resource.Url = "/health-ui";
+        resource.DisplayText = "Health checks";
     })
     .WithUrlForEndpoint("https", resource => resource.DisplayLocation = UrlDisplayLocation.DetailsOnly)
     .WithEnvironment("JustGo__ApiKey", apiKey)
