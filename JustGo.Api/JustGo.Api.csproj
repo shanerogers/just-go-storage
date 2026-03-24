@@ -12,5 +12,6 @@
     <PackageReference Include="Quartz.AspNetCore" />
     <PackageReference Include="Quartz.Dashboard" />
     <PackageReference Include="Quartz.Plugins" />
+    <PackageReference Include="Quartz.Serialization.SystemTextJson" />
   </ItemGroup>
 </Project>

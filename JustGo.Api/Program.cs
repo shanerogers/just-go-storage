@@ -36,8 +36,14 @@ healthUIBuilder.AddInMemoryStorage();
 
 builder.Services.AddQuartz(options =>
 {
+    options.UsePersistentStore(store =>
+    {
+        store.UsePostgres(builder.Configuration.GetConnectionString("tkd-nz")!);
+        store.UseSystemTextJsonSerializer();
+    });
+
     var heartbeatJobKey = new JobKey("api-heartbeat");
-    options.AddJob<ApiHeartbeatJob>(job => job.WithIdentity(heartbeatJobKey));
+    options.AddJob<ApiHeartbeatJob>(job => job.WithIdentity(heartbeatJobKey).StoreDurably());
     options.AddTrigger(trigger => trigger
         .ForJob(heartbeatJobKey)
         .WithIdentity("api-heartbeat-trigger")
