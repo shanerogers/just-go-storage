@@ -16,11 +16,13 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 
 builder.Services.AddProblemDetails();
-builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddExceptionHandler(_ => { });
 builder.Services.AddScoped<IJustGoClient, StubJustGoClient>();
 
 builder.Services.AddHealthChecks()
-    .AddCheck<JustGoHealthCheck>("justgo", tags: ["live"]);
+    .AddCheck<JustGoHealthCheck>("justgo-api", tags: ["ready"])
+    .AddCheck<QuartzHealthCheck>("quartz", tags: ["ready"])
+    .AddNpgSql(builder.Configuration.GetConnectionString("tkd-nz")!, tags: ["ready"]);
 
 var healthUIBuilder = builder.Services.AddHealthChecksUI(options =>
 {
