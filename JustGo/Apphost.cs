@@ -4,12 +4,12 @@ var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOpt
     DashboardApplicationName = "Just Go"
 });
 
-var db = builder.AddPostgres("justgo-db")
+var database = builder.AddPostgres("db")
     .WithDbGate()
     .WithDataVolume()
     .WithLifetime(ContainerLifetime.Persistent)
     .WithUrlForEndpoint("tcp", resource => resource.DisplayLocation = UrlDisplayLocation.DetailsOnly)
-    .AddDatabase("tkd-nz");
+    .AddDatabase("itkd");
 
 var apiKey = builder.AddParameter("justgo-apikey", secret: true);
 
@@ -19,16 +19,16 @@ builder.AddProject<Projects.JustGo_Api>("api")
     {
         Url = "/quartz",
         Endpoint = endpoint,
-        DisplayText = "Quartz"
+        DisplayText = "Jobs"
     })
     .WithUrlForEndpoint("http", resource =>
     {
         resource.Url = "/health-ui";
-        resource.DisplayText = "Health checks";
+        resource.DisplayText = "Health";
     })
     .WithUrlForEndpoint("https", resource => resource.DisplayLocation = UrlDisplayLocation.DetailsOnly)
     .WithEnvironment("JustGo__ApiKey", apiKey)
-    .WithReference(db)
-    .WaitFor(db);
+    .WithReference(database)
+    .WaitFor(database);
 
 await builder.Build().RunAsync();

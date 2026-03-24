@@ -8,44 +8,37 @@ using JustGo.Api.Health;
 using JustGo.Api.Services.Jobs;
 using JustGo.Integrations.JustGo.Services;
 using HealthChecks.UI.Client;
-using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Quartz;
 
 var builder = WebApplication.CreateBuilder(args);
-const string DatabaseConnectionName = "tkd-nz";
 
 builder.AddServiceDefaults();
+builder.AddNpgsqlDbContext<ApiDbContext>("itkd");
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler(_ => { });
 builder.Services.AddScoped<IJustGoClient, StubJustGoClient>();
-builder.AddNpgsqlDbContext<ApiDbContext>(DatabaseConnectionName);
 
-builder.Services.AddHealthChecks()
-    .AddCheck<JustGoHealthCheck>("justgo-api", tags: ["ready"])
+builder.Services
+    .AddHealthChecks()
     .AddCheck<QuartzHealthCheck>("quartz", tags: ["ready"])
-    .AddNpgSql(builder.Configuration.GetConnectionString(DatabaseConnectionName)!, tags: ["ready"]);
+    .AddCheck<JustGoHealthCheck>("justgo-api", tags: ["ready"])
+    .AddNpgSql(builder.Configuration.GetConnectionString("itkd")!, tags: ["ready"]);
 
-var healthUIBuilder = builder.Services.AddHealthChecksUI(options =>
-{
-    options.SetEvaluationTimeInSeconds(30);
-    options.MaximumHistoryEntriesPerEndpoint(60);
-    options.SetMinimumSecondsBetweenFailureNotifications(60);
-    options.AddHealthCheckEndpoint("justgo-api", "/health");
-});
-
-healthUIBuilder.AddPostgreSqlStorage(
-    builder.Configuration.GetConnectionString(DatabaseConnectionName)!,
-    dbOptions => dbOptions.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
+builder.Services
+    .AddHealthChecksUI(options => options.AddHealthCheckEndpoint("justgo-api", "/health"))
+    .AddPostgreSqlStorage(
+        builder.Configuration.GetConnectionString("itkd")!,
+        dbOptions => dbOptions.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
 
 builder.Services.AddQuartz(options =>
 {
     options.UsePersistentStore(store =>
     {
-        store.UsePostgres(builder.Configuration.GetConnectionString(DatabaseConnectionName)!);
         store.UseSystemTextJsonSerializer();
+        store.UsePostgres(builder.Configuration.GetConnectionString("itkd")!);
     });
 
     var heartbeatJobKey = new JobKey("api-heartbeat");
@@ -63,24 +56,22 @@ var application = builder.Build();
 
 await using (var scope = application.Services.CreateAsyncScope())
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
-    await dbContext.Database.MigrateAsync();
+    await scope.ServiceProvider.GetRequiredService<ApiDbContext>()
+        .Database
+        .MigrateAsync();
 }
 
 application.UseHttpsRedirection();
 application.UseExceptionHandler();
 application.UseStaticFiles();
 application.UseAntiforgery();
-application.MapHealthChecks("/health", new HealthCheckOptions
-{
-    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse,
-});
+application.MapQuartzDashboard();
+application.MapHealthChecks("/health", new() { ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse });
 application.MapHealthChecksUI(options =>
 {
     options.UIPath = "/health-ui";
     options.ApiPath = "/health-ui-api";
 });
-application.MapQuartzDashboard();
 
 application
     .MapAuthEndpoints()
