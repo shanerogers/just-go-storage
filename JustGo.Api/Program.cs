@@ -7,6 +7,8 @@ using JustGo.Api.Features.Events;
 using JustGo.Api.Health;
 using JustGo.Api.Services.Jobs;
 using JustGo.Integrations.JustGo.Services;
+using HealthChecks.UI.Client;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Quartz;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -42,7 +44,10 @@ application.UseHttpsRedirection();
 application.UseExceptionHandler();
 application.UseStaticFiles();
 application.UseAntiforgery();
-application.MapHealthChecks("/health");
+application.MapHealthChecks("/health", new HealthCheckOptions
+{
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse,
+});
 application.MapQuartzDashboard();
 
 application
