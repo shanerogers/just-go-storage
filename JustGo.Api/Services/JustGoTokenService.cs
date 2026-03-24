@@ -4,20 +4,23 @@ using Microsoft.Extensions.Options;
 namespace JustGo.Integrations.JustGo.Services;
 
 public sealed class JustGoTokenService(
-    IHttpClientFactory httpClientFactory,
     IOptions<JustGoOptions> options,
-    ILogger<JustGoTokenService> logger) : IJustGoTokenService
+    IHttpClientFactory httpClientFactory) : IJustGoTokenService
 {
     private readonly JustGoOptions _options = options.Value;
+    private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
     private string? _cachedToken;
     private readonly SemaphoreSlim _lock = new(1, 1);
 
     public async Task<string> GetTokenAsync(CancellationToken cancellationToken = default)
     {
         if (_cachedToken is not null)
+        {
             return _cachedToken;
+        }
 
         await _lock.WaitAsync(cancellationToken);
+
         try
         {
             if (_cachedToken is not null)
@@ -25,8 +28,7 @@ public sealed class JustGoTokenService(
                 return _cachedToken;
             }
 
-            _cachedToken = await AcquireTokenAsync(cancellationToken);
-            return _cachedToken;
+            return _cachedToken = await AcquireTokenAsync(cancellationToken);
         }
         finally
         {
@@ -38,7 +40,7 @@ public sealed class JustGoTokenService(
 
     private async Task<string> AcquireTokenAsync(CancellationToken cancellationToken)
     {
-        using var client = httpClientFactory.CreateClient("JustGoAuth");
+        using var client = _httpClientFactory.CreateClient("JustGoAuth");
 
         var response = await client.PostAsJsonAsync(
             $"/api/{_options.ApiVersion}/Auth",
@@ -49,11 +51,8 @@ public sealed class JustGoTokenService(
 
         var result = await response.Content.ReadFromJsonAsync<AuthResponse>(cancellationToken: cancellationToken);
         var token = result?.Token ?? result?.AccessToken ?? result?.AccessTokenAlt;
-        if (token is null)
-            throw new InvalidOperationException("JustGo auth response did not contain a token.");
 
-        logger.LogInformation("JustGo token acquired successfully.");
-        return token;
+        return token ?? throw new InvalidOperationException("Token not found in JustGo authentication response.");
     }
 
     private sealed class AuthResponse
