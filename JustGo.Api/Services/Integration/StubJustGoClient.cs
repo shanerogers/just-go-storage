@@ -1,3 +1,4 @@
+using JustGo.Api.Features.Members;
 using JustGo.Integrations.JustGo.Features.Auth.Models;
 using JustGo.Integrations.JustGo.Features.Clubs.Models;
 using JustGo.Integrations.JustGo.Features.Competitions.Models;
@@ -8,6 +9,16 @@ namespace JustGo.Integrations.JustGo.Services;
 
 public sealed class StubJustGoClient : IJustGoClient
 {
+    public Task<MembersPagedResponse> FindMembersByAttributesAsync(FindMembersRequest request, CancellationToken ct) =>
+        Task.FromResult(new MembersPagedResponse
+        {
+            PageNumber = request.PageNumber,
+            PageSize = request.PageSize,
+            TotalPages = 0,
+            TotalRecords = 0,
+            Data = []
+        });
+
     public Task<object> AuthenticateAsync(LoginRequest request, CancellationToken ct) =>
         Task.FromResult<object>(new { token = "stub-token", username = request.Username });
 

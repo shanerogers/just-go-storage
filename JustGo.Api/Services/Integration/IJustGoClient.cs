@@ -1,3 +1,4 @@
+using JustGo.Api.Features.Members;
 using JustGo.Integrations.JustGo.Features.Auth.Models;
 using JustGo.Integrations.JustGo.Features.Clubs.Models;
 using JustGo.Integrations.JustGo.Features.Competitions.Models;
@@ -8,6 +9,7 @@ namespace JustGo.Integrations.JustGo.Services;
 
 public interface IJustGoClient
 {
+    Task<MembersPagedResponse> FindMembersByAttributesAsync(FindMembersRequest request, CancellationToken ct);
     Task<object> AuthenticateAsync(LoginRequest request, CancellationToken ct);
     Task<object> GetClubAsync(Guid clubId, CancellationToken ct);
     Task<object> UpdateClubAsync(Guid clubId, ClubUpdateRequest request, CancellationToken ct);

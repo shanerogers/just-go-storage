@@ -47,6 +47,13 @@ builder.Services.AddQuartz(options =>
         .ForJob(heartbeatJobKey)
         .WithIdentity("api-heartbeat-trigger")
         .WithSimpleSchedule(schedule => schedule.WithInterval(TimeSpan.FromMinutes(5)).RepeatForever()));
+
+    var syncMembersJobKey = new JobKey("sync-members");
+    options.AddJob<SyncMembersJob>(job => job.WithIdentity(syncMembersJobKey).StoreDurably());
+    options.AddTrigger(trigger => trigger
+        .ForJob(syncMembersJobKey)
+        .WithIdentity("sync-members-trigger")
+        .WithSimpleSchedule(schedule => schedule.WithInterval(TimeSpan.FromHours(1)).RepeatForever()));
 });
 
 builder.Services.AddQuartzDashboard();
