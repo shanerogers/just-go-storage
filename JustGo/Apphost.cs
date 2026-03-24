@@ -1,4 +1,8 @@
-var builder = DistributedApplication.CreateBuilder(args);
+var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions
+{
+    Args = args,
+    DashboardApplicationName = "Just Go"
+});
 
 var db = builder.AddPostgres("justgo-db")
     .WithDbGate()
