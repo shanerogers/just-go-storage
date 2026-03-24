@@ -1,4 +1,3 @@
-using JustGo.Api;
 using JustGo.Api.Data;
 using JustGo.Api.Features.Auth;
 using JustGo.Api.Features.Clubs;
@@ -11,6 +10,7 @@ using JustGo.Integrations.JustGo.Services;
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Quartz;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -31,12 +31,14 @@ builder.Services.AddHealthChecks()
 var healthUIBuilder = builder.Services.AddHealthChecksUI(options =>
 {
     options.SetEvaluationTimeInSeconds(30);
-    options.SetMinimumSecondsBetweenFailureNotifications(60);
     options.MaximumHistoryEntriesPerEndpoint(60);
+    options.SetMinimumSecondsBetweenFailureNotifications(60);
     options.AddHealthCheckEndpoint("justgo-api", "/health");
 });
 
-healthUIBuilder.AddPostgreSqlStorage(builder.Configuration.GetConnectionString(DatabaseConnectionName)!);
+healthUIBuilder.AddPostgreSqlStorage(
+    builder.Configuration.GetConnectionString(DatabaseConnectionName)!,
+    dbOptions => dbOptions.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
 
 builder.Services.AddQuartz(options =>
 {
@@ -62,6 +64,7 @@ var application = builder.Build();
 await using (var scope = application.Services.CreateAsyncScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
+    await dbContext.Database.EnsureCreatedAsync();
     await dbContext.Database.MigrateAsync();
 }
 
