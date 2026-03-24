@@ -70,11 +70,11 @@ public sealed class SyncMembersJob(
         ApiDbContext db,
         List<JustGoMemberDto> members,
         DateTimeOffset syncedAt,
-        CancellationToken ct)
+        CancellationToken cancellationToken)
     {
         foreach (var dto in members)
         {
-                var parameters = new object?[]
+            var parameters = new object?[]
             {
                 dto.Id,
                 (object?)dto.FirstName ?? DBNull.Value,
@@ -99,7 +99,8 @@ public sealed class SyncMembersJob(
                     last_synced_at = EXCLUDED.last_synced_at,
                     raw_data       = EXCLUDED.raw_data
                 """,
-                parameters!);
+                parameters!,
+                cancellationToken);
         }
     }
 }

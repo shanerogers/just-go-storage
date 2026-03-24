@@ -3,12 +3,6 @@ using Microsoft.Extensions.Options;
 
 namespace JustGo.Integrations.JustGo.Services;
 
-public interface IJustGoTokenService
-{
-    Task<string> GetTokenAsync(CancellationToken cancellationToken = default);
-    void InvalidateToken();
-}
-
 public sealed class JustGoTokenService(
     IHttpClientFactory httpClientFactory,
     IOptions<JustGoOptions> options,
