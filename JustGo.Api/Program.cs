@@ -64,7 +64,6 @@ var application = builder.Build();
 await using (var scope = application.Services.CreateAsyncScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
-    await dbContext.Database.EnsureCreatedAsync();
     await dbContext.Database.MigrateAsync();
 }
 
