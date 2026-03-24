@@ -27,9 +27,15 @@ builder.Services
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
-builder.Services.AddSingleton<JustGoTokenService>();
-builder.Services.AddTransient<JustGoAuthHandler>();
+builder.Services.AddHttpClient("JustGoAuth", (sp, client) =>
+{
+    var opts = sp.GetRequiredService<IOptions<JustGoOptions>>().Value;
+    client.BaseAddress = new Uri(opts.BaseUrl);
+});
+
 builder.Services
+    .AddTransient<JustGoAuthHandler>()
+    .AddTransient<JustGoTokenService>()
     .AddHttpClient<IJustGoClient, JustGoClient>((sp, client) =>
     {
         var opts = sp.GetRequiredService<IOptions<JustGoOptions>>().Value;
