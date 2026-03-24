@@ -37,6 +37,15 @@ internal sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> log
         }
 
         logger.LogError(exception, "Unhandled exception");
-        return false;
+        var fallbackProblem = new ProblemDetails
+        {
+            Status = StatusCodes.Status500InternalServerError,
+            Title = "Server Error",
+            Detail = "An unexpected error occurred."
+        };
+
+        httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        await httpContext.Response.WriteAsJsonAsync(fallbackProblem, cancellationToken);
+        return true;
     }
 }

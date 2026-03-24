@@ -12,7 +12,7 @@ public sealed class JustGoHealthCheck(IJustGoClient client) : IHealthCheck
     {
         try
         {
-            var findClub = new FindClubsRequest(PageNumber: 1, PageSize: 1, ClubName: "Pilsung");
+            var findClub = new FindClubsRequest { PageNumber = 1, PageSize = 1, ClubName = "Pilsung" };
             await client.FindClubsByAttributesAsync(findClub, cancellationToken);
             return HealthCheckResult.Healthy("JustGo API is reachable.");
         }
