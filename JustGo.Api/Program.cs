@@ -7,6 +7,7 @@ using JustGo.Api.Features.Events;
 using JustGo.Api.Health;
 using JustGo.Api.Services.Jobs;
 using JustGo.Integrations.JustGo.Services;
+using Microsoft.Extensions.Options;
 using HealthChecks.UI.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -19,7 +20,22 @@ builder.AddNpgsqlDbContext<ApiDbContext>("itkd");
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler(_ => { });
-builder.Services.AddScoped<IJustGoClient, StubJustGoClient>();
+
+builder.Services
+    .AddOptions<JustGoOptions>()
+    .BindConfiguration(JustGoOptions.SectionName)
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+builder.Services.AddSingleton<JustGoTokenService>();
+builder.Services.AddTransient<JustGoAuthHandler>();
+builder.Services
+    .AddHttpClient<IJustGoClient, JustGoClient>((sp, client) =>
+    {
+        var opts = sp.GetRequiredService<IOptions<JustGoOptions>>().Value;
+        client.BaseAddress = new Uri(opts.BaseUrl);
+    })
+    .AddHttpMessageHandler<JustGoAuthHandler>();
 
 builder.Services
     .AddHealthChecks()
