@@ -14,18 +14,19 @@ using Microsoft.EntityFrameworkCore;
 using Quartz;
 
 var builder = WebApplication.CreateBuilder(args);
+const string DatabaseConnectionName = "tkd-nz";
 
 builder.AddServiceDefaults();
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler(_ => { });
 builder.Services.AddScoped<IJustGoClient, StubJustGoClient>();
-builder.AddNpgsqlDbContext<ApiDbContext>("tkd-nz");
+builder.AddNpgsqlDbContext<ApiDbContext>(DatabaseConnectionName);
 
 builder.Services.AddHealthChecks()
     .AddCheck<JustGoHealthCheck>("justgo-api", tags: ["ready"])
     .AddCheck<QuartzHealthCheck>("quartz", tags: ["ready"])
-    .AddNpgSql(builder.Configuration.GetConnectionString("tkd-nz")!, tags: ["ready"]);
+    .AddNpgSql(builder.Configuration.GetConnectionString(DatabaseConnectionName)!, tags: ["ready"]);
 
 var healthUIBuilder = builder.Services.AddHealthChecksUI(options =>
 {
@@ -35,13 +36,13 @@ var healthUIBuilder = builder.Services.AddHealthChecksUI(options =>
     options.AddHealthCheckEndpoint("justgo-api", "/health");
 });
 
-healthUIBuilder.AddInMemoryStorage();
+healthUIBuilder.AddPostgreSqlStorage(builder.Configuration.GetConnectionString(DatabaseConnectionName)!);
 
 builder.Services.AddQuartz(options =>
 {
     options.UsePersistentStore(store =>
     {
-        store.UsePostgres(builder.Configuration.GetConnectionString("tkd-nz")!);
+        store.UsePostgres(builder.Configuration.GetConnectionString(DatabaseConnectionName)!);
         store.UseSystemTextJsonSerializer();
     });
 
