@@ -44,7 +44,6 @@ public sealed class JustGoClient(HttpClient httpClient, IOptions<JustGoOptions> 
         if (request.ModifiedBefore is not null) query["ModifiedBefore"] = request.ModifiedBefore.Value.ToString("O");
         if (request.ModifiedAfter is not null) query["ModifiedAfter"] = request.ModifiedAfter.Value.ToString("O");
 
-        //query["ModifiedBefore"] = DateTimeOffset.UtcNow.ToString("s");
         query[PageNumber] = request.PageNumber.ToString();
         query[PageSize] = request.PageSize.ToString();
 

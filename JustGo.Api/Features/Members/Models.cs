@@ -121,7 +121,7 @@ public sealed class FindMembersRequest
     public DateTimeOffset? ModifiedBefore { get; set; }
     public DateTimeOffset? ModifiedAfter { get; set; }
     public int PageNumber { get; set; } = 1;
-    public int PageSize { get; set; } = 100;
+    public int PageSize { get; set; } = 10;
 }
 
 /// <summary>Paged response wrapper for member list results.</summary>

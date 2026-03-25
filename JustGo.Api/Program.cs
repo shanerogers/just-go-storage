@@ -24,6 +24,7 @@ builder.AddServiceDefaults();
 builder.AddRedisDistributedCache("cache");
 builder.AddNpgsqlDbContext<ApiDbContext>("itkd");
 
+builder.Services.AddHttpLogging(options => options.CombineLogs = true);
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler(_ => { });
 builder.Services.AddTransient(_ => TimeProvider.System);
@@ -111,6 +112,7 @@ await using (var scope = application.Services.CreateAsyncScope())
         .MigrateAsync();
 }
 
+application.UseHttpLogging();
 application.UseHttpsRedirection();
 application.UseExceptionHandler();
 application.UseStaticFiles();
