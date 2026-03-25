@@ -57,7 +57,7 @@ public sealed class SyncMembersJob(
                 break;
             }
 
-            await UpsertMembersAsync(db, members, syncedAt, context.CancellationToken);
+            await UpsertMembersAsync(db, syncedAt, members, context.CancellationToken);
 
             totalSynced += members.Count;
 
