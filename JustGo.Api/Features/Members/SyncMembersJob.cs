@@ -12,17 +12,18 @@ namespace JustGo.Api.Services.Jobs;
 /// </summary>
 [DisallowConcurrentExecution]
 public sealed class SyncMembersJob(
-    IServiceScopeFactory scopeFactory,
     IJustGoClient justGoClient,
-    ILogger<SyncMembersJob> logger) : IJob
+    TimeProvider timeProvider,
+    ILogger<SyncMembersJob> logger,
+    IServiceScopeFactory scopeFactory) : IJob
 {
-    private const int PageSize = 100;
+    private const int PageSize = 10;
 
     public async Task Execute(IJobExecutionContext context)
     {
-        logger.LogInformation("SyncMembersJob starting at {UtcNow}.", DateTimeOffset.UtcNow);
+        logger.LogInformation("SyncMembersJob starting at {UtcNow}.", timeProvider.GetUtcNow());
 
-        var syncedAt = DateTimeOffset.UtcNow;
+        var syncedAt = timeProvider.GetUtcNow();
         var pageNumber = 1;
         var totalSynced = 0;
 
@@ -33,11 +34,13 @@ public sealed class SyncMembersJob(
         {
             var request = new FindMembersRequest
             {
+                PageSize = PageSize,
                 PageNumber = pageNumber,
-                PageSize = PageSize
+                Email = "shane.al.rogers@gmail.com",
             };
 
             MembersPagedResponse response;
+
             try
             {
                 response = await justGoClient.FindMembersByAttributesAsync(request, context.CancellationToken);
@@ -50,20 +53,27 @@ public sealed class SyncMembersJob(
 
             var members = response.Data;
             if (members is null || members.Count == 0)
+            {
                 break;
+            }
 
             await UpsertMembersAsync(db, members, syncedAt, context.CancellationToken);
+
             totalSynced += members.Count;
 
             logger.LogDebug("Synced page {Page} ({Count} members).", pageNumber, members.Count);
 
             if (pageNumber >= response.TotalPages || members.Count < PageSize)
+            {
                 break;
+            }
 
             pageNumber++;
         }
 
-        logger.LogInformation("SyncMembersJob completed. Total members synced: {Total}.", totalSynced);
+        logger.LogInformation("SyncMembersJob completed at {UtcNow}. Total members synced: {Total}.",
+            timeProvider.GetUtcNow(),
+            totalSynced);
     }
 
     private static async Task UpsertMembersAsync(

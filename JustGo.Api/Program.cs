@@ -20,6 +20,7 @@ builder.AddNpgsqlDbContext<ApiDbContext>("itkd");
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler(_ => { });
+builder.Services.AddTransient(_ => TimeProvider.System);
 
 builder.Services
     .AddOptions<JustGoOptions>()
