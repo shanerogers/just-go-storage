@@ -21,8 +21,8 @@ using ZiggyCreatures.Caching.Fusion.Serialization.SystemTextJson;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
-builder.AddNpgsqlDbContext<ApiDbContext>("itkd");
 builder.AddRedisDistributedCache("cache");
+builder.AddNpgsqlDbContext<ApiDbContext>("itkd");
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler(_ => { });
