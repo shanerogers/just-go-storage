@@ -1,30 +1,38 @@
-using JustGo.Integrations.JustGo.Features.Clubs.Models;
+using System.Net;
 using JustGo.Integrations.JustGo.Services;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 
 namespace JustGo.Api.Health;
 
-public sealed class JustGoHealthCheck(IJustGoClient client) : IHealthCheck
+public sealed class JustGoHealthCheck(IHttpClientFactory factory, IOptions<JustGoOptions> options) : IHealthCheck
 {
-    public async Task<HealthCheckResult> CheckHealthAsync(
-        HealthCheckContext context,
-        CancellationToken cancellationToken = default)
+    private readonly IHttpClientFactory _factory = factory;
+    private readonly JustGoOptions _options = options.Value;
+
+
+    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken ct = default)
     {
         try
         {
-            var findClub = new FindClubsRequest { PageNumber = 1, PageSize = 1, ClubName = "Pilsung" };
-            await client.FindClubsByAttributesAsync(findClub, cancellationToken);
-            return HealthCheckResult.Healthy("JustGo API is reachable.");
+            var client = _factory.CreateClient();
+            client.BaseAddress = new Uri(_options.BaseUrl);
+            var response = await client.GetAsync("/api/2.2/members/findbyattributes?pageSize=1&pageNumber=1", ct);
+            return response.StatusCode == HttpStatusCode.Unauthorized
+                ? HealthCheckResult.Healthy()
+                : HealthCheckResult.Unhealthy();
         }
         catch (JustGoApiException ex)
         {
-            return HealthCheckResult.Degraded(
-                $"JustGo API responded with status {ex.StatusCode}.",
-                data: new Dictionary<string, object> { ["statusCode"] = ex.StatusCode });
+            return HealthCheckResult.Degraded($"JustGo responded with {ex.StatusCode}.", exception: ex);
+        }
+        catch (OperationCanceledException ex)
+        {
+            return HealthCheckResult.Degraded("JustGo API health check was canceled.", exception: ex);
         }
         catch (Exception ex)
         {
-            return HealthCheckResult.Unhealthy("JustGo API is unreachable.", ex);
+            return HealthCheckResult.Unhealthy("JustGo API is unreachable.", exception: ex);
         }
     }
 }

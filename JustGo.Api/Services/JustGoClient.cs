@@ -31,6 +31,7 @@ public sealed class JustGoClient(HttpClient httpClient, IOptions<JustGoOptions> 
         FindMembersRequest request, CancellationToken ct)
     {
         var query = new Dictionary<string, string?>();
+
         if (request.Email is not null) query["Email"] = request.Email;
         if (request.MemberId is not null) query["MemberId"] = request.MemberId;
         if (request.LoginId is not null) query["LoginId"] = request.LoginId;
@@ -43,7 +44,7 @@ public sealed class JustGoClient(HttpClient httpClient, IOptions<JustGoOptions> 
         if (request.ModifiedBefore is not null) query["ModifiedBefore"] = request.ModifiedBefore.Value.ToString("O");
         if (request.ModifiedAfter is not null) query["ModifiedAfter"] = request.ModifiedAfter.Value.ToString("O");
 
-        query["ModifiedBefore"] = DateTimeOffset.UtcNow.ToString("s");
+        //query["ModifiedBefore"] = DateTimeOffset.UtcNow.ToString("s");
         query[PageNumber] = request.PageNumber.ToString();
         query[PageSize] = request.PageSize.ToString();
 
