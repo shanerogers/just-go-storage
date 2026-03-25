@@ -22,6 +22,7 @@ internal sealed class JustGoAuthHandler(JustGoTokenService tokenService) : Deleg
             tokenService.InvalidateToken();
             token = await tokenService.GetTokenAsync(cancellationToken);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
             response = await base.SendAsync(request, cancellationToken);
         }
 

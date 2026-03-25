@@ -49,10 +49,14 @@ public sealed class JustGoTokenService(
 
         response.EnsureSuccessStatusCode();
 
-        var result = await response.Content.ReadFromJsonAsync<ApiResponse>(cancellationToken: cancellationToken);
+        var result = await response.Content
+            .ReadFromJsonAsync<ApiResponse>(cancellationToken: cancellationToken);
+
         var token = result?.Data?.AccessToken;
 
-        return token ?? throw new InvalidOperationException("Token not found in JustGo authentication response.");
+        ArgumentException.ThrowIfNullOrWhiteSpace(token);
+
+        return token;
     }
 
     private sealed class ApiResponse

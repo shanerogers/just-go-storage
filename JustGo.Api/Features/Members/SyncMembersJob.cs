@@ -7,7 +7,7 @@ using Quartz;
 namespace JustGo.Api.Services.Jobs;
 
 /// <summary>
-/// Quartz job that pages through the JustGo Members API and upserts each member
+/// Quartz job that pages through the JustGo Members API and inserts or updates each member
 /// into the local <c>member_sync_records</c> Postgres table.
 /// </summary>
 [DisallowConcurrentExecution]

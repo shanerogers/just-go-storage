@@ -19,12 +19,12 @@ builder.AddProject<Projects.JustGo_Api>("api")
     {
         Url = "/quartz",
         Endpoint = endpoint,
-        DisplayText = "Quartz Dashboard"
+        DisplayText = "Job Dashboard"
     })
     .WithUrlForEndpoint("http", resource =>
     {
         resource.Url = "/health-ui";
-        resource.DisplayText = "Health";
+        resource.DisplayText = "Health Dashboard";
     })
     .WithUrlForEndpoint("https", resource => resource.DisplayLocation = UrlDisplayLocation.DetailsOnly)
     .WithEnvironment("JustGo__ApiKey", apiKey)
