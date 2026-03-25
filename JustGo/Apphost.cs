@@ -11,6 +11,12 @@ var database = builder.AddPostgres("db")
     .WithUrlForEndpoint("tcp", resource => resource.DisplayLocation = UrlDisplayLocation.DetailsOnly)
     .AddDatabase("itkd");
 
+var cache = builder.AddRedis("cache")
+    .WithRedisInsight()
+    .WithDataVolume()
+    .WithLifetime(ContainerLifetime.Persistent)
+    .WithUrlForEndpoint("tcp", resource => resource.DisplayLocation = UrlDisplayLocation.DetailsOnly);
+
 var apiKey = builder.AddParameter("justgo-apikey", secret: true);
 
 builder.AddProject<Projects.JustGo_Api>("api")
@@ -28,7 +34,9 @@ builder.AddProject<Projects.JustGo_Api>("api")
     })
     .WithUrlForEndpoint("https", resource => resource.DisplayLocation = UrlDisplayLocation.DetailsOnly)
     .WithEnvironment("JustGo__ApiKey", apiKey)
+    .WithReference(cache)
     .WithReference(database)
+    .WaitFor(cache)
     .WaitFor(database);
 
 await builder.Build().RunAsync();

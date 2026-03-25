@@ -4,9 +4,9 @@ namespace JustGo.Integrations.JustGo.Services;
 
 /// <summary>
 /// Delegating handler that injects a JustGo bearer token into every outgoing request,
-/// obtaining and caching it via <see cref="JustGoTokenService"/>.
+/// obtaining and caching it via <see cref="IJustGoTokenService"/>.
 /// </summary>
-internal sealed class JustGoAuthHandler(JustGoTokenService tokenService) : DelegatingHandler
+internal sealed class JustGoAuthHandler(IJustGoTokenService tokenService) : DelegatingHandler
 {
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,

@@ -12,15 +12,40 @@ using HealthChecks.UI.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Quartz;
+using ZiggyCreatures.Caching.Fusion;
+using ZiggyCreatures.Caching.Fusion.Backplane;
+using ZiggyCreatures.Caching.Fusion.Backplane.StackExchangeRedis;
+using ZiggyCreatures.Caching.Fusion.Serialization;
+using ZiggyCreatures.Caching.Fusion.Serialization.SystemTextJson;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 builder.AddNpgsqlDbContext<ApiDbContext>("itkd");
+builder.AddRedisDistributedCache("cache");
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler(_ => { });
 builder.Services.AddTransient(_ => TimeProvider.System);
+builder.Services.AddSingleton<IFusionCacheSerializer, FusionCacheSystemTextJsonSerializer>();
+builder.Services.AddSingleton<IFusionCacheBackplane>(sp =>
+{
+    var redisConnectionString = sp.GetRequiredService<IConfiguration>().GetConnectionString("cache")!;
+    return new RedisBackplane(new RedisBackplaneOptions
+    {
+        Configuration = redisConnectionString
+    });
+});
+
+builder.Services
+    .AddFusionCache()
+    .WithDefaultEntryOptions(options =>
+    {
+        options.DistributedCacheSoftTimeout = TimeSpan.FromMilliseconds(250);
+        options.DistributedCacheHardTimeout = TimeSpan.FromSeconds(2);
+        options.AllowBackgroundDistributedCacheOperations = true;
+    })
+    .TryWithAutoSetup();
 
 builder.Services
     .AddOptions<JustGoOptions>()
@@ -36,7 +61,7 @@ builder.Services.AddHttpClient("JustGoAuth", (sp, client) =>
 
 builder.Services
     .AddTransient<JustGoAuthHandler>()
-    .AddTransient<JustGoTokenService>()
+    .AddTransient<IJustGoTokenService, JustGoTokenService>()
     .AddHttpClient<IJustGoClient, JustGoClient>((sp, client) =>
     {
         var opts = sp.GetRequiredService<IOptions<JustGoOptions>>().Value;

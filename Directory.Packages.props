@@ -3,8 +3,10 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
+    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.2.0" />
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.2.0" />
     <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.2.0" />
+    <PackageVersion Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.2.0" />
     <PackageVersion Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
     <PackageVersion Include="AspNetCore.HealthChecks.UI.PostgreSQL.Storage" Version="9.0.0" />
     <PackageVersion Include="AspNetCore.HealthChecks.UI" Version="9.0.0" />
@@ -31,5 +33,6 @@
     <PackageVersion Include="ZiggyCreatures.FusionCache" Version="2.6.0" />
     <PackageVersion Include="ZiggyCreatures.FusionCache.Backplane.StackExchangeRedis" Version="2.6.0" />
     <PackageVersion Include="ZiggyCreatures.FusionCache.OpenTelemetry" Version="2.6.0" />
+    <PackageVersion Include="ZiggyCreatures.FusionCache.Serialization.SystemTextJson" Version="2.6.0" />
   </ItemGroup>
-</Project>1
+</Project>
