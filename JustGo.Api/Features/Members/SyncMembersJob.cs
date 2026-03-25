@@ -23,9 +23,9 @@ public sealed class SyncMembersJob(
     {
         logger.LogInformation("SyncMembersJob starting at {UtcNow}.", timeProvider.GetUtcNow());
 
-        var syncedAt = timeProvider.GetUtcNow();
         var pageNumber = 1;
         var totalSynced = 0;
+        var syncedAt = timeProvider.GetUtcNow();
 
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
@@ -78,8 +78,8 @@ public sealed class SyncMembersJob(
 
     private static async Task UpsertMembersAsync(
         ApiDbContext db,
-        List<JustGoMemberDto> members,
         DateTimeOffset syncedAt,
+        List<JustGoMemberDto> members,
         CancellationToken cancellationToken)
     {
         foreach (var dto in members)
