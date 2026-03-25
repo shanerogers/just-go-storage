@@ -1,3 +1,4 @@
+using Humanizer;
 using JustGo.Api.Data;
 using JustGo.Api.Features.Members;
 using JustGo.Integrations.JustGo.Services;
@@ -17,8 +18,6 @@ public sealed class SyncMembersJob(
     ILogger<SyncMembersJob> logger,
     IServiceScopeFactory scopeFactory) : IJob
 {
-    private const int PageSize = 10;
-
     public async Task Execute(IJobExecutionContext context)
     {
         logger.LogInformation("SyncMembersJob starting at {UtcNow}.", timeProvider.GetUtcNow());
@@ -34,9 +33,9 @@ public sealed class SyncMembersJob(
         {
             var request = new FindMembersRequest
             {
-                PageSize = PageSize,
                 PageNumber = pageNumber,
-                Email = "shane.al.rogers@gmail.com",
+                Email = "shane.al.rogers@gmail.com"
+                //ModifiedAfter = syncedAt.Subtract(10.Minutes()),
             };
 
             MembersPagedResponse response;
@@ -63,7 +62,7 @@ public sealed class SyncMembersJob(
 
             logger.LogDebug("Synced page {Page} ({Count} members).", pageNumber, members.Count);
 
-            if (pageNumber >= response.TotalPages || members.Count < PageSize)
+            if (pageNumber >= response.TotalPages || members.Count < request.PageSize)
             {
                 break;
             }
