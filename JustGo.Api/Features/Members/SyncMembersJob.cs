@@ -1,3 +1,4 @@
+using Humanizer;
 using JustGo.Api.Data;
 using JustGo.Api.Features.Members;
 using JustGo.Integrations.JustGo.Services;
@@ -80,17 +81,17 @@ public sealed class SyncMembersJob(
         List<JustGoMemberDto> members,
         CancellationToken cancellationToken)
     {
-        foreach (var dto in members)
+        foreach (var member in members)
         {
             var parameters = new object?[]
             {
-                dto.Id,
-                (object?)dto.FirstName ?? DBNull.Value,
-                (object?)dto.LastName ?? DBNull.Value,
-                (object?)dto.EmailAddress ?? DBNull.Value,
-                (object?)dto.MemberStatus ?? DBNull.Value,
+                member.Id,
+                (object?)member.FirstName ?? DBNull.Value,
+                (object?)member.LastName ?? DBNull.Value,
+                (object?)member.EmailAddress ?? DBNull.Value,
+                (object?)member.MemberStatus ?? DBNull.Value,
                 syncedAt,
-                System.Text.Json.JsonSerializer.Serialize(dto)
+                System.Text.Json.JsonSerializer.Serialize(member)
             };
 
             await db.Database.ExecuteSqlRawAsync(
