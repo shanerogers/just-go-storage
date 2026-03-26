@@ -55,7 +55,10 @@ public sealed class SyncMembersJob(
                 break;
             }
 
-            await UpsertMembersAsync(db, syncedAt, members, context.CancellationToken);
+            var memberDetails = await FetchMemberDetailsAsync(
+                members, context.CancellationToken);
+
+            await UpsertMembersAsync(db, syncedAt, memberDetails, context.CancellationToken);
 
             totalSynced += members.Count;
 
@@ -74,10 +77,33 @@ public sealed class SyncMembersJob(
             totalSynced);
     }
 
+    private async Task<List<MemberDetailDto>> FetchMemberDetailsAsync(
+        List<JustGoMemberDto> members,
+        CancellationToken cancellationToken)
+    {
+        var details = new List<MemberDetailDto>(members.Count);
+
+        foreach (var memberId in members.Select(m => m.Id))
+        {
+            try
+            {
+                var detail = await justGoClient.GetMemberAsync(memberId, cancellationToken);
+                details.Add(detail);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex,
+                    "Failed to fetch member detail for {MemberId}; skipping.", memberId);
+            }
+        }
+
+        return details;
+    }
+
     private static async Task UpsertMembersAsync(
         ApiDbContext db,
         DateTimeOffset syncedAt,
-        List<JustGoMemberDto> members,
+        List<MemberDetailDto> members,
         CancellationToken cancellationToken)
     {
         var existingRecords = await db.Members

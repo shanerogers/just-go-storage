@@ -52,6 +52,14 @@ public sealed class JustGoClient(HttpClient httpClient, IOptions<JustGoOptions> 
         return GetAsync<MembersPagedResponse>(uri, ct);
     }
 
+    /// <inheritdoc/>
+    public async Task<MemberDetailDto> GetMemberAsync(Guid memberId, CancellationToken ct)
+    {
+        var response = await GetAsync<MemberDetailResponse>($"/api/{ApiVersion}/Members/{memberId}", ct)
+            .ConfigureAwait(false);
+        return response.Data ?? throw new InvalidOperationException($"Null data in response for member {memberId}.");
+    }
+
     // ── Auth ────────────────────────────────────────────────────────────────
 
     /// <inheritdoc/>
