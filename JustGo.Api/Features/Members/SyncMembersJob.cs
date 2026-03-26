@@ -1,4 +1,3 @@
-using Humanizer;
 using JustGo.Api.Data;
 using JustGo.Api.Features.Members;
 using JustGo.Integrations.JustGo.Services;
@@ -81,35 +80,36 @@ public sealed class SyncMembersJob(
         List<JustGoMemberDto> members,
         CancellationToken cancellationToken)
     {
+        var existingRecords = await db.Members
+            .Where(r => members.Select(m => m.Id).Contains(r.JustGoMemberId))
+            .ToDictionaryAsync(r => r.JustGoMemberId, cancellationToken);
+
         foreach (var member in members)
         {
-            var parameters = new object?[]
+            if (existingRecords.TryGetValue(member.Id, out var record))
             {
-                member.Id,
-                (object?)member.FirstName ?? DBNull.Value,
-                (object?)member.LastName ?? DBNull.Value,
-                (object?)member.EmailAddress ?? DBNull.Value,
-                (object?)member.MemberStatus ?? DBNull.Value,
-                syncedAt,
-                System.Text.Json.JsonSerializer.Serialize(member)
-            };
-
-            await db.Database.ExecuteSqlRawAsync(
-                """
-                INSERT INTO member_sync_records
-                    (id, justgo_member_id, first_name, last_name, email_address, member_status, last_synced_at, raw_data)
-                VALUES
-                    (gen_random_uuid(), {0}, {1}, {2}, {3}, {4}, {5}, {6}::jsonb)
-                ON CONFLICT (justgo_member_id) DO UPDATE SET
-                    first_name     = EXCLUDED.first_name,
-                    last_name      = EXCLUDED.last_name,
-                    email_address  = EXCLUDED.email_address,
-                    member_status  = EXCLUDED.member_status,
-                    last_synced_at = EXCLUDED.last_synced_at,
-                    raw_data       = EXCLUDED.raw_data
-                """,
-                parameters!,
-                cancellationToken);
+                record.FirstName = member.FirstName;
+                record.LastName = member.LastName;
+                record.EmailAddress = member.EmailAddress;
+                record.MemberStatus = member.MemberStatus;
+                record.LastSyncedAt = syncedAt;
+                record.RawData = member;
+            }
+            else
+            {
+                db.Members.Add(new MemberSyncRecord
+                {
+                    JustGoMemberId = member.Id,
+                    FirstName = member.FirstName,
+                    LastName = member.LastName,
+                    EmailAddress = member.EmailAddress,
+                    MemberStatus = member.MemberStatus,
+                    LastSyncedAt = syncedAt,
+                    RawData = member
+                });
+            }
         }
+
+        await db.SaveChangesAsync(cancellationToken);
     }
 }
