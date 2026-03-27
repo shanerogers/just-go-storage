@@ -1,3 +1,4 @@
+using Humanizer;
 using JustGo.Api.Data;
 using JustGo.Api.Features.Members;
 using JustGo.Integrations.JustGo.Services;
@@ -33,8 +34,7 @@ public sealed class SyncMembersJob(
             var request = new FindMembersRequest
             {
                 PageNumber = pageNumber,
-                Email = "shane.al.rogers@gmail.com"
-                //ModifiedAfter = syncedAt.Subtract(10.Minutes()),
+                ModifiedAfter = syncedAt.Subtract(10.Minutes()),
             };
 
             MembersPagedResponse response;
@@ -55,8 +55,7 @@ public sealed class SyncMembersJob(
                 break;
             }
 
-            var memberDetails = await FetchMemberDetailsAsync(
-                members, context.CancellationToken);
+            var memberDetails = await FetchMemberDetailsAsync(members, context.CancellationToken);
 
             await UpsertMembersAsync(db, syncedAt, memberDetails, context.CancellationToken);
 
