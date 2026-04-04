@@ -1,4 +1,5 @@
-using ErrorOr;
+using LanguageExt;
+using static LanguageExt.Prelude;
 using JustGo.Api.Data;
 using JustGo.Api.Features.Members;
 using JustGo.Integrations.JustGo.Services;
@@ -6,6 +7,11 @@ using Microsoft.EntityFrameworkCore;
 using Quartz;
 
 namespace JustGo.Api.Services.Jobs;
+
+internal sealed record SyncError(
+    string Code,
+    string Description,
+    Exception? Exception = null);
 
 /// <summary>
 /// A page of members returned from the JustGo search endpoint.
@@ -51,19 +57,19 @@ public sealed class SyncMembersJob(
 
         while (!context.CancellationToken.IsCancellationRequested)
         {
-            var outcome = await ProcessPageAsync(currentPage, syncedAtUtc, db, context.CancellationToken)
-                .MatchFirst(
-                    value => value,
-                    error => throw CreateJobExecutionException(error, currentPage));
+            var either = await ProcessPageAsync(currentPage, syncedAtUtc, db, context.CancellationToken);
 
-            totalSynced += outcome.SyncedCount;
+            either.IfRight(_ => currentPage++);
+            either.IfRight(outcome => totalSynced += outcome.SyncedCount);
 
-            if (!outcome.ShouldContinue)
+            var noMoreToSync = either.Match(
+                outcome => outcome.ShouldContinue == false,
+                error => throw CreateJobExecutionException(error, currentPage));
+
+            if (noMoreToSync)
             {
                 break;
             }
-
-            currentPage++;
         }
 
         logger.LogInformation("SyncMembersJob completed at {UtcNow}. Total members synced: {Total}.",
@@ -71,34 +77,33 @@ public sealed class SyncMembersJob(
             totalSynced);
     }
 
-    private async Task<ErrorOr<PageOutcome>> ProcessPageAsync(
+    private async Task<Either<SyncError, PageOutcome>> ProcessPageAsync(
         int pageNumber,
         DateTimeOffset syncedAtUtc,
         ApiDbContext db,
         CancellationToken cancellationToken)
     {
-        return await FetchPageAsync(pageNumber, syncedAtUtc, cancellationToken)
-            .ThenAsync(page => FetchMemberDetailsAsync(page, cancellationToken))
-            .ThenAsync(page => UpsertMembersAsync(db, syncedAtUtc, pageNumber, page, cancellationToken))
-            .ThenDo(outcome => LogPageCompleted(pageNumber, outcome.SyncedCount))
-            .Else(errors => Error.Failure(
-                "members.process_page_failed",
-                $"Failed to process members page {pageNumber}: {errors[0].Description}"));
+        var result =
+            from page in FetchPageAsync(pageNumber, syncedAtUtc, cancellationToken).ToAsync()
+            from details in FetchMemberDetailsAsync(page, cancellationToken).ToAsync()
+            from outcome in UpsertMembersAsync(db, syncedAtUtc, pageNumber, details, cancellationToken).ToAsync()
+            select outcome;
+
+        var either = await result.ToEither();
+
+        either.IfRight(outcome => LogPageCompleted(pageNumber, outcome.SyncedCount));
+
+        return either;
     }
 
-    private static JobExecutionException CreateJobExecutionException(Error error, int pageNumber)
+    private static JobExecutionException CreateJobExecutionException(SyncError error, int pageNumber)
     {
-        var innerException = error.Metadata is not null
-            && error.Metadata.TryGetValue("exception", out var exception)
-            ? exception as Exception
-            : null;
-
         return new JobExecutionException(
-            new Exception($"Failed to process page {pageNumber}: {error.Description}", innerException),
+            new Exception($"Failed to process page {pageNumber}: {error.Description}", error.Exception),
             refireImmediately: false);
     }
 
-    private async Task<ErrorOr<MemberPage>> FetchPageAsync(
+    private async Task<Either<SyncError, MemberPage>> FetchPageAsync(
         int pageNumber,
         DateTimeOffset syncedAtUtc,
         CancellationToken cancellationToken)
@@ -117,17 +122,14 @@ public sealed class SyncMembersJob(
         }
         catch (Exception ex)
         {
-            return Error.Failure(
-                code: "members.fetch_page_failed",
-                description: $"Failed to fetch members page {pageNumber}: {ex.Message}",
-                metadata: new Dictionary<string, object>
-                {
-                    ["exception"] = ex,
-                });
+            return new SyncError(
+                Code: "members.fetch_page_failed",
+                Description: $"Failed to fetch members page {pageNumber}: {ex.Message}",
+                Exception: ex);
         }
     }
 
-    private async Task<ErrorOr<MemberDetailsPage>> FetchMemberDetailsAsync(
+    private async Task<Either<SyncError, MemberDetailsPage>> FetchMemberDetailsAsync(
         MemberPage page,
         CancellationToken cancellationToken)
     {
@@ -160,7 +162,7 @@ public sealed class SyncMembersJob(
         int pageSize) =>
         currentPage < response.TotalPages && pageSize >= new FindMembersRequest().PageSize;
 
-    private async Task<ErrorOr<PageOutcome>> UpsertMembersAsync(
+    private async Task<Either<SyncError, PageOutcome>> UpsertMembersAsync(
         ApiDbContext db,
         DateTimeOffset syncedAtUtc,
         int pageNumber,
@@ -208,19 +210,17 @@ public sealed class SyncMembersJob(
             }
 
             await db.SaveChangesAsync(cancellationToken);
+
             return new PageOutcome(
                 SyncedCount: page.Details.Count,
                 ShouldContinue: ShouldContinue(pageNumber, page.Response, page.SourceCount));
         }
         catch (Exception ex)
         {
-            return Error.Failure(
-                code: "members.upsert_failed",
-                description: $"Failed to upsert members: {ex.Message}",
-                metadata: new Dictionary<string, object>
-                {
-                    ["exception"] = ex,
-                });
+            return new SyncError(
+                Code: "members.upsert_failed",
+                Description: $"Failed to upsert members: {ex.Message}",
+                Exception: ex);
         }
     }
 
