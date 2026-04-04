@@ -1,0 +1,9 @@
+{
+    "aspire.aspireCliExecutablePath": "C:\\Users\\shane.rogers\\.aspire\\bin\\aspire.exe",
+    "chat.tools.terminal.autoApprove": {
+        "/^dotnet --info$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
