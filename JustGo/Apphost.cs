@@ -23,6 +23,7 @@ builder.AddProject<Projects.JustGo_Api>("api")
     .WithHttpHealthCheck("/health")
     .WithUrlForEndpoint("http", endpoint => new()
     {
+        DisplayOrder = 1,
         Url = "/quartz",
         Endpoint = endpoint,
         DisplayText = "Job Dashboard"
