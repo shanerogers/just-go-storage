@@ -50,26 +50,22 @@ public sealed class SyncMembersJob(
     {
         int currentPage = 1;
         int totalSynced = 0;
+        bool shouldContinue = true;
         var syncedAtUtc = timeProvider.GetUtcNow();
 
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
 
-        while (!context.CancellationToken.IsCancellationRequested)
+        while (shouldContinue && !context.CancellationToken.IsCancellationRequested)
         {
             var either = await ProcessPageAsync(currentPage, syncedAtUtc, db, context.CancellationToken);
 
             either.IfRight(_ => currentPage++);
             either.IfRight(outcome => totalSynced += outcome.SyncedCount);
 
-            var noMoreToSync = either.Match(
-                outcome => outcome.ShouldContinue == false,
+            shouldContinue = either.Match(
+                outcome => outcome.ShouldContinue,
                 error => throw CreateJobExecutionException(error, currentPage));
-
-            if (noMoreToSync)
-            {
-                break;
-            }
         }
 
         logger.LogInformation("SyncMembersJob completed at {UtcNow}. Total members synced: {Total}.",
