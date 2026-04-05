@@ -1,5 +1,6 @@
 using LanguageExt;
 using static LanguageExt.Prelude;
+using JustGo.Api.Common;
 using JustGo.Api.Data;
 using JustGo.Api.Features.Members;
 using JustGo.Integrations.JustGo.Services;
@@ -60,12 +61,12 @@ public sealed class SyncMembersJob(
         {
             var either = await ProcessPageAsync(currentPage, syncedAtUtc, db, context.CancellationToken);
 
-            either.IfRight(_ => currentPage++);
-            either.IfRight(outcome => totalSynced += outcome.SyncedCount);
-
-            shouldContinue = either.Match(
-                outcome => outcome.ShouldContinue,
-                error => throw CreateJobExecutionException(error, currentPage));
+            shouldContinue = either
+                .Tap(_ => currentPage++)
+                .Tap(outcome => totalSynced += outcome.SyncedCount)
+                .Match(
+                    Right: outcome => outcome.ShouldContinue,
+                    Left: error => throw CreateJobExecutionException(error, currentPage));
         }
 
         logger.LogInformation("SyncMembersJob completed at {UtcNow}. Total members synced: {Total}.",
@@ -73,23 +74,16 @@ public sealed class SyncMembersJob(
             totalSynced);
     }
 
-    private async Task<Either<SyncError, PageOutcome>> ProcessPageAsync(
+    private Task<Either<SyncError, PageOutcome>> ProcessPageAsync(
         int pageNumber,
         DateTimeOffset syncedAtUtc,
         ApiDbContext db,
         CancellationToken cancellationToken)
     {
-        var result =
-            from page in FetchPageAsync(pageNumber, syncedAtUtc, cancellationToken).ToAsync()
-            from details in FetchMemberDetailsAsync(page, cancellationToken).ToAsync()
-            from outcome in UpsertMembersAsync(db, syncedAtUtc, pageNumber, details, cancellationToken).ToAsync()
-            select outcome;
-
-        var either = await result.ToEither();
-
-        either.IfRight(outcome => LogPageCompleted(pageNumber, outcome.SyncedCount));
-
-        return either;
+        return FetchPageAsync(pageNumber, syncedAtUtc, cancellationToken)
+            .BindAsync(page => FetchMemberDetailsAsync(page, cancellationToken))
+            .BindAsync(members => UpsertMembersAsync(db, syncedAtUtc, pageNumber, members, cancellationToken))
+            .TapAsync(outcome => LogPageCompleted(pageNumber, outcome.SyncedCount));
     }
 
     private static JobExecutionException CreateJobExecutionException(SyncError error, int pageNumber)
