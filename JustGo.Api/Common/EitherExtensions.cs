@@ -8,6 +8,16 @@ namespace JustGo.Api.Common;
 /// </summary>
 internal static class EitherExtensions
 {
+    /// <summary>
+    /// Chains an asynchronous operation onto a task-wrapped Either, preserving the Left value
+    /// and only invoking <paramref name="bind"/> when the original result is Right.
+    /// </summary>
+    /// <typeparam name="TLeft">The Left (error) type.</typeparam>
+    /// <typeparam name="TRight">The current Right (success) type.</typeparam>
+    /// <typeparam name="TNext">The next Right (success) type.</typeparam>
+    /// <param name="eitherTask">The task producing an Either to bind from.</param>
+    /// <param name="bind">The asynchronous continuation to run for the Right value.</param>
+    /// <returns>A task producing the bound Either result.</returns>
     public static async Task<Either<TLeft, TNext>> BindAsync<TLeft, TRight, TNext>(
         this Task<Either<TLeft, TRight>> eitherTask,
         Func<TRight, Task<Either<TLeft, TNext>>> bind)
@@ -36,15 +46,6 @@ internal static class EitherExtensions
         return either;
     }
 
-    public static async Task<Either<TLeft, TRight>> TapAsync<TLeft, TRight>(
-        this Task<Either<TLeft, TRight>> eitherTask,
-        Action<TRight> action)
-    {
-        var either = await eitherTask;
-        either.IfRight(action);
-        return either;
-    }
-
     /// <summary>
     /// Executes a side effect on an EitherAsync in the Right (success) case and returns the EitherAsync unchanged,
     /// allowing for fluent chaining of multiple side effects before a terminal operation.
@@ -63,6 +64,23 @@ internal static class EitherExtensions
             action(right);
             return right;
         });
+    }
+
+    /// <summary>
+    /// Executes a side effect on the Right value of a task-wrapped Either and returns the original result unchanged.
+    /// </summary>
+    /// <typeparam name="TLeft">The Left (error) type.</typeparam>
+    /// <typeparam name="TRight">The Right (success) type.</typeparam>
+    /// <param name="eitherTask">The task producing an Either to tap into.</param>
+    /// <param name="action">The side effect to execute if the result is Right.</param>
+    /// <returns>A task producing the original Either unchanged.</returns>
+    public static async Task<Either<TLeft, TRight>> TapAsync<TLeft, TRight>(
+        this Task<Either<TLeft, TRight>> eitherTask,
+        Action<TRight> action)
+    {
+        var either = await eitherTask;
+        either.IfRight(action);
+        return either;
     }
 
     /// <summary>
