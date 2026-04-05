@@ -49,7 +49,7 @@ public sealed class SyncMembersJob(
 {
     public async Task Execute(IJobExecutionContext context)
     {
-        int currentPage = 1;
+        int pageNo = 1;
         int totalSynced = 0;
         bool shouldContinue = true;
         var syncedAtUtc = timeProvider.GetUtcNow();
@@ -59,14 +59,12 @@ public sealed class SyncMembersJob(
 
         while (shouldContinue && !context.CancellationToken.IsCancellationRequested)
         {
-            var either = await ProcessPageAsync(currentPage, syncedAtUtc, db, context.CancellationToken);
-
-            shouldContinue = either
-                .Tap(_ => currentPage++)
+            shouldContinue = await ProcessPageAsync(pageNo, syncedAtUtc, db, context.CancellationToken)
+                .Tap(_ => pageNo++)
                 .Tap(outcome => totalSynced += outcome.SyncedCount)
                 .Match(
                     Right: outcome => outcome.ShouldContinue,
-                    Left: error => throw CreateJobExecutionException(error, currentPage));
+                    Left: error => throw CreateJobExecutionException(error, pageNo));
         }
 
         logger.LogInformation("SyncMembersJob completed at {UtcNow}. Total members synced: {Total}.",
@@ -74,16 +72,16 @@ public sealed class SyncMembersJob(
             totalSynced);
     }
 
-    private Task<Either<SyncError, PageOutcome>> ProcessPageAsync(
+    private EitherAsync<SyncError, PageOutcome> ProcessPageAsync(
         int pageNumber,
         DateTimeOffset syncedAtUtc,
         ApiDbContext db,
         CancellationToken cancellationToken)
     {
-        return FetchPageAsync(pageNumber, syncedAtUtc, cancellationToken)
-            .BindAsync(page => FetchMemberDetailsAsync(page, cancellationToken))
-            .BindAsync(members => UpsertMembersAsync(db, syncedAtUtc, pageNumber, members, cancellationToken))
-            .TapAsync(outcome => LogPageCompleted(pageNumber, outcome.SyncedCount));
+        return FetchPageAsync(pageNumber, syncedAtUtc, cancellationToken).ToAsync()
+            .Bind(page => FetchMemberDetailsAsync(page, cancellationToken).ToAsync())
+            .Bind(members => UpsertMembersAsync(db, syncedAtUtc, pageNumber, members, cancellationToken).ToAsync())
+            .Tap(outcome => LogPageCompleted(pageNumber, outcome.SyncedCount));
     }
 
     private static JobExecutionException CreateJobExecutionException(SyncError error, int pageNumber)
