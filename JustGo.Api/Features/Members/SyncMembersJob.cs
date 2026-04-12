@@ -101,12 +101,14 @@ public sealed class SyncMembersJob(
         {
             var request = new FindMembersRequest
             {
+                PageSize = 100,
                 PageNumber = pageNumber,
                 ModifiedBefore = syncedAtUtc,
                 ModifiedAfter = In.AprilOf(2005)
             };
 
             var response = await justGoClient.FindMembersByAttributesAsync(request, cancellationToken);
+
             return new MemberPage(response, response.Data ?? []);
         }
         catch (Exception ex)
