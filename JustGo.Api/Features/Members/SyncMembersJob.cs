@@ -6,6 +6,7 @@ using JustGo.Api.Features.Members;
 using JustGo.Integrations.JustGo.Services;
 using Microsoft.EntityFrameworkCore;
 using Quartz;
+using Humanizer;
 
 namespace JustGo.Api.Services.Jobs;
 
@@ -102,7 +103,7 @@ public sealed class SyncMembersJob(
             {
                 PageNumber = pageNumber,
                 ModifiedBefore = syncedAtUtc,
-                Email = "shane.al.rogers@gmail.com",
+                ModifiedAfter = In.AprilOf(2005)
             };
 
             var response = await justGoClient.FindMembersByAttributesAsync(request, cancellationToken);
