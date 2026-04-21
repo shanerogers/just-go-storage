@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using JustGo.Api.Common;
 using JustGo.Api.Features.Members;
 using JustGo.Integrations.JustGo.Features.Auth.Models;
 using JustGo.Integrations.JustGo.Features.Clubs.Models;
@@ -21,7 +23,12 @@ public sealed class JustGoClient(HttpClient httpClient, IOptions<JustGoOptions> 
     private string ApiVersion => options.Value.ApiVersion;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
-        PropertyNameCaseInsensitive = true
+        PropertyNameCaseInsensitive = true,
+        Converters =
+        {
+            new JsonStringEnumConverter(),
+            new LenientDateTimeOffsetConverter()
+        }
     };
 
     // ── Members ─────────────────────────────────────────────────────────────
