@@ -17,7 +17,7 @@ public sealed class JustGoHealthCheck(IHttpClientFactory factory, IOptions<JustG
         {
             var client = _factory.CreateClient();
             client.BaseAddress = new Uri(_options.BaseUrl);
-            var response = await client.GetAsync("api/v2.2/Members/FindByAttributes?PageNumber=1&PageSize=10", ct);
+            var response = await client.GetAsync($"api/{_options.ApiVersion}/Members/FindByAttributes?PageNumber=1&PageSize=10", ct);
             return response.StatusCode == HttpStatusCode.Unauthorized
                 ? HealthCheckResult.Healthy()
                 : HealthCheckResult.Unhealthy();

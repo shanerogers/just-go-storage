@@ -1,6 +1,6 @@
+using System.Runtime.CompilerServices;
 using LanguageExt;
 using static LanguageExt.Prelude;
-using JustGo.Api.Common;
 using JustGo.Api.Data;
 using JustGo.Api.Features.Members;
 using JustGo.Integrations.JustGo.Services;
@@ -25,9 +25,9 @@ internal record MemberPage(
 /// <summary>
 /// A page enriched with full member details.
 /// </summary>
-internal record MemberDetailsPage(
+internal record MemberDetail(
+    MemberDetailDto Detail,
     MembersPagedResponse Response,
-    List<MemberDetailDto> Details,
     int SourceCount);
 
 /// <summary>
@@ -43,8 +43,8 @@ internal record PageOutcome(
 /// </summary>
 [DisallowConcurrentExecution]
 public sealed class SyncMembersJob(
-    IJustGoClient justGoClient,
     TimeProvider timeProvider,
+    IJustGoClient justGoClient,
     ILogger<SyncMembersJob> logger,
     IServiceScopeFactory scopeFactory) : IJob
 {
@@ -52,20 +52,16 @@ public sealed class SyncMembersJob(
     {
         int pageNo = 1;
         int totalSynced = 0;
-        bool shouldContinue = true;
         var syncedAtUtc = timeProvider.GetUtcNow();
 
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
 
-        while (shouldContinue && !context.CancellationToken.IsCancellationRequested)
+        await foreach (var result in ProcessPagesAsync(syncedAtUtc, db, context.CancellationToken))
         {
-            shouldContinue = await ProcessPageAsync(pageNo, syncedAtUtc, db, context.CancellationToken)
-                .Tap(_ => pageNo++)
-                .Tap(outcome => totalSynced += outcome.SyncedCount)
-                .Match(
-                    Right: outcome => outcome.ShouldContinue,
-                    Left: error => throw CreateJobExecutionException(error, pageNo));
+            if (result.IsLeft) throw CreateJobExecutionException(result.LeftToList()[0], pageNo);
+            result.IfRight(outcome => totalSynced += outcome.SyncedCount);
+            pageNo++;
         }
 
         logger.LogInformation("SyncMembersJob completed at {UtcNow}. Total members synced: {Total}.",
@@ -73,16 +69,80 @@ public sealed class SyncMembersJob(
             totalSynced);
     }
 
-    private EitherAsync<SyncError, PageOutcome> ProcessPageAsync(
+    private async IAsyncEnumerable<Either<SyncError, PageOutcome>> ProcessPagesAsync(
+        DateTimeOffset syncedAtUtc,
+        ApiDbContext db,
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        int pageNumber = 1;
+        bool shouldContinue = true;
+
+        while (shouldContinue && !ct.IsCancellationRequested)
+        {
+            var result = await ProcessSinglePageAsync(pageNumber, syncedAtUtc, db, ct);
+
+            shouldContinue = result.Match(
+                Right: outcome => outcome.ShouldContinue,
+                Left: _ => false);
+
+            pageNumber++;
+            yield return result;
+        }
+    }
+
+    private EitherAsync<SyncError, PageOutcome> ProcessSinglePageAsync(
         int pageNumber,
         DateTimeOffset syncedAtUtc,
         ApiDbContext db,
-        CancellationToken cancellationToken)
+        CancellationToken ct) => FetchPageAsync(pageNumber, syncedAtUtc, ct)
+            .Bind(page => ProcessPageMembersAsync(page, pageNumber, syncedAtUtc, db, ct)
+            .ToAsync());
+
+    private async Task<Either<SyncError, PageOutcome>> ProcessPageMembersAsync(
+        MemberPage page,
+        int pageNumber,
+        DateTimeOffset syncedAtUtc,
+        ApiDbContext db,
+        CancellationToken ct)
     {
-        return FetchPageAsync(pageNumber, syncedAtUtc, cancellationToken).ToAsync()
-            .Bind(page => FetchMemberDetailsAsync(page, cancellationToken).ToAsync())
-            .Bind(members => UpsertMembersAsync(db, syncedAtUtc, pageNumber, members, cancellationToken).ToAsync())
-            .Tap(outcome => LogPageCompleted(pageNumber, outcome.SyncedCount));
+        int syncedCount = 0;
+        MemberDetail? lastMember = null;
+
+        await foreach (var memberResult in CollectMemberDetailsAsync(page, ct))
+        {
+            var stepResult = await memberResult.ToAsync()
+                .Bind(member => UpsertMemberAsync(db, syncedAtUtc, member, ct).Map(_ => member))
+                .Map(member =>
+                {
+                    syncedCount++;
+                    lastMember = member;
+                    return member;
+                });
+
+            if (stepResult.IsLeft) return stepResult.LeftToList()[0];
+        }
+
+        LogPageCompleted(pageNumber, syncedCount);
+
+        var shouldContinue = lastMember is not null
+            && ShouldContinue(pageNumber, lastMember.Response, lastMember.SourceCount);
+
+        return new PageOutcome(syncedCount, shouldContinue);
+    }
+
+    private async IAsyncEnumerable<Either<SyncError, MemberDetail>> CollectMemberDetailsAsync(
+        MemberPage page,
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        foreach (var memberId in page.Members.Select(m => m.Id))
+        {
+            yield return await TryAsync(() => justGoClient.GetMemberAsync(memberId, ct))
+                .ToEither(ex => new SyncError(
+                    Code: "members.fetch_detail_failed",
+                    Description: $"Failed to fetch detail for member {memberId}: {ex.Message}",
+                    Exception: ex))
+                .Map(detail => new MemberDetail(detail, page.Response, page.Members.Count));
+        }
     }
 
     private static JobExecutionException CreateJobExecutionException(SyncError error, int pageNumber)
@@ -92,12 +152,11 @@ public sealed class SyncMembersJob(
             refireImmediately: false);
     }
 
-    private async Task<Either<SyncError, MemberPage>> FetchPageAsync(
+    private EitherAsync<SyncError, MemberPage> FetchPageAsync(
         int pageNumber,
         DateTimeOffset syncedAtUtc,
-        CancellationToken cancellationToken)
-    {
-        try
+        CancellationToken ct) =>
+        TryAsync(async () =>
         {
             var request = new FindMembersRequest
             {
@@ -106,46 +165,13 @@ public sealed class SyncMembersJob(
                 ModifiedBefore = syncedAtUtc,
                 ModifiedAfter = In.AprilOf(2005)
             };
-
-            var response = await justGoClient.FindMembersByAttributesAsync(request, cancellationToken);
-
+            var response = await justGoClient.FindMembersByAttributesAsync(request, ct);
             return new MemberPage(response, response.Data ?? []);
-        }
-        catch (Exception ex)
-        {
-            return new SyncError(
-                Code: "members.fetch_page_failed",
-                Description: $"Failed to fetch members page {pageNumber}: {ex.Message}",
-                Exception: ex);
-        }
-    }
-
-    private async Task<Either<SyncError, MemberDetailsPage>> FetchMemberDetailsAsync(
-        MemberPage page,
-        CancellationToken cancellationToken)
-    {
-        if (page.Members.Count == 0)
-        {
-            return new MemberDetailsPage(page.Response, [], 0);
-        }
-
-        var details = new List<MemberDetailDto>(page.Members.Count);
-
-        foreach (var memberId in page.Members.Select(member => member.Id))
-        {
-            try
-            {
-                var detail = await justGoClient.GetMemberAsync(memberId, cancellationToken);
-                details.Add(detail);
-            }
-            catch (Exception ex)
-            {
-                LogMemberDetailSkipped(memberId, ex);
-            }
-        }
-
-        return new MemberDetailsPage(page.Response, details, page.Members.Count);
-    }
+        })
+        .ToEither(ex => new SyncError(
+            Code: "members.fetch_page_failed",
+            Description: $"Failed to fetch members page {pageNumber}: {ex.Message}",
+            Exception: ex));
 
     private static bool ShouldContinue(
         int currentPage,
@@ -153,71 +179,48 @@ public sealed class SyncMembersJob(
         int pageSize) =>
         currentPage < response.TotalPages && pageSize >= new FindMembersRequest().PageSize;
 
-    private async Task<Either<SyncError, PageOutcome>> UpsertMembersAsync(
+    private static EitherAsync<SyncError, Unit> UpsertMemberAsync(
         ApiDbContext db,
         DateTimeOffset syncedAtUtc,
-        int pageNumber,
-        MemberDetailsPage page,
-        CancellationToken cancellationToken)
-    {
-        if (page.Details.Count == 0)
+        MemberDetail member,
+        CancellationToken ct) =>
+        TryAsync(async () =>
         {
-            return new PageOutcome(
-                SyncedCount: 0,
-                ShouldContinue: ShouldContinue(pageNumber, page.Response, page.SourceCount));
-        }
+            var existing = await db.Members
+                .FirstOrDefaultAsync(r => r.JustGoMemberId == member.Detail.Id, ct);
 
-        try
-        {
-            var memberIds = page.Details.Select(member => member.Id).ToHashSet();
-            var existingRecords = await db.Members
-                .Where(record => memberIds.Contains(record.JustGoMemberId))
-                .ToDictionaryAsync(r => r.JustGoMemberId, cancellationToken);
-
-            foreach (var member in page.Details)
+            if (existing is not null)
             {
-                if (existingRecords.TryGetValue(member.Id, out var record))
+                existing.FirstName = member.Detail.FirstName;
+                existing.LastName = member.Detail.LastName;
+                existing.EmailAddress = member.Detail.EmailAddress;
+                existing.MemberStatus = member.Detail.MemberStatus;
+                existing.LastSyncedAt = syncedAtUtc;
+                existing.RawData = member.Detail;
+            }
+            else
+            {
+                db.Members.Add(new MemberSyncRecord
                 {
-                    record.FirstName = member.FirstName;
-                    record.LastName = member.LastName;
-                    record.EmailAddress = member.EmailAddress;
-                    record.MemberStatus = member.MemberStatus;
-                    record.LastSyncedAt = syncedAtUtc;
-                    record.RawData = member;
-                }
-                else
-                {
-                    db.Members.Add(new MemberSyncRecord
-                    {
-                        JustGoMemberId = member.Id,
-                        FirstName = member.FirstName,
-                        LastName = member.LastName,
-                        EmailAddress = member.EmailAddress,
-                        MemberStatus = member.MemberStatus,
-                        LastSyncedAt = syncedAtUtc,
-                        RawData = member
-                    });
-                }
+                    JustGoMemberId = member.Detail.Id,
+                    FirstName = member.Detail.FirstName,
+                    LastName = member.Detail.LastName,
+                    EmailAddress = member.Detail.EmailAddress,
+                    MemberStatus = member.Detail.MemberStatus,
+                    LastSyncedAt = syncedAtUtc,
+                    RawData = member.Detail
+                });
             }
 
-            await db.SaveChangesAsync(cancellationToken);
+            await db.SaveChangesAsync(ct);
+            return unit;
+        })
+        .ToEither(ex => new SyncError(
+            Code: "members.upsert_failed",
+            Description: $"Failed to upsert member {member.Detail.Id}: {ex.Message}",
+            Exception: ex));
 
-            return new PageOutcome(
-                SyncedCount: page.Details.Count,
-                ShouldContinue: ShouldContinue(pageNumber, page.Response, page.SourceCount));
-        }
-        catch (Exception ex)
-        {
-            return new SyncError(
-                Code: "members.upsert_failed",
-                Description: $"Failed to upsert members: {ex.Message}",
-                Exception: ex);
-        }
-    }
-
-    private void LogPageCompleted(int pageNumber, int count) =>
-        logger.LogDebug("Synced page {Page} ({Count} members).", pageNumber, count);
-
-    private void LogMemberDetailSkipped(Guid memberId, Exception ex) =>
-        logger.LogWarning(ex, "Failed to fetch member detail for {MemberId}; skipping.", memberId);
+    private void LogPageCompleted(int pageNumber, int count) => logger.LogDebug("Synced page {Page} ({Count} members).",
+        pageNumber,
+        count);
 }

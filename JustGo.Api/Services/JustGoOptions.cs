@@ -10,12 +10,13 @@ public sealed class JustGoOptions
 
     /// <summary>Base URL for the JustGo API, e.g. https://apiaus-sandbox.justgo.com</summary>
     [Required]
-    public string BaseUrl { get; init; } = string.Empty;
+    public required string BaseUrl { get; init; }
 
     /// <summary>API secret key used to obtain a bearer token via POST /api/{ApiVersion}/Auth.</summary>
     [Required]
-    public string ApiKey { get; init; } = string.Empty;
+    public required string ApiKey { get; init; }
 
     /// <summary>API version segment, defaults to v2.2.</summary>
-    public string ApiVersion { get; init; } = "v2.2";
+    [Required]
+    public required string ApiVersion { get; init; }
 }
