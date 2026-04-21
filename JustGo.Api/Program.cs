@@ -23,7 +23,6 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.AddRedisDistributedCache("cache");
 
-builder.AddNpgsqlDataSource("itkd", configureDataSourceBuilder: builder => builder.EnableDynamicJson());
 builder.AddNpgsqlDbContext<ApiDbContext>("itkd");
 
 builder.Services.AddHttpLogging(options => options.CombineLogs = true);
@@ -44,9 +43,9 @@ builder.Services
     .AddFusionCache()
     .WithDefaultEntryOptions(options =>
     {
-        options.DistributedCacheSoftTimeout = TimeSpan.FromMilliseconds(250);
-        options.DistributedCacheHardTimeout = TimeSpan.FromSeconds(2);
         options.AllowBackgroundDistributedCacheOperations = true;
+        options.DistributedCacheHardTimeout = TimeSpan.FromSeconds(2);
+        options.DistributedCacheSoftTimeout = TimeSpan.FromMilliseconds(250);
     })
     .TryWithAutoSetup();
 

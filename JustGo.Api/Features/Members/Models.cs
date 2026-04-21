@@ -5,7 +5,7 @@ namespace JustGo.Api.Features.Members;
 /// <summary>
 /// Domain object representing the JustGo member data as returned by
 /// GET /api/v2.2/Members/FindByAttributes (MemberListV2_2Dto shape).
-/// Stored as JSONB in <see cref="MemberSyncRecord.RawData"/>.
+/// Stored as JSONB in <see cref="MemberSyncRecord.MemberInformation"/>.
 /// </summary>
 public sealed class JustGoMemberDto
 {
@@ -159,7 +159,7 @@ public sealed class FamilyMemberDetailDto
 /// Full member detail as returned by <c>GET /api/v2.2/Members/{id}</c> (<c>MemberV2_2Dto</c> shape).
 /// A superset of <see cref="JustGoMemberDto"/> — includes nested membership, club,
 /// credential, booking and family-member collections.
-/// Stored as JSONB in <see cref="MemberSyncRecord.RawData"/>.
+/// Stored as JSONB in <see cref="MemberSyncRecord.MemberInformation"/>.
 /// </summary>
 public sealed class MemberDetailDto
 {
@@ -325,7 +325,7 @@ public sealed class MemberSyncRecord
     /// Full JustGo API response stored as JSONB. Typed as <see cref="MemberDetailDto"/>.
     /// Populated by <c>GET /api/v2.2/Members/{id}</c> and includes nested memberships, clubs and credentials.
     /// </summary>
-    public MemberDetailDto RawData { get; set; } = null!;
+    public MemberDetailDto MemberInformation { get; set; } = null!;
 }
 
 /// <summary>Query parameters for <c>GET /api/v2.2/Members/FindByAttributes</c>.</summary>

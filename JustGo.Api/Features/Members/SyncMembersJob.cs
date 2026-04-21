@@ -192,7 +192,7 @@ public sealed class SyncMembersJob(
 
             if (existing is not null)
             {
-                existing.RawData = member.Detail;
+                existing.MemberInformation = member.Detail;
                 existing.LastSyncedAt = syncedAtUtc;
                 existing.LastName = member.Detail.LastName;
                 existing.FirstName = member.Detail.FirstName;
@@ -203,7 +203,7 @@ public sealed class SyncMembersJob(
             {
                 database.Members.Add(new MemberSyncRecord
                 {
-                    RawData = member.Detail,
+                    MemberInformation = member.Detail,
                     LastSyncedAt = syncedAtUtc,
                     JustGoMemberId = member.Detail.Id,
                     LastName = member.Detail.LastName,

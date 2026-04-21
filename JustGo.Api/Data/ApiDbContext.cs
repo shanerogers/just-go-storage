@@ -1,5 +1,8 @@
+using System.Text.Json;
 using JustGo.Api.Features.Members;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace JustGo.Api.Data;
 
@@ -29,9 +32,17 @@ public sealed class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbCon
             entity.Property(e => e.MemberStatus).HasColumnName("member_status");
             entity.Property(e => e.LastSyncedAt).HasColumnName("last_synced_at");
 
-            entity.Property(e => e.RawData)
-                  .HasColumnName("raw_data")
+            entity.Property(e => e.MemberInformation)
+                  .HasColumnName("member_information")
                   .HasColumnType("jsonb")
+                  .HasConversion(
+                      new ValueConverter<MemberDetailDto, string>(
+                          memberInfo => JsonSerializer.Serialize(memberInfo, (JsonSerializerOptions?)null),
+                          memberInfo => JsonSerializer.Deserialize<MemberDetailDto>(memberInfo, (JsonSerializerOptions?)null)!),
+                      new ValueComparer<MemberDetailDto>(
+                          (a, b) => ReferenceEquals(a, b),
+                          v => v.GetHashCode(),
+                          v => v))
                   .IsRequired();
         });
     }
