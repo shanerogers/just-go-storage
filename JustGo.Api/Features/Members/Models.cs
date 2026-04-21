@@ -13,7 +13,7 @@ public sealed class JustGoMemberDto
     public Guid Id { get; set; }
 
     [JsonPropertyName("memberDocId")]
-    public int MemberDocId { get; set; }
+    public int? MemberDocId { get; set; }
 
     [JsonPropertyName("firstName")]
     public string? FirstName { get; set; }
@@ -167,10 +167,10 @@ public sealed class MemberDetailDto
     public Guid Id { get; set; }
 
     [JsonPropertyName("userId")]
-    public int UserId { get; set; }
+    public int? UserId { get; set; }
 
     [JsonPropertyName("memberDocId")]
-    public int MemberDocId { get; set; }
+    public int? MemberDocId { get; set; }
 
     [JsonPropertyName("firstName")]
     public string? FirstName { get; set; }
