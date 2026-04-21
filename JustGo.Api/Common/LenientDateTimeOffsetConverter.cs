@@ -25,9 +25,9 @@ public sealed class LenientDateTimeOffsetConverter : JsonConverter<DateTimeOffse
         }
 
         // Fall back: no offset present — treat as UTC
-        if (DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dt))
+        if (DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var dt))
         {
-            return new DateTimeOffset(dt, TimeSpan.Zero);
+            return new DateTimeOffset(DateTime.SpecifyKind(dt, DateTimeKind.Utc), TimeSpan.Zero);
         }
 
         throw new JsonException($"Unable to parse \"{raw}\" as a DateTimeOffset.");
