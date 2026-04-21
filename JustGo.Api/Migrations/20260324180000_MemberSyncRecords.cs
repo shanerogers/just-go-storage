@@ -15,14 +15,14 @@ public partial class MemberSyncRecords : Migration
         migrationBuilder.Sql(
             """
             CREATE TABLE IF NOT EXISTS member_sync_records (
-                id                uuid        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-                justgo_member_id  uuid        NOT NULL,
-                first_name        text        NULL,
-                last_name         text        NULL,
-                email_address     text        NULL,
-                member_status     text        NULL,
-                last_synced_at    timestamptz NOT NULL,
-                raw_data          jsonb       NOT NULL
+                id                  uuid        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                justgo_member_id    uuid        NOT NULL,
+                first_name          text        NULL,
+                last_name           text        NULL,
+                email_address       text        NULL,
+                member_status       text        NULL,
+                last_synced_at      timestamptz NOT NULL,
+                member_information  jsonb       NOT NULL
             );
 
             CREATE UNIQUE INDEX IF NOT EXISTS ix_member_sync_records_justgo_member_id

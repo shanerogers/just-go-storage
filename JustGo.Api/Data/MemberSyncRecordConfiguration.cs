@@ -19,7 +19,10 @@ public sealed class MemberSyncRecordConfiguration : IEntityTypeConfiguration<Mem
               .HasColumnName("id")
               .HasDefaultValueSql("gen_random_uuid()");
 
-        entity.Property(e => e.JustGoMemberId).HasColumnName("justgo_member_id").IsRequired();
+        entity.Property(e => e.JustGoMemberId)
+              .HasColumnName("justgo_member_id")
+              .IsRequired();
+
         entity.HasIndex(e => e.JustGoMemberId).IsUnique();
 
         entity.Property(e => e.FirstName).HasColumnName("first_name");
@@ -27,7 +30,6 @@ public sealed class MemberSyncRecordConfiguration : IEntityTypeConfiguration<Mem
         entity.Property(e => e.EmailAddress).HasColumnName("email_address");
         entity.Property(e => e.MemberStatus).HasColumnName("member_status");
         entity.Property(e => e.LastSyncedAt).HasColumnName("last_synced_at");
-
         entity.Property(e => e.MemberInformation)
               .HasColumnName("member_information")
               .HasColumnType("jsonb")
