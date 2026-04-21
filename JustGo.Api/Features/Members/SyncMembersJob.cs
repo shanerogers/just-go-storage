@@ -180,39 +180,40 @@ public sealed class SyncMembersJob(
         currentPage < response.TotalPages && pageSize >= new FindMembersRequest().PageSize;
 
     private static EitherAsync<SyncError, Unit> UpsertMemberAsync(
-        ApiDbContext db,
+        ApiDbContext database,
         DateTimeOffset syncedAtUtc,
         MemberDetail member,
         CancellationToken ct) =>
         TryAsync(async () =>
         {
-            var existing = await db.Members
+            var existing = await database.Members
+                .TagWith("Get existing member sync record for update")
                 .FirstOrDefaultAsync(r => r.JustGoMemberId == member.Detail.Id, ct);
 
             if (existing is not null)
             {
-                existing.FirstName = member.Detail.FirstName;
+                existing.RawData = member.Detail;
+                existing.LastSyncedAt = syncedAtUtc;
                 existing.LastName = member.Detail.LastName;
+                existing.FirstName = member.Detail.FirstName;
                 existing.EmailAddress = member.Detail.EmailAddress;
                 existing.MemberStatus = member.Detail.MemberStatus;
-                existing.LastSyncedAt = syncedAtUtc;
-                existing.RawData = member.Detail;
             }
             else
             {
-                db.Members.Add(new MemberSyncRecord
+                database.Members.Add(new MemberSyncRecord
                 {
+                    RawData = member.Detail,
+                    LastSyncedAt = syncedAtUtc,
                     JustGoMemberId = member.Detail.Id,
-                    FirstName = member.Detail.FirstName,
                     LastName = member.Detail.LastName,
+                    FirstName = member.Detail.FirstName,
                     EmailAddress = member.Detail.EmailAddress,
                     MemberStatus = member.Detail.MemberStatus,
-                    LastSyncedAt = syncedAtUtc,
-                    RawData = member.Detail
                 });
             }
 
-            await db.SaveChangesAsync(ct);
+            await database.SaveChangesAsync(ct);
             return unit;
         })
         .ToEither(ex => new SyncError(
