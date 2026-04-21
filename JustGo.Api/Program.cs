@@ -23,8 +23,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.AddRedisDistributedCache("cache");
 
-builder.AddNpgsqlDbContext<ApiDbContext>("itkd");
 builder.AddNpgsqlDataSource("itkd", configureDataSourceBuilder: builder => builder.EnableDynamicJson());
+builder.AddNpgsqlDbContext<ApiDbContext>("itkd");
 
 builder.Services.AddHttpLogging(options => options.CombineLogs = true);
 builder.Services.AddProblemDetails();
