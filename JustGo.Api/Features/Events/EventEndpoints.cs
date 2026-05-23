@@ -51,6 +51,14 @@ public static class EventEndpoints
         .WithName("GetEventTickets")
         .WithSummary("Get tickets for an event");
 
+        group.MapGet("/schema", async (IEventClient client, CancellationToken ct) =>
+        {
+            var result = await client.GetSchemaAsync(ct);
+            return Results.Ok(result);
+        })
+        .WithName("GetEventSchema")
+        .WithSummary("Get the event data schema");
+
         return app;
     }
 }

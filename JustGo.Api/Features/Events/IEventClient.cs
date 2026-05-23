@@ -20,4 +20,6 @@ public interface IEventClient
 
     Task<object> GetEventStagesAsync(Guid eventId, int pageNumber, int pageSize, CancellationToken ct);
     Task<EventStageCreatedResponse> CreateEventStageAsync(Guid eventId, EventStageCreateRequest request, CancellationToken ct);
+    Task DeleteEventStageAsync(Guid eventId, Guid stageId, CancellationToken ct);
+    Task<object> GetSchemaAsync(CancellationToken ct);
 }

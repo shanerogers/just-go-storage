@@ -24,6 +24,14 @@ public static class EventStageEndpoints
         .WithName("CreateEventStage")
         .WithSummary("Create a stage for an event");
 
+        group.MapDelete("/{eventId:guid}/stages/{stageId:guid}", async (Guid eventId, Guid stageId, IEventClient client, CancellationToken ct) =>
+        {
+            await client.DeleteEventStageAsync(eventId, stageId, ct);
+            return Results.NoContent();
+        })
+        .WithName("DeleteEventStage")
+        .WithSummary("Delete a stage from an event");
+
         return app;
     }
 }

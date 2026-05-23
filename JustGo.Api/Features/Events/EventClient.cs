@@ -110,4 +110,10 @@ public sealed class EventClient(HttpClient httpClient, IOptions<JustGoOptions> o
         Guid eventId, EventStageCreateRequest request, CancellationToken ct) =>
         PostAsync<EventStageCreatedResponse>($"/api/{ApiVersion}/Events/{eventId}/Stages",
             new { fixtureName = request.Name }, ct);
+
+    public Task DeleteEventStageAsync(Guid eventId, Guid stageId, CancellationToken ct) =>
+        DeleteNoContentAsync($"/api/{ApiVersion}/Events/{eventId}/Stages/{stageId}", ct);
+
+    public Task<object> GetSchemaAsync(CancellationToken ct) =>
+        GetAsync<object>($"/api/{ApiVersion}/Events/Schema", ct);
 }
