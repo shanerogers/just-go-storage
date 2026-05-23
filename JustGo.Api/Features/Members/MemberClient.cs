@@ -41,4 +41,23 @@ public sealed class MemberClient(HttpClient httpClient, IOptions<JustGoOptions> 
             .ConfigureAwait(false);
         return response.Data ?? throw new InvalidOperationException($"Null data in response for member {memberId}.");
     }
+
+    public Task UpdateMemberAsync(Guid memberId, MemberUpdateRequest request, CancellationToken ct) =>
+        PutNoContentAsync($"/api/{ApiVersion}/Members/{memberId}", request, ct);
+
+    public Task<MemberCreatedResponse> CreateMemberAsync(MemberCreateRequest request, CancellationToken ct) =>
+        PostAsync<MemberCreatedResponse>($"/api/{ApiVersion}/Members", request, ct);
+
+    public Task SuspendMemberAsync(MemberSuspendRequest request, CancellationToken ct) =>
+        PostNoContentAsync($"/api/{ApiVersion}/Members/Suspend", request, ct);
+
+    public async Task UploadProfileImageAsync(Guid memberId, Stream image, string fileName, CancellationToken ct)
+    {
+        using var content = new MultipartFormDataContent();
+        content.Add(new StreamContent(image), "image", fileName);
+        await PostFormAsync($"/api/{ApiVersion}/Members/UploadProfileImage/{memberId}", content, ct);
+    }
+
+    public Task<object> GetSchemaAsync(CancellationToken ct) =>
+        GetAsync<object>($"/api/{ApiVersion}/Members/Schema", ct);
 }

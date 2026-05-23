@@ -59,6 +59,28 @@ public abstract class JustGoClientBase(HttpClient httpClient, IOptions<JustGoOpt
         await EnsureSuccessAsync(response, ct);
     }
 
+    protected async Task PostNoContentAsync(string uri, object body, CancellationToken ct)
+    {
+        var response = await httpClient.PostAsJsonAsync(uri, body, ct).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, ct);
+    }
+
+    protected async Task PostFormAsync(string uri, HttpContent content, CancellationToken ct)
+    {
+        var response = await httpClient.PostAsync(uri, content, ct).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, ct);
+    }
+
+    protected async Task DeleteNoContentAsync(string uri, object body, CancellationToken ct)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Delete, uri)
+        {
+            Content = JsonContent.Create(body)
+        };
+        var response = await httpClient.SendAsync(request, ct).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, ct);
+    }
+
     private static async Task EnsureSuccessAsync(HttpResponseMessage response, CancellationToken ct)
     {
         if (response.IsSuccessStatusCode) return;
