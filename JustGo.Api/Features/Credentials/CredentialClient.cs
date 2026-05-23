@@ -48,4 +48,26 @@ public sealed class CredentialClient(HttpClient httpClient, IOptions<JustGoOptio
     public Task UpdateMemberCredentialAsync(
         Guid credentialId, MemberCredentialUpdateRequest request, CancellationToken ct) =>
         PutNoContentAsync($"/api/{ApiVersion}/Credentials/member/{credentialId}", request, ct);
+
+    public Task<object> GetSchemaAsync(CancellationToken ct) =>
+        GetAsync<object>($"/api/{ApiVersion}/Credentials/Schema", ct);
+
+    public Task<object> SearchClubCredentialsAsync(FindClubCredentialsRequest request, CancellationToken ct)
+    {
+        var query = new Dictionary<string, string?>
+        {
+            [PageNumber] = request.PageNumber.ToString(),
+            [PageSize] = request.PageSize.ToString()
+        };
+        if (request.ClubId is not null) query["clubId"] = request.ClubId.Value.ToString();
+
+        var uri = QueryHelpers.AddQueryString($"/api/{ApiVersion}/Credentials/Club/FindByAttributes", query);
+        return GetAsync<object>(uri, ct);
+    }
+
+    public Task<object> GetClubCredentialAsync(Guid clubId, CancellationToken ct) =>
+        GetAsync<object>($"/api/{ApiVersion}/Credentials/Club/{clubId}", ct);
+
+    public Task<object> CreateClubCredentialAsync(Guid clubId, ClubCredentialCreateRequest request, CancellationToken ct) =>
+        PostAsync<object>($"/api/{ApiVersion}/Credentials/Club/{clubId}", request, ct);
 }

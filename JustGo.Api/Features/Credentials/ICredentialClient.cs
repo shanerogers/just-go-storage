@@ -10,4 +10,8 @@ public interface ICredentialClient
     Task<object> FindCredentialsByAttributesAsync(FindCredentialsRequest request, CancellationToken ct);
     Task<MemberCredentialCreatedResponse> CreateMemberCredentialAsync(Guid memberId, MemberCredentialCreateRequest request, CancellationToken ct);
     Task UpdateMemberCredentialAsync(Guid credentialId, MemberCredentialUpdateRequest request, CancellationToken ct);
+    Task<object> GetSchemaAsync(CancellationToken ct);
+    Task<object> SearchClubCredentialsAsync(FindClubCredentialsRequest request, CancellationToken ct);
+    Task<object> GetClubCredentialAsync(Guid clubId, CancellationToken ct);
+    Task<object> CreateClubCredentialAsync(Guid clubId, ClubCredentialCreateRequest request, CancellationToken ct);
 }

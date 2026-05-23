@@ -59,6 +59,41 @@ public static class CredentialEndpoints
         .WithName("UpdateMemberCredential")
         .WithSummary("Update a member credential");
 
+        group.MapGet("/schema", async (ICredentialClient client, CancellationToken ct) =>
+        {
+            var result = await client.GetSchemaAsync(ct);
+            return Results.Ok(result);
+        })
+        .WithName("GetCredentialSchema")
+        .WithSummary("Get the credential data schema");
+
+        group.MapGet("/club/search", async (
+            [AsParameters] FindClubCredentialsRequest request,
+            ICredentialClient client,
+            CancellationToken ct) =>
+        {
+            var result = await client.SearchClubCredentialsAsync(request, ct);
+            return Results.Ok(result);
+        })
+        .WithName("SearchClubCredentials")
+        .WithSummary("Search club credentials by attributes");
+
+        group.MapGet("/club/{clubId:guid}", async (Guid clubId, ICredentialClient client, CancellationToken ct) =>
+        {
+            var result = await client.GetClubCredentialAsync(clubId, ct);
+            return Results.Ok(result);
+        })
+        .WithName("GetClubCredential")
+        .WithSummary("Get a club credential by club ID");
+
+        group.MapPost("/club/{clubId:guid}", async (Guid clubId, ClubCredentialCreateRequest request, ICredentialClient client, CancellationToken ct) =>
+        {
+            var result = await client.CreateClubCredentialAsync(clubId, request, ct);
+            return Results.Created($"/credentials/club/{clubId}", result);
+        })
+        .WithName("CreateClubCredential")
+        .WithSummary("Create a credential for a club");
+
         return app;
     }
 }
