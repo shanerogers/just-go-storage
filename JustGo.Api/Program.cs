@@ -5,6 +5,10 @@ using JustGo.Api.Features.Competitions;
 using JustGo.Api.Features.Credentials;
 using JustGo.Api.Features.Events;
 using JustGo.Api.Features.Members;
+using JustGo.Api.Features.Memberships;
+using JustGo.Api.Features.Organisations;
+using JustGo.Api.Features.Rewards;
+using JustGo.Api.Features.Shops;
 using JustGo.Api.Health;
 using JustGo.Integrations.JustGo.Services;
 using Microsoft.Extensions.Options;
@@ -77,6 +81,10 @@ builder.Services.AddHttpClient<ICompetitionClient, CompetitionClient>(configureJ
 builder.Services.AddHttpClient<ICredentialClient, CredentialClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
 builder.Services.AddHttpClient<IEventClient, EventClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
 builder.Services.AddHttpClient<IMemberClient, MemberClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
+builder.Services.AddHttpClient<IMembershipClient, MembershipClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
+builder.Services.AddHttpClient<IOrganisationClient, OrganisationClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
+builder.Services.AddHttpClient<IShopClient, ShopClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
+builder.Services.AddHttpClient<IRewardClient, RewardClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
 
 builder.Services
     .AddHealthChecks()
@@ -142,6 +150,10 @@ application
     .MapEventCandidateEndpoints()
     .MapEventPromoterEndpoints()
     .MapEventStageEndpoints()
-    .MapMemberEndpoints();
+    .MapMemberEndpoints()
+    .MapMembershipEndpoints()
+    .MapOrganisationEndpoints()
+    .MapShopEndpoints()
+    .MapRewardEndpoints();
 
 await application.RunAsync();
