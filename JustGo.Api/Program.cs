@@ -141,6 +141,7 @@ application
     .MapEventEndpoints()
     .MapEventCandidateEndpoints()
     .MapEventPromoterEndpoints()
-    .MapEventStageEndpoints();
+    .MapEventStageEndpoints()
+    .MapMemberEndpoints();
 
 await application.RunAsync();
