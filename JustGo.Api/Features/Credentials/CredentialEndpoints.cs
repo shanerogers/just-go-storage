@@ -1,5 +1,4 @@
 using JustGo.Integrations.JustGo.Features.Credentials.Models;
-using JustGo.Integrations.JustGo.Services;
 
 namespace JustGo.Api.Features.Credentials;
 
@@ -9,7 +8,7 @@ public static class CredentialEndpoints
     {
         var group = app.MapGroup("/credentials").WithTags("Credentials");
 
-        group.MapGet("/definitions", async (int pageNumber, int pageSize, IJustGoClient client, CancellationToken ct) =>
+        group.MapGet("/definitions", async (int pageNumber, int pageSize, ICredentialClient client, CancellationToken ct) =>
         {
             var result = await client.GetCredentialDefinitionsAsync(pageNumber, pageSize, ct);
             return Results.Ok(result);
@@ -17,7 +16,7 @@ public static class CredentialEndpoints
         .WithName("GetCredentialDefinitions")
         .WithSummary("Get all credential definitions");
 
-        group.MapGet("/definitions/{credentialId:guid}", async (Guid credentialId, IJustGoClient client, CancellationToken ct) =>
+        group.MapGet("/definitions/{credentialId:guid}", async (Guid credentialId, ICredentialClient client, CancellationToken ct) =>
         {
             var result = await client.GetCredentialDefinitionByIdAsync(credentialId, ct);
             return Results.Ok(result);
@@ -25,7 +24,7 @@ public static class CredentialEndpoints
         .WithName("GetCredentialDefinitionById")
         .WithSummary("Get a credential definition by ID");
 
-        group.MapGet("/details", async (IJustGoClient client, CancellationToken ct) =>
+        group.MapGet("/details", async (ICredentialClient client, CancellationToken ct) =>
         {
             var result = await client.GetCredentialDetailsAsync(ct);
             return Results.Ok(result);
@@ -35,7 +34,7 @@ public static class CredentialEndpoints
 
         group.MapGet("/search", async (
             [AsParameters] FindCredentialsRequest request,
-            IJustGoClient client,
+            ICredentialClient client,
             CancellationToken ct) =>
         {
             var result = await client.FindCredentialsByAttributesAsync(request, ct);
@@ -44,7 +43,7 @@ public static class CredentialEndpoints
         .WithName("FindCredentials")
         .WithSummary("Search member credentials by attributes");
 
-        group.MapPost("/{memberId:guid}", async (Guid memberId, MemberCredentialCreateRequest request, IJustGoClient client, CancellationToken ct) =>
+        group.MapPost("/{memberId:guid}", async (Guid memberId, MemberCredentialCreateRequest request, ICredentialClient client, CancellationToken ct) =>
         {
             var result = await client.CreateMemberCredentialAsync(memberId, request, ct);
             return Results.Created($"/credentials/{result.CredentialId}", result);
@@ -52,7 +51,7 @@ public static class CredentialEndpoints
         .WithName("CreateMemberCredential")
         .WithSummary("Create a credential for a member");
 
-        group.MapPut("/{credentialId:guid}", async (Guid credentialId, MemberCredentialUpdateRequest request, IJustGoClient client, CancellationToken ct) =>
+        group.MapPut("/{credentialId:guid}", async (Guid credentialId, MemberCredentialUpdateRequest request, ICredentialClient client, CancellationToken ct) =>
         {
             await client.UpdateMemberCredentialAsync(credentialId, request, ct);
             return Results.NoContent();

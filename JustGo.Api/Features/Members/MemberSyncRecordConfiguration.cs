@@ -1,11 +1,10 @@
 using System.Text.Json;
-using JustGo.Api.Features.Members;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
-namespace JustGo.Api.Data;
+namespace JustGo.Api.Features.Members;
 
 public sealed class MemberSyncRecordConfiguration : IEntityTypeConfiguration<MemberSyncRecord>
 {

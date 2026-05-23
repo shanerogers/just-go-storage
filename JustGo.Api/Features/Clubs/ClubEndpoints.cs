@@ -1,5 +1,4 @@
 using JustGo.Integrations.JustGo.Features.Clubs.Models;
-using JustGo.Integrations.JustGo.Services;
 
 namespace JustGo.Api.Features.Clubs;
 
@@ -9,7 +8,7 @@ public static class ClubEndpoints
     {
         var group = app.MapGroup("/clubs").WithTags("Clubs");
 
-        group.MapGet("/{clubId:guid}", async (Guid clubId, IJustGoClient client, CancellationToken ct) =>
+        group.MapGet("/{clubId:guid}", async (Guid clubId, IClubClient client, CancellationToken ct) =>
         {
             var result = await client.GetClubAsync(clubId, ct);
             return Results.Ok(result);
@@ -17,7 +16,7 @@ public static class ClubEndpoints
         .WithName("GetClub")
         .WithSummary("Get a club by ID");
 
-        group.MapPut("/{clubId:guid}", async (Guid clubId, ClubUpdateRequest request, IJustGoClient client, CancellationToken ct) =>
+        group.MapPut("/{clubId:guid}", async (Guid clubId, ClubUpdateRequest request, IClubClient client, CancellationToken ct) =>
         {
             var result = await client.UpdateClubAsync(clubId, request, ct);
             return Results.Ok(result);
@@ -27,7 +26,7 @@ public static class ClubEndpoints
 
         group.MapGet("/search", async (
             [AsParameters] FindClubsRequest request,
-            IJustGoClient client,
+            IClubClient client,
             CancellationToken ct) =>
         {
             var result = await client.FindClubsByAttributesAsync(request, ct);
@@ -36,7 +35,7 @@ public static class ClubEndpoints
         .WithName("FindClubs")
         .WithSummary("Search clubs by attributes");
 
-        group.MapPost("/members", async (AddClubMemberRequest request, IJustGoClient client, CancellationToken ct) =>
+        group.MapPost("/members", async (AddClubMemberRequest request, IClubClient client, CancellationToken ct) =>
         {
             var result = await client.AddClubMemberAsync(request, ct);
             return Results.Created($"/clubs/members/{result.MemberId}", result);

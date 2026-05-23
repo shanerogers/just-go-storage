@@ -1,5 +1,4 @@
 using JustGo.Integrations.JustGo.Features.Auth.Models;
-using JustGo.Integrations.JustGo.Services;
 
 namespace JustGo.Api.Features.Auth;
 
@@ -9,7 +8,7 @@ public static class AuthEndpoints
     {
         var group = app.MapGroup("/auth").WithTags("Auth");
 
-        group.MapPost("/login", async (LoginRequest request, IJustGoClient client, CancellationToken ct) =>
+        group.MapPost("/login", async (LoginRequest request, IAuthClient client, CancellationToken ct) =>
         {
             var result = await client.AuthenticateAsync(request, ct);
             return Results.Ok(result);

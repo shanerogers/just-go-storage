@@ -4,8 +4,8 @@ using JustGo.Api.Features.Clubs;
 using JustGo.Api.Features.Competitions;
 using JustGo.Api.Features.Credentials;
 using JustGo.Api.Features.Events;
+using JustGo.Api.Features.Members;
 using JustGo.Api.Health;
-using JustGo.Api.Services.Jobs;
 using JustGo.Integrations.JustGo.Services;
 using Microsoft.Extensions.Options;
 using HealthChecks.UI.Client;
@@ -63,13 +63,20 @@ builder.Services.AddHttpClient("JustGoAuth", (sp, client) =>
 
 builder.Services
     .AddTransient<JustGoAuthHandler>()
-    .AddTransient<IJustGoTokenService, JustGoTokenService>()
-    .AddHttpClient<IJustGoClient, JustGoClient>((sp, client) =>
-    {
-        var opts = sp.GetRequiredService<IOptions<JustGoOptions>>().Value;
-        client.BaseAddress = new Uri(opts.BaseUrl);
-    })
-    .AddHttpMessageHandler<JustGoAuthHandler>();
+    .AddTransient<IJustGoTokenService, JustGoTokenService>();
+
+Action<IServiceProvider, HttpClient> configureJustGoClient = (sp, client) =>
+{
+    var opts = sp.GetRequiredService<IOptions<JustGoOptions>>().Value;
+    client.BaseAddress = new Uri(opts.BaseUrl);
+};
+
+builder.Services.AddHttpClient<IAuthClient, AuthClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
+builder.Services.AddHttpClient<IClubClient, ClubClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
+builder.Services.AddHttpClient<ICompetitionClient, CompetitionClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
+builder.Services.AddHttpClient<ICredentialClient, CredentialClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
+builder.Services.AddHttpClient<IEventClient, EventClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
+builder.Services.AddHttpClient<IMemberClient, MemberClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
 
 builder.Services
     .AddHealthChecks()

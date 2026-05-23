@@ -17,3 +17,8 @@ public sealed class MemberCredentialUpdateRequest
 {
     public string? Value { get; set; }
 }
+
+public sealed class MemberCredentialCreatedResponse
+{
+    public Guid CredentialId { get; set; } = Guid.NewGuid();
+}

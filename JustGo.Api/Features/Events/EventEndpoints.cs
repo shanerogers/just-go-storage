@@ -1,5 +1,4 @@
 using JustGo.Integrations.JustGo.Features.Events.Models;
-using JustGo.Integrations.JustGo.Services;
 
 namespace JustGo.Api.Features.Events;
 
@@ -11,7 +10,7 @@ public static class EventEndpoints
 
         group.MapGet("/search", async (
             [AsParameters] FindEventsRequest request,
-            IJustGoClient client,
+            IEventClient client,
             CancellationToken ct) =>
         {
             var result = await client.FindEventsByAttributesAsync(request, ct);
@@ -20,7 +19,7 @@ public static class EventEndpoints
         .WithName("FindEvents")
         .WithSummary("Search events by attributes");
 
-        group.MapGet("/{eventId:guid}", async (Guid eventId, IJustGoClient client, CancellationToken ct) =>
+        group.MapGet("/{eventId:guid}", async (Guid eventId, IEventClient client, CancellationToken ct) =>
         {
             var result = await client.GetEventAsync(eventId, ct);
             return Results.Ok(result);
@@ -28,7 +27,7 @@ public static class EventEndpoints
         .WithName("GetEvent")
         .WithSummary("Get an event by ID");
 
-        group.MapPost("/", async (EventCreateRequest request, Guid? templateId, IJustGoClient client, CancellationToken ct) =>
+        group.MapPost("/", async (EventCreateRequest request, Guid? templateId, IEventClient client, CancellationToken ct) =>
         {
             var result = await client.CreateEventAsync(request, templateId, ct);
             return Results.Created($"/events/{result.EventId}", result);
@@ -36,7 +35,7 @@ public static class EventEndpoints
         .WithName("CreateEvent")
         .WithSummary("Create a new event");
 
-        group.MapPut("/{eventId:guid}", async (Guid eventId, EventUpdateRequest request, IJustGoClient client, CancellationToken ct) =>
+        group.MapPut("/{eventId:guid}", async (Guid eventId, EventUpdateRequest request, IEventClient client, CancellationToken ct) =>
         {
             await client.UpdateEventAsync(eventId, request, ct);
             return Results.NoContent();
@@ -44,7 +43,7 @@ public static class EventEndpoints
         .WithName("UpdateEvent")
         .WithSummary("Update an event");
 
-        group.MapGet("/{eventId:guid}/tickets", async (Guid eventId, int pageNumber, int pageSize, IJustGoClient client, CancellationToken ct) =>
+        group.MapGet("/{eventId:guid}/tickets", async (Guid eventId, int pageNumber, int pageSize, IEventClient client, CancellationToken ct) =>
         {
             var result = await client.GetEventTicketsAsync(eventId, pageNumber, pageSize, ct);
             return Results.Ok(result);

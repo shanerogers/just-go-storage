@@ -2,13 +2,11 @@ using System.Runtime.CompilerServices;
 using LanguageExt;
 using static LanguageExt.Prelude;
 using JustGo.Api.Data;
-using JustGo.Api.Features.Members;
-using JustGo.Integrations.JustGo.Services;
 using Microsoft.EntityFrameworkCore;
 using Quartz;
 using Humanizer;
 
-namespace JustGo.Api.Services.Jobs;
+namespace JustGo.Api.Features.Members;
 
 internal sealed record SyncError(
     string Code,
@@ -44,7 +42,7 @@ internal record PageOutcome(
 [DisallowConcurrentExecution]
 public sealed class SyncMembersJob(
     TimeProvider timeProvider,
-    IJustGoClient justGoClient,
+    IMemberClient memberClient,
     ILogger<SyncMembersJob> logger,
     IServiceScopeFactory scopeFactory) : IJob
 {
@@ -136,7 +134,7 @@ public sealed class SyncMembersJob(
     {
         foreach (var memberId in page.Members.Select(m => m.Id))
         {
-            yield return await TryAsync(() => justGoClient.GetMemberAsync(memberId, ct))
+            yield return await TryAsync(() => memberClient.GetMemberAsync(memberId, ct))
                 .ToEither(ex => new SyncError(
                     Code: "members.fetch_detail_failed",
                     Description: $"Failed to fetch detail for member {memberId}: {ex.Message}",
@@ -165,7 +163,7 @@ public sealed class SyncMembersJob(
                 ModifiedBefore = syncedAtUtc,
                 ModifiedAfter = In.AprilOf(2005)
             };
-            var response = await justGoClient.FindMembersByAttributesAsync(request, ct);
+            var response = await memberClient.FindMembersByAttributesAsync(request, ct);
             return new MemberPage(response, response.Data ?? []);
         })
         .ToEither(ex => new SyncError(
