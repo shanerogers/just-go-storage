@@ -10,4 +10,10 @@ public sealed class AuthClient(HttpClient httpClient, IOptions<JustGoOptions> op
     public Task<object> AuthenticateAsync(LoginRequest request, CancellationToken ct) =>
         PostAsync<object>($"/api/{ApiVersion}/Members/LogInCheck",
             new { userName = request.Username, password = request.Password }, ct);
+
+    public Task<object> ChangePasswordAsync(ChangePasswordRequest request, CancellationToken ct) =>
+        PostAsync<object>($"/api/{ApiVersion}/Members/ChangePassword", request, ct);
+
+    public Task<object> PasswordResetAsync(PasswordResetRequest request, CancellationToken ct) =>
+        PostAsync<object>($"/api/{ApiVersion}/Members/PasswordReset", request, ct);
 }

@@ -16,6 +16,22 @@ public static class AuthEndpoints
         .WithName("Login")
         .WithSummary("Authenticate with JustGo and retrieve a bearer token");
 
+        group.MapPost("/change-password", async (ChangePasswordRequest request, IAuthClient client, CancellationToken ct) =>
+        {
+            var result = await client.ChangePasswordAsync(request, ct);
+            return Results.Ok(result);
+        })
+        .WithName("ChangePassword")
+        .WithSummary("Change a member's password");
+
+        group.MapPost("/password-reset", async (PasswordResetRequest request, IAuthClient client, CancellationToken ct) =>
+        {
+            var result = await client.PasswordResetAsync(request, ct);
+            return Results.Ok(result);
+        })
+        .WithName("PasswordReset")
+        .WithSummary("Request a password reset for a member");
+
         return app;
     }
 }
