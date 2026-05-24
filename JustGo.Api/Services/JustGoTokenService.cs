@@ -8,9 +8,9 @@ public sealed class JustGoTokenService(
     IOptions<JustGoOptions> options, IHttpClientFactory httpClientFactory, IFusionCache cache) : IJustGoTokenService
 {
     private const string TokenCacheKey = "justgo:auth:token";
-    private static readonly TimeSpan ExpiryBuffer = TimeSpan.FromSeconds(60);
-    private static readonly TimeSpan MinimumTokenTtl = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan FallbackTokenTtl = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan _expiryBuffer = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan _minimumTokenTtl = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan _fallbackTokenTtl = TimeSpan.FromMinutes(5);
     private readonly JustGoOptions _options = options.Value;
     private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
     private readonly IFusionCache _cache = cache;
@@ -25,7 +25,7 @@ public sealed class JustGoTokenService(
                 return tokenResult.AccessToken;
             },
             default,
-            new FusionCacheEntryOptions().SetDuration(FallbackTokenTtl), null, ct);
+            new FusionCacheEntryOptions().SetDuration(_fallbackTokenTtl), null, ct);
     }
 
     public void InvalidateToken() => _cache.Remove(TokenCacheKey);
@@ -54,13 +54,13 @@ public sealed class JustGoTokenService(
     {
         if (expiresInSeconds <= 0)
         {
-            return FallbackTokenTtl;
+            return _fallbackTokenTtl;
         }
 
         var tokenLifetime = TimeSpan.FromSeconds(expiresInSeconds);
-        var adjustedLifetime = tokenLifetime - ExpiryBuffer;
+        var adjustedLifetime = tokenLifetime - _expiryBuffer;
 
-        return adjustedLifetime > MinimumTokenTtl ? adjustedLifetime : MinimumTokenTtl;
+        return adjustedLifetime > _minimumTokenTtl ? adjustedLifetime : _minimumTokenTtl;
     }
 
     private readonly record struct TokenResult(string AccessToken, int ExpiresIn);
