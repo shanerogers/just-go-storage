@@ -47,7 +47,33 @@ cache.WithHttpCommand(
     commandName: "clear-cache",
     commandOptions: new HttpCommandOptions
     {
-        IsHighlighted = true
+        IsHighlighted = true,
+        IconName = "AnimalRabbitOff",
+        IconVariant = IconVariant.Filled,
+        UpdateState = context =>
+            context.ResourceSnapshot.HealthStatus is Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy
+                ? ResourceCommandState.Enabled
+                : ResourceCommandState.Disabled,
+        GetCommandResult = async context =>
+        {
+            var statusCode = (int)context.Response.StatusCode;
+
+            if (context.Response.IsSuccessStatusCode)
+            {
+                return new ExecuteCommandResult
+                {
+                    Success = true,
+                    Message = $"Cache cleared successfully (HTTP {statusCode})."
+                };
+            }
+
+            var responseBody = await context.Response.Content.ReadAsStringAsync(context.CancellationToken);
+            var detail = string.IsNullOrWhiteSpace(responseBody)
+                ? $"HTTP {statusCode} {context.Response.ReasonPhrase}"
+                : $"HTTP {statusCode}: {responseBody}";
+
+            return CommandResults.Failure($"Cache clear failed. {detail}");
+        }
     });
 
 await builder.Build().RunAsync();
