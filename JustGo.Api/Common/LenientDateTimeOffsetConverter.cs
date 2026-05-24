@@ -12,12 +12,8 @@ public sealed class LenientDateTimeOffsetConverter : JsonConverter<DateTimeOffse
 {
     public override DateTimeOffset Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        var raw = reader.GetString();
-
-        if (raw is null)
-        {
-            throw new JsonException("Expected a date-time string but got null.");
-        }
+        var raw = reader.GetString()
+            ?? throw new JsonException("Expected a date-time string but got null.");
 
         if (DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dto))
         {
