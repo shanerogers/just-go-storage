@@ -24,9 +24,9 @@ var api = builder.AddProject<Projects.JustGo_Api>("api")
     .WithUrlForEndpoint("http", endpoint => new()
     {
         DisplayOrder = 1,
-        Url = "/quartz",
+        Url = "/tickerq",
         Endpoint = endpoint,
-        DisplayText = "Job Dashboard"
+        DisplayText = "TickerQ Dashboard"
     })
     .WithUrlForEndpoint("http", resource =>
     {

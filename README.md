@@ -50,8 +50,8 @@ dotnet run --project JustGo/JustGo.AppHost.csproj
 
 This starts:
 - **PostgreSQL** — persistent container with a DbGate UI
-- **JustGo.Api** — the API service with health and job dashboards
+- **JustGo.Api** — the API service with health and TickerQ dashboards
 
-The Aspire dashboard will open automatically and show links to all running resources, including the **Job Dashboard** (`/quartz`) and **Health Dashboard** (`/health-ui`).
+The Aspire dashboard will open automatically and show links to all running resources, including the **TickerQ Dashboard** (`/tickerq`) and **Health Dashboard** (`/health-ui`).
 
 Alternatively, open the solution in Visual Studio or VS Code and press **F5** to launch the `JustGo.AppHost` project.

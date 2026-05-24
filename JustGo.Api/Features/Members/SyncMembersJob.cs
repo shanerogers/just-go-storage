@@ -3,7 +3,6 @@ using LanguageExt;
 using static LanguageExt.Prelude;
 using JustGo.Api.Data;
 using Microsoft.EntityFrameworkCore;
-using Quartz;
 using Humanizer;
 
 namespace JustGo.Api.Features.Members;
@@ -36,17 +35,16 @@ internal record PageOutcome(
     bool ShouldContinue);
 
 /// <summary>
-/// Quartz job that pages through the JustGo Members API and inserts or updates each member
+/// Background sync task that pages through the JustGo Members API and inserts or updates each member
 /// into the local <c>member_sync_records</c> Postgres table.
 /// </summary>
-[DisallowConcurrentExecution]
 public sealed class SyncMembersJob(
     TimeProvider timeProvider,
     IMemberClient memberClient,
     ILogger<SyncMembersJob> logger,
-    IServiceScopeFactory scopeFactory) : IJob
+    IServiceScopeFactory scopeFactory)
 {
-    public async Task Execute(IJobExecutionContext context)
+    public async Task ExecuteAsync(CancellationToken ct)
     {
         int pageNo = 1;
         int totalSynced = 0;
@@ -55,9 +53,9 @@ public sealed class SyncMembersJob(
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
 
-        await foreach (var result in ProcessPagesAsync(syncedAtUtc, db, context.CancellationToken))
+        await foreach (var result in ProcessPagesAsync(syncedAtUtc, db, ct))
         {
-            if (result.IsLeft) throw CreateJobExecutionException(result.LeftToList()[0], pageNo);
+            if (result.IsLeft) throw CreateSyncException(result.LeftToList()[0], pageNo);
             result.IfRight(outcome => totalSynced += outcome.SyncedCount);
             pageNo++;
         }
@@ -143,11 +141,9 @@ public sealed class SyncMembersJob(
         }
     }
 
-    private static JobExecutionException CreateJobExecutionException(SyncError error, int pageNumber)
+    private static Exception CreateSyncException(SyncError error, int pageNumber)
     {
-        return new JobExecutionException(
-            new Exception($"Failed to process page {pageNumber}: {error.Description}", error.Exception),
-            refireImmediately: false);
+        return new Exception($"Failed to process page {pageNumber}: {error.Description}", error.Exception);
     }
 
     private EitherAsync<SyncError, MemberPage> FetchPageAsync(

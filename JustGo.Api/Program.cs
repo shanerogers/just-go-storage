@@ -16,7 +16,9 @@ using Microsoft.Extensions.Options;
 using HealthChecks.UI.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using Quartz;
+using TickerQ.DependencyInjection;
+using TickerQ.Dashboard.DependencyInjection;
+using TickerQ.Utilities.Enums;
 using ZiggyCreatures.Caching.Fusion;
 using ZiggyCreatures.Caching.Fusion.Backplane;
 using ZiggyCreatures.Caching.Fusion.Backplane.StackExchangeRedis;
@@ -33,6 +35,7 @@ builder.AddNpgsqlDbContext<ApiDbContext>("itkd");
 builder.Services.AddHttpLogging(options => options.CombineLogs = true);
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler(_ => { });
+builder.Services.AddAntiforgery();
 builder.Services.AddTransient(_ => TimeProvider.System);
 
 builder.Services.AddSingleton<IFusionCacheSerializer, FusionCacheSystemTextJsonSerializer>();
@@ -113,7 +116,7 @@ builder.Services
 
 builder.Services
     .AddHealthChecks()
-    .AddCheck<QuartzHealthCheck>("quartz", tags: ["ready"])
+    .AddCheck<TickerQHealthCheck>("tickerq", tags: ["ready"])
     .AddCheck<JustGoHealthCheck>("justgo-api", tags: ["ready"])
     .AddNpgSql(builder.Configuration.GetConnectionString("itkd")!, tags: ["ready"]);
 
@@ -123,26 +126,14 @@ builder.Services
         builder.Configuration.GetConnectionString("itkd")!,
         dbOptions => dbOptions.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
 
-builder.Services.AddQuartz(options =>
-{
-    options.UsePersistentStore(store =>
+builder.Services
+    .AddTickerQ(options => options.AddDashboard(dashboard => dashboard.SetBasePath("/tickerq")))
+    .MapTicker("sync-members", async (_, services, ct) =>
     {
-        store.UseSystemTextJsonSerializer();
-        store.UsePostgres(builder.Configuration.GetConnectionString("itkd")!);
-    });
-
-    var syncMembersJobKey = new JobKey("sync-members");
-    options.AddJob<SyncMembersJob>(job => job.WithIdentity(syncMembersJobKey).StoreDurably());
-    options.AddTrigger(trigger => trigger
-        .ForJob(syncMembersJobKey)
-        .WithIdentity("sync-members-trigger")
-        .WithSimpleSchedule(schedule => schedule
-            .WithInterval(TimeSpan.FromHours(1))
-            .RepeatForever()));
-});
-
-builder.Services.AddQuartzDashboard();
-builder.Services.AddQuartzHostedService(options => options.WaitForJobsToComplete = true);
+        await services.GetRequiredService<SyncMembersJob>().ExecuteAsync(ct);
+    })
+    .WithCron("0 * * * *")
+    .WithMaxConcurrency(1);
 
 var application = builder.Build();
 
@@ -158,7 +149,6 @@ application.UseHttpsRedirection();
 application.UseExceptionHandler();
 application.UseStaticFiles();
 application.UseAntiforgery();
-application.MapQuartzDashboard();
 application.MapHealthChecks("/health", new() { ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse });
 application.MapHealthChecksUI(options =>
 {
@@ -185,5 +175,7 @@ if (application.Environment.IsDevelopment())
 {
     application.MapCacheAdminEndpoints();
 }
+
+application.UseTickerQ(TickerQStartMode.Immediate);
 
 await application.RunAsync();
