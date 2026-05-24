@@ -10,7 +10,7 @@ public static class CacheAdminEndpoints
 
         group.MapPost("/clear", async (IFusionCache cache, CancellationToken ct) =>
         {
-            await cache.ClearAsync(false, null, ct);
+            await cache.ClearAsync(false, token: ct);
             return Results.Ok(new { message = "Fusion cache cleared." });
         })
         .WithName("ClearCache")
