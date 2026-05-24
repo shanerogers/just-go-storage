@@ -42,7 +42,8 @@ var api = builder.AddProject<Projects.JustGo_Api>("api")
 
 cache.WithHttpCommand(
     path: "/admin/cache/clear",
-    displayName: "Clear Fusion Cache",
-    endpointSelector: () => api.GetEndpoint("http"));
+    displayName: "Clear Fusion Cache"
+    endpointSelector: () => api.GetEndpoint("http"),
+    commandName: "clear-cache");
 
 await builder.Build().RunAsync();
