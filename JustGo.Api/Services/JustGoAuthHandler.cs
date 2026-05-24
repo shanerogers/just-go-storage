@@ -30,7 +30,6 @@ internal sealed class JustGoAuthHandler(IJustGoTokenService tokenService) : Dele
             return response;
         }
 
-        // First attempt returned 401 — force a fresh token regardless of what was used.
         tokenService.InvalidateToken();
         var freshToken = await tokenService.GetTokenAsync(cancellationToken);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", freshToken);

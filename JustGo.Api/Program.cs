@@ -1,6 +1,7 @@
 using JustGo.Api.Data;
 using JustGo.Api.Features.Auth;
 using JustGo.Api.Features.Clubs;
+using JustGo.Api.Features.Cache;
 using JustGo.Api.Features.Competitions;
 using JustGo.Api.Features.Credentials;
 using JustGo.Api.Features.Events;
@@ -33,6 +34,7 @@ builder.Services.AddHttpLogging(options => options.CombineLogs = true);
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler(_ => { });
 builder.Services.AddTransient(_ => TimeProvider.System);
+
 builder.Services.AddSingleton<IFusionCacheSerializer, FusionCacheSystemTextJsonSerializer>();
 builder.Services.AddSingleton<IFusionCacheBackplane>(sp =>
 {
@@ -45,12 +47,6 @@ builder.Services.AddSingleton<IFusionCacheBackplane>(sp =>
 
 builder.Services
     .AddFusionCache()
-    .WithDefaultEntryOptions(options =>
-    {
-        options.AllowBackgroundDistributedCacheOperations = true;
-        options.DistributedCacheHardTimeout = TimeSpan.FromSeconds(2);
-        options.DistributedCacheSoftTimeout = TimeSpan.FromMilliseconds(250);
-    })
     .TryWithAutoSetup();
 
 builder.Services
@@ -75,16 +71,45 @@ Action<IServiceProvider, HttpClient> configureJustGoClient = (sp, client) =>
     client.BaseAddress = new Uri(opts.BaseUrl);
 };
 
-builder.Services.AddHttpClient<IAuthClient, AuthClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
-builder.Services.AddHttpClient<IClubClient, ClubClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
-builder.Services.AddHttpClient<ICompetitionClient, CompetitionClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
-builder.Services.AddHttpClient<ICredentialClient, CredentialClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
-builder.Services.AddHttpClient<IEventClient, EventClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
-builder.Services.AddHttpClient<IMemberClient, MemberClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
-builder.Services.AddHttpClient<IMembershipClient, MembershipClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
-builder.Services.AddHttpClient<IOrganisationClient, OrganisationClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
-builder.Services.AddHttpClient<IShopClient, ShopClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
-builder.Services.AddHttpClient<IRewardClient, RewardClient>(configureJustGoClient).AddHttpMessageHandler<JustGoAuthHandler>();
+builder.Services
+    .AddHttpClient<IAuthClient, AuthClient>(configureJustGoClient)
+    .AddHttpMessageHandler<JustGoAuthHandler>();
+
+builder.Services
+    .AddHttpClient<IClubClient, ClubClient>(configureJustGoClient)
+    .AddHttpMessageHandler<JustGoAuthHandler>();
+
+builder.Services
+    .AddHttpClient<ICompetitionClient, CompetitionClient>(configureJustGoClient)
+    .AddHttpMessageHandler<JustGoAuthHandler>();
+
+builder.Services
+    .AddHttpClient<ICredentialClient, CredentialClient>(configureJustGoClient)
+    .AddHttpMessageHandler<JustGoAuthHandler>();
+
+builder.Services
+    .AddHttpClient<IEventClient, EventClient>(configureJustGoClient)
+    .AddHttpMessageHandler<JustGoAuthHandler>();
+
+builder.Services
+    .AddHttpClient<IMemberClient, MemberClient>(configureJustGoClient)
+    .AddHttpMessageHandler<JustGoAuthHandler>();
+
+builder.Services
+    .AddHttpClient<IMembershipClient, MembershipClient>(configureJustGoClient)
+    .AddHttpMessageHandler<JustGoAuthHandler>();
+
+builder.Services
+    .AddHttpClient<IOrganisationClient, OrganisationClient>(configureJustGoClient)
+    .AddHttpMessageHandler<JustGoAuthHandler>();
+
+builder.Services
+    .AddHttpClient<IShopClient, ShopClient>(configureJustGoClient)
+    .AddHttpMessageHandler<JustGoAuthHandler>();
+
+builder.Services
+    .AddHttpClient<IRewardClient, RewardClient>(configureJustGoClient)
+    .AddHttpMessageHandler<JustGoAuthHandler>();
 
 builder.Services
     .AddHealthChecks()
@@ -155,5 +180,10 @@ application
     .MapOrganisationEndpoints()
     .MapShopEndpoints()
     .MapRewardEndpoints();
+
+if (application.Environment.IsDevelopment())
+{
+    application.MapCacheAdminEndpoints();
+}
 
 await application.RunAsync();

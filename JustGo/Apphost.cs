@@ -19,7 +19,7 @@ var cache = builder.AddRedis("cache")
 
 var apiKey = builder.AddParameter("justgo-apikey", secret: true);
 
-builder.AddProject<Projects.JustGo_Api>("api")
+var api = builder.AddProject<Projects.JustGo_Api>("api")
     .WithHttpHealthCheck("/health")
     .WithUrlForEndpoint("http", endpoint => new()
     {
@@ -39,5 +39,10 @@ builder.AddProject<Projects.JustGo_Api>("api")
     .WithReference(database)
     .WaitFor(cache)
     .WaitFor(database);
+
+cache.WithHttpCommand(
+    path: "/admin/cache/clear",
+    displayName: "Clear Fusion Cache",
+    endpointSelector: () => api.GetEndpoint("http"));
 
 await builder.Build().RunAsync();
