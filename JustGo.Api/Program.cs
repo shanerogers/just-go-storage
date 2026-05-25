@@ -22,6 +22,7 @@ using ZiggyCreatures.Caching.Fusion.Backplane;
 using ZiggyCreatures.Caching.Fusion.Backplane.StackExchangeRedis;
 using ZiggyCreatures.Caching.Fusion.Serialization;
 using ZiggyCreatures.Caching.Fusion.Serialization.SystemTextJson;
+using JustGo.Api;
 
 var builder = WebApplication.CreateBuilder(args);
 
