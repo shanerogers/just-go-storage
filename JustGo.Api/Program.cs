@@ -11,8 +11,7 @@ using JustGo.Api.Features.Organisations;
 using JustGo.Api.Features.Rewards;
 using JustGo.Api.Features.Shops;
 using JustGo.Api.Health;
-using JustGo.Integrations.JustGo.Services;
-using Microsoft.Extensions.Options;
+using JustGo.Integrations.JustGo;
 using HealthChecks.UI.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -56,67 +55,7 @@ builder.Services
     .AddFusionCache()
     .TryWithAutoSetup();
 
-builder.Services
-    .AddOptions<JustGoOptions>()
-    .BindConfiguration(JustGoOptions.SectionName)
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
-
-builder.Services.AddHttpClient("JustGoAuth", (sp, client) =>
-{
-    var opts = sp.GetRequiredService<IOptions<JustGoOptions>>().Value;
-    client.BaseAddress = new Uri(opts.BaseUrl);
-});
-
-builder.Services
-    .AddTransient<JustGoAuthHandler>()
-    .AddTransient<IJustGoTokenService, JustGoTokenService>();
-
-Action<IServiceProvider, HttpClient> configureJustGoClient = (sp, client) =>
-{
-    var opts = sp.GetRequiredService<IOptions<JustGoOptions>>().Value;
-    client.BaseAddress = new Uri(opts.BaseUrl);
-};
-
-builder.Services
-    .AddHttpClient<IAuthClient, AuthClient>(configureJustGoClient)
-    .AddHttpMessageHandler<JustGoAuthHandler>();
-
-builder.Services
-    .AddHttpClient<IClubClient, ClubClient>(configureJustGoClient)
-    .AddHttpMessageHandler<JustGoAuthHandler>();
-
-builder.Services
-    .AddHttpClient<ICompetitionClient, CompetitionClient>(configureJustGoClient)
-    .AddHttpMessageHandler<JustGoAuthHandler>();
-
-builder.Services
-    .AddHttpClient<ICredentialClient, CredentialClient>(configureJustGoClient)
-    .AddHttpMessageHandler<JustGoAuthHandler>();
-
-builder.Services
-    .AddHttpClient<IEventClient, EventClient>(configureJustGoClient)
-    .AddHttpMessageHandler<JustGoAuthHandler>();
-
-builder.Services
-    .AddHttpClient<IMemberClient, MemberClient>(configureJustGoClient)
-    .AddHttpMessageHandler<JustGoAuthHandler>();
-
-builder.Services
-    .AddHttpClient<IMembershipClient, MembershipClient>(configureJustGoClient)
-    .AddHttpMessageHandler<JustGoAuthHandler>();
-
-builder.Services
-    .AddHttpClient<IOrganisationClient, OrganisationClient>(configureJustGoClient)
-    .AddHttpMessageHandler<JustGoAuthHandler>();
-
-builder.Services
-    .AddHttpClient<IShopClient, ShopClient>(configureJustGoClient)
-    .AddHttpMessageHandler<JustGoAuthHandler>();
-
-builder.Services
-    .AddHttpClient<IRewardClient, RewardClient>(configureJustGoClient)
-    .AddHttpMessageHandler<JustGoAuthHandler>();
+builder.Services.AddJustGoClient();
 
 builder.Services
     .AddHealthChecks()
