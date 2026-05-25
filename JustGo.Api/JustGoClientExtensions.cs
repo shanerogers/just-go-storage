@@ -54,9 +54,9 @@ internal static class JustGoClientExtensions
 
         return services;
 
-        static void configureJustGoClient(IServiceProvider sp, HttpClient client)
+        static void configureJustGoClient(IServiceProvider serviceProvider, HttpClient client)
         {
-            var opts = sp.GetRequiredService<IOptions<JustGoOptions>>().Value;
+            var opts = serviceProvider.GetRequiredService<IOptions<JustGoOptions>>().Value;
             client.BaseAddress = new Uri(opts.BaseUrl);
         }
     }
