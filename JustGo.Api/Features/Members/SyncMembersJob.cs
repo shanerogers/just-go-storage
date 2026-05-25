@@ -4,6 +4,8 @@ using static LanguageExt.Prelude;
 using JustGo.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Humanizer;
+using TickerQ.Utilities.Interfaces;
+using TickerQ.Utilities.Base;
 
 namespace JustGo.Api.Features.Members;
 
@@ -42,9 +44,9 @@ public sealed class SyncMembersJob(
     TimeProvider timeProvider,
     IMemberClient memberClient,
     ILogger<SyncMembersJob> logger,
-    IServiceScopeFactory scopeFactory)
+    IServiceScopeFactory scopeFactory) : ITickerFunction
 {
-    public async Task ExecuteAsync(CancellationToken ct)
+    public async Task ExecuteAsync(TickerFunctionContext context, CancellationToken cancellationToken = default)
     {
         int pageNo = 1;
         int totalSynced = 0;
@@ -53,7 +55,7 @@ public sealed class SyncMembersJob(
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
 
-        await foreach (var result in ProcessPagesAsync(syncedAtUtc, db, ct))
+        await foreach (var result in ProcessPagesAsync(syncedAtUtc, db, cancellationToken))
         {
             if (result.IsLeft) throw CreateSyncException(result.LeftToList()[0], pageNo);
             result.IfRight(outcome => totalSynced += outcome.SyncedCount);

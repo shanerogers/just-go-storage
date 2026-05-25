@@ -18,7 +18,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using TickerQ.DependencyInjection;
 using TickerQ.Dashboard.DependencyInjection;
-using TickerQ.Utilities.Enums;
 using ZiggyCreatures.Caching.Fusion;
 using ZiggyCreatures.Caching.Fusion.Backplane;
 using ZiggyCreatures.Caching.Fusion.Backplane.StackExchangeRedis;
@@ -37,6 +36,11 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler(_ => { });
 builder.Services.AddAntiforgery();
 builder.Services.AddTransient(_ => TimeProvider.System);
+
+builder.Services.AddTickerQ(options => options.AddDashboard())
+    .MapTicker<SyncMembersJob>()
+    .WithCron(Cronos.CronExpression.Hourly.ToString())
+    .WithMaxConcurrency(1);
 
 builder.Services.AddSingleton<IFusionCacheSerializer, FusionCacheSystemTextJsonSerializer>();
 builder.Services.AddSingleton<IFusionCacheBackplane>(sp =>
@@ -126,14 +130,6 @@ builder.Services
         builder.Configuration.GetConnectionString("itkd")!,
         dbOptions => dbOptions.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
 
-builder.Services
-    .AddTickerQ(options => options.AddDashboard(dashboard => dashboard.SetBasePath("/tickerq")))
-    .MapTicker("sync-members", async (_, services, ct) =>
-    {
-        await services.GetRequiredService<SyncMembersJob>().ExecuteAsync(ct);
-    })
-    .WithCron("0 * * * *")
-    .WithMaxConcurrency(1);
 
 var application = builder.Build();
 
@@ -156,6 +152,8 @@ application.MapHealthChecksUI(options =>
     options.ApiPath = "/health-ui-api";
 });
 
+application.UseTickerQ();
+
 application
     .MapAuthEndpoints()
     .MapClubEndpoints()
@@ -175,7 +173,5 @@ if (application.Environment.IsDevelopment())
 {
     application.MapCacheAdminEndpoints();
 }
-
-application.UseTickerQ(TickerQStartMode.Immediate);
 
 await application.RunAsync();
