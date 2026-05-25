@@ -11,12 +11,14 @@ using JustGo.Api.Features.Organisations;
 using JustGo.Api.Features.Rewards;
 using JustGo.Api.Features.Shops;
 using JustGo.Api.Health;
-using JustGo.Integrations.JustGo;
 using HealthChecks.UI.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using TickerQ.DependencyInjection;
 using TickerQ.Dashboard.DependencyInjection;
+using TickerQ.EntityFrameworkCore.DbContextFactory;
+using TickerQ.EntityFrameworkCore.DependencyInjection;
+using TickerQ.Instrumentation.OpenTelemetry;
 using ZiggyCreatures.Caching.Fusion;
 using ZiggyCreatures.Caching.Fusion.Backplane;
 using ZiggyCreatures.Caching.Fusion.Backplane.StackExchangeRedis;
@@ -37,7 +39,18 @@ builder.Services.AddExceptionHandler(_ => { });
 builder.Services.AddAntiforgery();
 builder.Services.AddTransient(_ => TimeProvider.System);
 
-builder.Services.AddTickerQ(options => options.AddDashboard())
+builder.Services.AddTickerQ(options =>
+{
+    options.AddDashboard();
+    options.AddOpenTelemetryInstrumentation();
+    options.AddOperationalStore(efOptions =>
+    {
+        efOptions.UseTickerQDbContext<TickerQDbContext>(dbOptions =>
+        {
+            dbOptions.UseNpgsql(builder.Configuration.GetConnectionString("itkd")!);
+        });
+    });
+})
     .MapTicker<SyncMembersJob>()
     .WithCron(Cronos.CronExpression.Hourly.ToString())
     .WithMaxConcurrency(1);
