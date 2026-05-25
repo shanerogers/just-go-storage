@@ -40,17 +40,17 @@ builder.Services.AddAntiforgery();
 builder.Services.AddTransient(_ => TimeProvider.System);
 
 builder.Services.AddTickerQ(options =>
-{
-    options.AddDashboard();
-    options.AddOpenTelemetryInstrumentation();
-    options.AddOperationalStore(efOptions =>
     {
-        efOptions.UseTickerQDbContext<TickerQDbContext>(dbOptions =>
+        options.AddDashboard();
+        options.AddOpenTelemetryInstrumentation();
+        options.AddOperationalStore(efOptions =>
         {
-            dbOptions.UseNpgsql(builder.Configuration.GetConnectionString("itkd")!);
+            efOptions.UseTickerQDbContext<TickerQDbContext>(dbOptions =>
+            {
+                dbOptions.UseNpgsql(builder.Configuration.GetConnectionString("itkd")!);
+            });
         });
-    });
-})
+    })
     .MapTicker<SyncMembersJob>()
     .WithCron(Cronos.CronExpression.Hourly.ToString())
     .WithMaxConcurrency(1);
