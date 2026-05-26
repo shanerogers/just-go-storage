@@ -30,7 +30,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 builder.AddRedisDistributedCache("cache");
-builder.AddNpgsqlDbContext<ApiDbContext>("itkd");
+builder.AddNpgsqlDbContext<ApiDbContext>("itkd",
+    configureDbContextOptions: options => options
+        .UseNpgsql(npgsql => npgsql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
 
 builder.Services.AddHttpLogging(options => options.CombineLogs = true);
 builder.Services.AddProblemDetails();
