@@ -16,7 +16,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using TickerQ.DependencyInjection;
 using TickerQ.Dashboard.DependencyInjection;
-using TickerQ.EntityFrameworkCore.DbContextFactory;
+using TickerQ.EntityFrameworkCore.Customizer;
 using TickerQ.EntityFrameworkCore.DependencyInjection;
 using TickerQ.Instrumentation.OpenTelemetry;
 using ZiggyCreatures.Caching.Fusion;
@@ -30,7 +30,6 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 builder.AddRedisDistributedCache("cache");
-
 builder.AddNpgsqlDbContext<ApiDbContext>("itkd");
 
 builder.Services.AddHttpLogging(options => options.CombineLogs = true);
@@ -43,14 +42,10 @@ builder.Services.AddTickerQ(options =>
 {
     options.AddDashboard();
     options.AddOpenTelemetryInstrumentation();
-    options.AddOperationalStore(efOptions =>
-    {
-        efOptions.UseTickerQDbContext<TickerQDbContext>(dbOptions =>
-        {
-            dbOptions.UseNpgsql(builder.Configuration.GetConnectionString("itkd")!);
-        });
-    });
+    options.AddOperationalStore(ef =>
+        ef.UseApplicationDbContext<ApiDbContext>(ConfigurationType.UseModelCustomizer));
 });
+
 
 builder.Services.MapTicker<SyncMembersJob>()
     .WithCron(Cronos.CronExpression.Hourly.ToString())
