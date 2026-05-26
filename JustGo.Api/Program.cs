@@ -31,7 +31,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.AddRedisDistributedCache("cache");
 builder.AddNpgsqlDbContext<ApiDbContext>("itkd", configureDbContextOptions: options => options
-    .EnableSensitiveDataLogging()
+    .EnableSensitiveDataLogging(builder.Environment.IsDevelopment())
     .ConfigureWarnings(warningsHandler => warningsHandler.Throw())
     .UseNpgsql(npgsql => npgsql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
 
