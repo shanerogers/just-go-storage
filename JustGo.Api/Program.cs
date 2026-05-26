@@ -50,10 +50,11 @@ builder.Services.AddTickerQ(options =>
             dbOptions.UseNpgsql(builder.Configuration.GetConnectionString("itkd")!);
         });
     });
-})
-.MapTicker<SyncMembersJob>()
-.WithCron(Cronos.CronExpression.Hourly.ToString())
-.WithMaxConcurrency(1);
+});
+
+builder.Services.MapTicker<SyncMembersJob>()
+    .WithCron(Cronos.CronExpression.Hourly.ToString())
+    .WithMaxConcurrency(1);
 
 builder.Services.AddSingleton<IFusionCacheSerializer, FusionCacheSystemTextJsonSerializer>();
 builder.Services.AddSingleton<IFusionCacheBackplane>(sp =>
