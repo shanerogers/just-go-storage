@@ -42,10 +42,8 @@ builder.Services.AddTickerQ(options =>
 {
     options.AddDashboard();
     options.AddOpenTelemetryInstrumentation();
-    options.AddOperationalStore(ef =>
-        ef.UseApplicationDbContext<ApiDbContext>(ConfigurationType.UseModelCustomizer));
+    options.AddOperationalStore(ef => ef.UseApplicationDbContext<ApiDbContext>(ConfigurationType.UseModelCustomizer));
 });
-
 
 builder.Services.MapTicker<SyncMembersJob>()
     .WithCron(Cronos.CronExpression.Hourly.ToString())

@@ -37,24 +37,6 @@ public partial class AddTickerQOperationalStore : Migration
                 });
 
             migrationBuilder.CreateTable(
-                name: "member_sync_records",
-                columns: table => new
-                {
-                    id = table.Column<Guid>(type: "uuid", nullable: false, defaultValueSql: "gen_random_uuid()"),
-                    justgo_member_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    first_name = table.Column<string>(type: "text", nullable: true),
-                    last_name = table.Column<string>(type: "text", nullable: true),
-                    email_address = table.Column<string>(type: "text", nullable: true),
-                    member_status = table.Column<string>(type: "text", nullable: true),
-                    last_synced_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    member_information = table.Column<string>(type: "jsonb", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_member_sync_records", x => x.id);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "TimeTickers",
                 schema: "ticker",
                 columns: table => new
@@ -160,12 +142,6 @@ public partial class AddTickerQOperationalStore : Migration
                 columns: new[] { "Function", "Expression" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_member_sync_records_justgo_member_id",
-                table: "member_sync_records",
-                column: "justgo_member_id",
-                unique: true);
-
-            migrationBuilder.CreateIndex(
                 name: "IX_TimeTicker_ExecutionTime",
                 schema: "ticker",
                 table: "TimeTickers",
@@ -190,9 +166,6 @@ public partial class AddTickerQOperationalStore : Migration
         migrationBuilder.DropTable(
             name: "CronTickerOccurrences",
             schema: "ticker");
-
-            migrationBuilder.DropTable(
-                name: "member_sync_records");
 
             migrationBuilder.DropTable(
                 name: "TimeTickers",
