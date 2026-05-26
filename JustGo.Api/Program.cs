@@ -72,7 +72,11 @@ builder.Services
     .AddNpgSql(builder.Configuration.GetConnectionString("itkd")!, tags: ["ready"]);
 
 builder.Services
-    .AddHealthChecksUI(options => options.AddHealthCheckEndpoint("justgo-api", "/health"))
+    .AddHealthChecksUI(options =>
+    {
+        options.SetEvaluationTimeInSeconds(60_000);
+        options.AddHealthCheckEndpoint("justgo-api", "/health");
+    })
     .AddPostgreSqlStorage(
         builder.Configuration.GetConnectionString("itkd")!,
         dbOptions => dbOptions.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
