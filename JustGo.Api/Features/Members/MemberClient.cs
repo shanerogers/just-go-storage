@@ -7,8 +7,8 @@ namespace JustGo.Api.Features.Members;
 public sealed class MemberClient(HttpClient httpClient, IOptions<JustGoOptions> options)
     : JustGoClientBase(httpClient, options), IMemberClient
 {
-    private const string PageNumber = "PageNumber";
-    private const string PageSize = "PageSize";
+    private const string PageNumber = "pageNumber";
+    private const string PageSize = "pageSize";
 
     public Task<MembersPagedResponse> FindMembersByAttributesAsync(
         FindMembersRequest request, CancellationToken ct)

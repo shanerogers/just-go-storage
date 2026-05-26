@@ -83,6 +83,16 @@ public sealed class SyncMembersJob(
                 pageNumber,
                 page.Members.Count,
                 page.Response.TotalPages))
+            .ThenDo(page =>
+            {
+                if (page.Response.PageNumber != 0 && page.Response.PageNumber != pageNumber)
+                {
+                    logger.LogWarning(
+                        "Members API returned pageNumber {ReturnedPageNumber} while requesting page {RequestedPage}.",
+                        page.Response.PageNumber,
+                        pageNumber);
+                }
+            })
             .ThenAsync(page => ProcessPageMembersAsync(page, pageNumber, syncedAtUtc, db, ct))
             .ElseDo(errors => logger.LogWarning("Failed processing page {Page}: {Code} - {Description}.",
                 pageNumber,
@@ -121,7 +131,7 @@ public sealed class SyncMembersJob(
 
         LogPageCompleted(pageNumber, syncedCount, attemptedCount, failedCount);
 
-        var shouldContinue = page.Members.Count > 0 && ShouldContinue(pageNumber, page.Response, page.Members.Count);
+        var shouldContinue = page.Members.Count > 0 && ShouldContinue(pageNumber, page.Response);
 
         return new PageOutcome(syncedCount, shouldContinue);
     }
@@ -176,11 +186,16 @@ public sealed class SyncMembersJob(
         }
     }
 
-    private static bool ShouldContinue(
-        int currentPage,
-        MembersPagedResponse response,
-        int pageSize) =>
-        currentPage < response.TotalPages && pageSize >= new FindMembersRequest().PageSize;
+    private static bool ShouldContinue(int currentPage, MembersPagedResponse response)
+    {
+        if (response.TotalRecords > 0)
+        {
+            var effectivePageSize = response.PageSize > 0 ? response.PageSize : 1;
+            return currentPage * effectivePageSize < response.TotalRecords;
+        }
+
+        return currentPage < response.TotalPages;
+    }
 
     private static async Task<ErrorOr<MemberDetail>> UpsertMemberAsync(
         ApiDbContext database,
