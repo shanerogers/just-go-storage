@@ -32,6 +32,8 @@ builder.AddServiceDefaults();
 builder.AddRedisDistributedCache("cache");
 builder.AddNpgsqlDbContext<ApiDbContext>("itkd",
     configureDbContextOptions: options => options
+        .EnableSensitiveDataLogging()
+        .ConfigureWarnings(w => w.Throw(RelationalEventId.PendingModelChangesWarning))
         .UseNpgsql(npgsql => npgsql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
 
 builder.Services.AddHttpLogging(options => options.CombineLogs = true);
