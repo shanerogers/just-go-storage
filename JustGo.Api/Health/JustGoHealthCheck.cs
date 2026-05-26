@@ -26,7 +26,7 @@ public sealed class JustGoHealthCheck(
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
             var response = await client.GetAsync(
-                $"api/{justGoOptions.ApiVersion}/Members/FindByAttributes?PageNumber=1&PageSize=1",
+                $"api/{justGoOptions.ApiVersion}/Members/Schema",
                 ct);
 
             if (response.IsSuccessStatusCode)
