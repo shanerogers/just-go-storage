@@ -8,6 +8,7 @@ using JustGo.Api.Features.Memberships;
 using JustGo.Api.Features.Organisations;
 using JustGo.Api.Features.Rewards;
 using JustGo.Api.Features.Shops;
+using JustGo.Api.Services;
 using JustGo.Integrations.JustGo.Services;
 using Microsoft.Extensions.Options;
 

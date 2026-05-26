@@ -8,6 +8,8 @@ public sealed class JustGoTokenService(
     IOptions<JustGoOptions> options, IHttpClientFactory httpClientFactory, IFusionCache cache) : IJustGoTokenService
 {
     private const string TokenCacheKey = "justgo:auth:token";
+    private static readonly TimeSpan _tokenExpirySkew = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan _minimumTokenCacheDuration = TimeSpan.FromSeconds(1);
 
     private readonly IFusionCache _cache = cache;
     private readonly JustGoOptions _options = options.Value;
@@ -58,7 +60,9 @@ public sealed class JustGoTokenService(
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(expiresInSeconds);
         var tokenLifetime = TimeSpan.FromSeconds(expiresInSeconds);
-        return tokenLifetime;
+        return tokenLifetime > _tokenExpirySkew
+            ? tokenLifetime - _tokenExpirySkew
+            : _minimumTokenCacheDuration;
     }
 
     private readonly record struct TokenResult(string AccessToken, int ExpiresIn);
