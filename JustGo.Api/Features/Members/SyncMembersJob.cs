@@ -59,15 +59,15 @@ public sealed class SyncMembersJob(
     {
         var pageNumber = 1;
         var shouldContinue = true;
-
         while (shouldContinue && !ct.IsCancellationRequested)
         {
-            var result = await ProcessSinglePageAsync(pageNumber, syncedAtUtc, db, ct);
-
-            shouldContinue = !result.IsError && result.Value.ShouldContinue;
-
-            pageNumber++;
-            yield return result;
+            yield return await ProcessSinglePageAsync(pageNumber, syncedAtUtc, db, ct)
+                .ElseDo(_ => shouldContinue = false)
+                .ThenDo(outcome =>
+                {
+                    pageNumber = outcome.NextPageNumber;
+                    shouldContinue = outcome.ShouldContinue;
+                });
         }
     }
 
@@ -83,16 +83,6 @@ public sealed class SyncMembersJob(
                 pageNumber,
                 page.Members.Count,
                 page.Response.TotalPages))
-            .ThenDo(page =>
-            {
-                if (page.Response.PageNumber != 0 && page.Response.PageNumber != pageNumber)
-                {
-                    logger.LogWarning(
-                        "Members API returned pageNumber {ReturnedPageNumber} while requesting page {RequestedPage}.",
-                        page.Response.PageNumber,
-                        pageNumber);
-                }
-            })
             .ThenAsync(page => ProcessPageMembersAsync(page, pageNumber, syncedAtUtc, db, ct))
             .ElseDo(errors => logger.LogWarning("Failed processing page {Page}: {Code} - {Description}.",
                 pageNumber,
@@ -113,27 +103,41 @@ public sealed class SyncMembersJob(
         foreach (var memberId in page.Members.Select(m => m.Id))
         {
             attemptedCount++;
-            var memberResult = await FetchMemberDetailAsync(page, memberId, ct)
+            await FetchMemberDetailAsync(page, memberId, ct)
                 .ThenAsync(member => UpsertMemberAsync(db, syncedAtUtc, member, ct))
                 .ThenDo(_ => syncedCount++)
                 .ElseDo(errors =>
                 {
                     failedCount++;
-                    logger.LogWarning("Failed syncing member {MemberId} on page {Page}: {Code} - {Description}.",
+                    logger.LogWarning("Skipping member {MemberId} on page {Page}: {Code} - {Description}.",
                         memberId,
                         pageNumber,
                         errors[0].Code,
                         errors[0].Description);
                 });
-
-            if (memberResult.IsError) return memberResult.Errors;
         }
 
         LogPageCompleted(pageNumber, syncedCount, attemptedCount, failedCount);
 
-        var shouldContinue = page.Members.Count > 0 && ShouldContinue(pageNumber, page.Response);
+        // Continue if we received a full page — the simplest reliable signal that there are more.
+        // Also respect TotalRecords when available as a double-check.
+        var receivedFullPage = page.Members.Count >= page.Response.PageSize && page.Response.PageSize > 0;
+        var moreByTotals = page.Response.TotalRecords > 0
+            && page.Response.PageSize > 0
+            && pageNumber * page.Response.PageSize < page.Response.TotalRecords;
 
-        return new PageOutcome(syncedCount, shouldContinue);
+        var shouldContinue = page.Members.Count > 0 && (receivedFullPage || moreByTotals);
+
+        logger.LogInformation(
+            "Page {Page}: {Members}/{PageSize} members, TotalRecords={TotalRecords}, TotalPages={TotalPages}. ShouldContinue={ShouldContinue}.",
+            pageNumber,
+            page.Members.Count,
+            page.Response.PageSize,
+            page.Response.TotalRecords,
+            page.Response.TotalPages,
+            shouldContinue);
+
+        return new PageOutcome(syncedCount, shouldContinue, pageNumber + 1);
     }
 
     private async Task<ErrorOr<MemberDetail>> FetchMemberDetailAsync(
@@ -184,17 +188,6 @@ public sealed class SyncMembersJob(
                 description: $"Failed to fetch members page {pageNumber}: {ex.Message}",
                 exception: ex);
         }
-    }
-
-    private static bool ShouldContinue(int currentPage, MembersPagedResponse response)
-    {
-        if (response.TotalRecords > 0)
-        {
-            var effectivePageSize = response.PageSize > 0 ? response.PageSize : 1;
-            return currentPage * effectivePageSize < response.TotalRecords;
-        }
-
-        return currentPage < response.TotalPages;
     }
 
     private static async Task<ErrorOr<MemberDetail>> UpsertMemberAsync(
@@ -276,4 +269,5 @@ internal record MemberDetail(
 /// </summary>
 internal record PageOutcome(
     int SyncedCount,
-    bool ShouldContinue);
+    bool ShouldContinue,
+    int NextPageNumber);

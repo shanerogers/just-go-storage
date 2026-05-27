@@ -30,6 +30,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 builder.AddRedisDistributedCache("cache");
+
 builder.AddNpgsqlDbContext<ApiDbContext>("itkd", configureDbContextOptions: options => options
     .EnableSensitiveDataLogging(builder.Environment.IsDevelopment())
     .ConfigureWarnings(warningsHandler => warningsHandler.Throw())
