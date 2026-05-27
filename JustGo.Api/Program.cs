@@ -101,7 +101,9 @@ application.UseHttpsRedirection();
 application.UseExceptionHandler();
 application.UseStaticFiles();
 application.UseAntiforgery();
-application.MapHealthChecks("/health", new() { ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse });
+application.MapHealthChecks("/health", new() { ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse })
+    .WithHttpLogging(Microsoft.AspNetCore.HttpLogging.HttpLoggingFields.None);
+
 application.MapHealthChecksUI(options =>
 {
     options.UIPath = "/health-ui";
