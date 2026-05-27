@@ -46,7 +46,8 @@ builder.Services.AddTickerQ(options =>
 {
     options.AddDashboard();
     options.AddOpenTelemetryInstrumentation();
-    options.AddOperationalStore(ef => ef.UseApplicationDbContext<ApiDbContext>(ConfigurationType.UseModelCustomizer));
+    options.AddOperationalStore(options =>
+        options.UseApplicationDbContext<ApiDbContext>(ConfigurationType.UseModelCustomizer));
 });
 
 builder.Services.MapTicker<SyncMembersJob>()
