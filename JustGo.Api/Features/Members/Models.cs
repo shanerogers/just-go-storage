@@ -364,3 +364,45 @@ public sealed class MembersPagedResponse
     [JsonPropertyName("data")]
     public List<JustGoMemberDto>? Data { get; set; }
 }
+
+public sealed class MemberUpdateRequest
+{
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
+    public string? EmailAddress { get; set; }
+    public string? Gender { get; set; }
+    public string? Address1 { get; set; }
+    public string? Address2 { get; set; }
+    public string? Town { get; set; }
+    public string? County { get; set; }
+    public string? PostCode { get; set; }
+    public string? Country { get; set; }
+    public string? PhoneNumber { get; set; }
+}
+
+public sealed class MemberCreatedResponse
+{
+    public Guid MemberId { get; set; } = Guid.NewGuid();
+}
+
+public sealed class MemberCreateRequest
+{
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string? EmailAddress { get; set; }
+    public DateOnly? Dob { get; set; }
+    public string? Gender { get; set; }
+    public string? Address1 { get; set; }
+    public string? Address2 { get; set; }
+    public string? Town { get; set; }
+    public string? County { get; set; }
+    public string? PostCode { get; set; }
+    public string? Country { get; set; }
+    public string? PhoneNumber { get; set; }
+}
+
+public sealed class MemberSuspendRequest
+{
+    public Guid MemberId { get; set; }
+    public string SuspensionLevel { get; set; } = string.Empty;
+}

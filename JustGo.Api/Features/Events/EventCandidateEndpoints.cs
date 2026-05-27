@@ -1,5 +1,4 @@
 using JustGo.Integrations.JustGo.Features.Events.Models;
-using JustGo.Integrations.JustGo.Services;
 
 namespace JustGo.Api.Features.Events;
 
@@ -11,7 +10,7 @@ public static class EventCandidateEndpoints
 
         group.MapGet("/candidates/search", async (
             [AsParameters] FindEventCandidatesRequest request,
-            IJustGoClient client,
+            IEventClient client,
             CancellationToken ct) =>
         {
             var result = await client.FindEventCandidatesByAttributesAsync(request, ct);
@@ -20,7 +19,7 @@ public static class EventCandidateEndpoints
         .WithName("FindEventCandidates")
         .WithSummary("Search event candidates/bookings by attributes");
 
-        group.MapPost("/{eventId:guid}/candidates", async (Guid eventId, EventCandidateCreateRequest request, IJustGoClient client, CancellationToken ct) =>
+        group.MapPost("/{eventId:guid}/candidates", async (Guid eventId, EventCandidateCreateRequest request, IEventClient client, CancellationToken ct) =>
         {
             var result = await client.AddEventCandidateAsync(eventId, request, ct);
             return Results.Created($"/events/{eventId}/candidates/{result.BookingId}", result);
@@ -28,7 +27,7 @@ public static class EventCandidateEndpoints
         .WithName("AddEventCandidate")
         .WithSummary("Register a candidate for an event");
 
-        group.MapPut("/candidates/{bookingId:guid}/status", async (Guid bookingId, EventCandidateStatusUpdateRequest request, IJustGoClient client, CancellationToken ct) =>
+        group.MapPut("/candidates/{bookingId:guid}/status", async (Guid bookingId, EventCandidateStatusUpdateRequest request, IEventClient client, CancellationToken ct) =>
         {
             await client.UpdateEventCandidateStatusAsync(bookingId, request, ct);
             return Results.NoContent();

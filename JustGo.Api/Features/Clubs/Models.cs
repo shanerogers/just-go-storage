@@ -17,3 +17,8 @@ public sealed class AddClubMemberRequest
     public Guid ClubId { get; set; }
     public Guid MemberId { get; set; }
 }
+
+public sealed class ClubMemberAddedResponse
+{
+    public Guid MemberId { get; set; } = Guid.NewGuid();
+}

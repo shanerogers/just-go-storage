@@ -17,3 +17,21 @@ public sealed class MemberCredentialUpdateRequest
 {
     public string? Value { get; set; }
 }
+
+public sealed class MemberCredentialCreatedResponse
+{
+    public Guid CredentialId { get; set; } = Guid.NewGuid();
+}
+
+public sealed class FindClubCredentialsRequest
+{
+    public int PageNumber { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+    public Guid? ClubId { get; set; }
+}
+
+public sealed class ClubCredentialCreateRequest
+{
+    public string? CredentialType { get; set; }
+    public string? Value { get; set; }
+}

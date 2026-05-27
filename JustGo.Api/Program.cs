@@ -1,34 +1,57 @@
 using JustGo.Api.Data;
 using JustGo.Api.Features.Auth;
 using JustGo.Api.Features.Clubs;
+using JustGo.Api.Features.Cache;
 using JustGo.Api.Features.Competitions;
 using JustGo.Api.Features.Credentials;
 using JustGo.Api.Features.Events;
+using JustGo.Api.Features.Members;
+using JustGo.Api.Features.Memberships;
+using JustGo.Api.Features.Organisations;
+using JustGo.Api.Features.Rewards;
+using JustGo.Api.Features.Shops;
 using JustGo.Api.Health;
-using JustGo.Api.Services.Jobs;
-using JustGo.Integrations.JustGo.Services;
-using Microsoft.Extensions.Options;
 using HealthChecks.UI.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using Quartz;
+using TickerQ.DependencyInjection;
+using TickerQ.Dashboard.DependencyInjection;
+using TickerQ.EntityFrameworkCore.Customizer;
+using TickerQ.EntityFrameworkCore.DependencyInjection;
+using TickerQ.Instrumentation.OpenTelemetry;
 using ZiggyCreatures.Caching.Fusion;
 using ZiggyCreatures.Caching.Fusion.Backplane;
 using ZiggyCreatures.Caching.Fusion.Backplane.StackExchangeRedis;
 using ZiggyCreatures.Caching.Fusion.Serialization;
 using ZiggyCreatures.Caching.Fusion.Serialization.SystemTextJson;
+using JustGo.Api;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 builder.AddRedisDistributedCache("cache");
-
-builder.AddNpgsqlDbContext<ApiDbContext>("itkd");
+builder.AddNpgsqlDbContext<ApiDbContext>("itkd", configureDbContextOptions: options => options
+    .EnableSensitiveDataLogging(builder.Environment.IsDevelopment())
+    .ConfigureWarnings(warningsHandler => warningsHandler.Throw())
+    .UseNpgsql(npgsql => npgsql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
 
 builder.Services.AddHttpLogging(options => options.CombineLogs = true);
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler(_ => { });
+builder.Services.AddAntiforgery();
 builder.Services.AddTransient(_ => TimeProvider.System);
+
+builder.Services.AddTickerQ(options =>
+{
+    options.AddDashboard();
+    options.AddOpenTelemetryInstrumentation();
+    options.AddOperationalStore(ef => ef.UseApplicationDbContext<ApiDbContext>(ConfigurationType.UseModelCustomizer));
+});
+
+builder.Services.MapTicker<SyncMembersJob>()
+    .WithCron(Cronos.CronExpression.Hourly.ToString())
+    .WithMaxConcurrency(1);
+
 builder.Services.AddSingleton<IFusionCacheSerializer, FusionCacheSystemTextJsonSerializer>();
 builder.Services.AddSingleton<IFusionCacheBackplane>(sp =>
 {
@@ -41,68 +64,26 @@ builder.Services.AddSingleton<IFusionCacheBackplane>(sp =>
 
 builder.Services
     .AddFusionCache()
-    .WithDefaultEntryOptions(options =>
-    {
-        options.AllowBackgroundDistributedCacheOperations = true;
-        options.DistributedCacheHardTimeout = TimeSpan.FromSeconds(2);
-        options.DistributedCacheSoftTimeout = TimeSpan.FromMilliseconds(250);
-    })
     .TryWithAutoSetup();
 
-builder.Services
-    .AddOptions<JustGoOptions>()
-    .BindConfiguration(JustGoOptions.SectionName)
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
-
-builder.Services.AddHttpClient("JustGoAuth", (sp, client) =>
-{
-    var opts = sp.GetRequiredService<IOptions<JustGoOptions>>().Value;
-    client.BaseAddress = new Uri(opts.BaseUrl);
-});
-
-builder.Services
-    .AddTransient<JustGoAuthHandler>()
-    .AddTransient<IJustGoTokenService, JustGoTokenService>()
-    .AddHttpClient<IJustGoClient, JustGoClient>((sp, client) =>
-    {
-        var opts = sp.GetRequiredService<IOptions<JustGoOptions>>().Value;
-        client.BaseAddress = new Uri(opts.BaseUrl);
-    })
-    .AddHttpMessageHandler<JustGoAuthHandler>();
+builder.Services.AddJustGoClient();
 
 builder.Services
     .AddHealthChecks()
-    .AddCheck<QuartzHealthCheck>("quartz", tags: ["ready"])
+    .AddCheck<TickerQHealthCheck>("tickerq", tags: ["ready"])
     .AddCheck<JustGoHealthCheck>("justgo-api", tags: ["ready"])
     .AddNpgSql(builder.Configuration.GetConnectionString("itkd")!, tags: ["ready"]);
 
 builder.Services
-    .AddHealthChecksUI(options => options.AddHealthCheckEndpoint("justgo-api", "/health"))
+    .AddHealthChecksUI(options =>
+    {
+        options.SetEvaluationTimeInSeconds(60_000);
+        options.AddHealthCheckEndpoint("justgo-api", "/health");
+    })
     .AddPostgreSqlStorage(
         builder.Configuration.GetConnectionString("itkd")!,
         dbOptions => dbOptions.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
 
-builder.Services.AddQuartz(options =>
-{
-    options.UsePersistentStore(store =>
-    {
-        store.UseSystemTextJsonSerializer();
-        store.UsePostgres(builder.Configuration.GetConnectionString("itkd")!);
-    });
-
-    var syncMembersJobKey = new JobKey("sync-members");
-    options.AddJob<SyncMembersJob>(job => job.WithIdentity(syncMembersJobKey).StoreDurably());
-    options.AddTrigger(trigger => trigger
-        .ForJob(syncMembersJobKey)
-        .WithIdentity("sync-members-trigger")
-        .WithSimpleSchedule(schedule => schedule
-            .WithInterval(TimeSpan.FromHours(1))
-            .RepeatForever()));
-});
-
-builder.Services.AddQuartzDashboard();
-builder.Services.AddQuartzHostedService(options => options.WaitForJobsToComplete = true);
 
 var application = builder.Build();
 
@@ -118,13 +99,14 @@ application.UseHttpsRedirection();
 application.UseExceptionHandler();
 application.UseStaticFiles();
 application.UseAntiforgery();
-application.MapQuartzDashboard();
 application.MapHealthChecks("/health", new() { ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse });
 application.MapHealthChecksUI(options =>
 {
     options.UIPath = "/health-ui";
     options.ApiPath = "/health-ui-api";
 });
+
+application.UseTickerQ();
 
 application
     .MapAuthEndpoints()
@@ -134,6 +116,16 @@ application
     .MapEventEndpoints()
     .MapEventCandidateEndpoints()
     .MapEventPromoterEndpoints()
-    .MapEventStageEndpoints();
+    .MapEventStageEndpoints()
+    .MapMemberEndpoints()
+    .MapMembershipEndpoints()
+    .MapOrganisationEndpoints()
+    .MapShopEndpoints()
+    .MapRewardEndpoints();
+
+if (application.Environment.IsDevelopment())
+{
+    application.MapCacheAdminEndpoints();
+}
 
 await application.RunAsync();

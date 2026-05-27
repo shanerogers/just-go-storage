@@ -1,32 +1,31 @@
 using System.Net.Http.Headers;
+using JustGo.Integrations.JustGo.Services;
 
-namespace JustGo.Integrations.JustGo.Services;
+namespace JustGo.Api.Services;
 
-/// <summary>
-/// Delegating handler that injects a JustGo bearer token into every outgoing request,
-/// obtaining and caching it via <see cref="IJustGoTokenService"/>.
-/// </summary>
 internal sealed class JustGoAuthHandler(IJustGoTokenService tokenService) : DelegatingHandler
 {
-    protected override async Task<HttpResponseMessage> SendAsync(
-        HttpRequestMessage request,
-        CancellationToken cancellationToken)
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {
-        var token = await tokenService.GetTokenAsync(cancellationToken);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        await EnsureRequestAuthenticatedAsync(request, ct);
 
-        var response = await base.SendAsync(request, cancellationToken);
+        var response = await base.SendAsync(request, ct);
 
-        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        if (response.StatusCode != System.Net.HttpStatusCode.Unauthorized)
         {
-            tokenService.InvalidateToken();
-            token = await tokenService.GetTokenAsync(cancellationToken);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-            response = await base.SendAsync(request, cancellationToken);
+            return response;
         }
 
-        return response;
+        tokenService.InvalidateToken();
+
+        await EnsureRequestAuthenticatedAsync(request, ct);
+
+        return await base.SendAsync(request, ct);
+    }
+
+    private async Task EnsureRequestAuthenticatedAsync(HttpRequestMessage request, CancellationToken ct)
+    {
+        var token = await tokenService.GetTokenAsync(ct);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
     }
 }
-

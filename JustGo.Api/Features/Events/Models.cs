@@ -43,3 +43,23 @@ public sealed class EventStageCreateRequest
 {
     public string Name { get; set; } = string.Empty;
 }
+
+public sealed class EventCreatedResponse
+{
+    public Guid EventId { get; set; } = Guid.NewGuid();
+}
+
+public sealed class EventCandidateCreatedResponse
+{
+    public Guid BookingId { get; set; } = Guid.NewGuid();
+}
+
+public sealed class EventPromoterCreatedResponse
+{
+    public int PromoterId { get; set; }
+}
+
+public sealed class EventStageCreatedResponse
+{
+    public Guid StageId { get; set; } = Guid.NewGuid();
+}

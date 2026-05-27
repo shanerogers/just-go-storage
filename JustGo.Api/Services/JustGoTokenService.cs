@@ -8,39 +8,45 @@ public sealed class JustGoTokenService(
     IOptions<JustGoOptions> options, IHttpClientFactory httpClientFactory, IFusionCache cache) : IJustGoTokenService
 {
     private const string TokenCacheKey = "justgo:auth:token";
-    private static readonly TimeSpan ExpiryBuffer = TimeSpan.FromSeconds(60);
-    private static readonly TimeSpan MinimumTokenTtl = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan FallbackTokenTtl = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan _tokenExpirySkew = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan _minimumTokenCacheDuration = TimeSpan.FromSeconds(1);
+
+    private readonly IFusionCache _cache = cache;
     private readonly JustGoOptions _options = options.Value;
     private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
-    private readonly IFusionCache _cache = cache;
 
-    public async Task<string> GetTokenAsync(CancellationToken ct = default)
+    public async Task<string> GetTokenAsync(CancellationToken cancellationToken = default)
     {
         return await _cache.GetOrSetAsync<string>(TokenCacheKey,
-            async (context, ct) =>
+            async (context, cancellationToken) =>
             {
-                var tokenResult = await AcquireTokenAsync(ct);
-                context.Options.SetDuration(GetTokenDuration(tokenResult.ExpiresIn));
+                var tokenResult = await AcquireTokenAsync(cancellationToken);
+                var cacheFor = GetTokenDuration(tokenResult.ExpiresIn);
+                context.Options.Duration = cacheFor;
+                context.Options.DistributedCacheDuration = cacheFor;
                 return tokenResult.AccessToken;
             },
-            default,
-            new FusionCacheEntryOptions().SetDuration(FallbackTokenTtl), null, ct);
+            options: new FusionCacheEntryOptions
+            {
+                Duration = TimeSpan.FromMinutes(30),
+                DistributedCacheDuration = TimeSpan.FromMinutes(30),
+            },
+            token: cancellationToken);
     }
 
     public void InvalidateToken() => _cache.Remove(TokenCacheKey);
 
-    private async Task<TokenResult> AcquireTokenAsync(CancellationToken ct)
+    private async Task<TokenResult> AcquireTokenAsync(CancellationToken cancellationToken = default)
     {
         using var client = _httpClientFactory.CreateClient("JustGoAuth");
 
         var response = await client.PostAsJsonAsync($"/api/{_options.ApiVersion}/Auth",
             new { secret = _options.ApiKey },
-            ct);
+            cancellationToken);
 
         response.EnsureSuccessStatusCode();
 
-        var result = await response.Content.ReadFromJsonAsync<ApiResponse>(cancellationToken: ct);
+        var result = await response.Content.ReadFromJsonAsync<ApiResponse>(cancellationToken: cancellationToken);
 
         var token = result?.Data?.AccessToken;
         var expiresIn = result?.Data?.ExpiresIn ?? 0;
@@ -52,15 +58,11 @@ public sealed class JustGoTokenService(
 
     private static TimeSpan GetTokenDuration(int expiresInSeconds)
     {
-        if (expiresInSeconds <= 0)
-        {
-            return FallbackTokenTtl;
-        }
-
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(expiresInSeconds);
         var tokenLifetime = TimeSpan.FromSeconds(expiresInSeconds);
-        var adjustedLifetime = tokenLifetime - ExpiryBuffer;
-
-        return adjustedLifetime > MinimumTokenTtl ? adjustedLifetime : MinimumTokenTtl;
+        return tokenLifetime > _tokenExpirySkew
+            ? tokenLifetime - _tokenExpirySkew
+            : _minimumTokenCacheDuration;
     }
 
     private readonly record struct TokenResult(string AccessToken, int ExpiresIn);
