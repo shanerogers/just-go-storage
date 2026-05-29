@@ -48,6 +48,7 @@ builder.Services.AddTickerQ(options =>
     options.AddOperationalStore(ef => ef.UseApplicationDbContext<ApiDbContext>(ConfigurationType.UseModelCustomizer));
 });
 
+builder.Services.AddTransient<SyncMembersJob>();
 builder.Services.MapTicker<SyncMembersJob>()
     .WithCron(Cronos.CronExpression.Hourly.ToString())
     .WithMaxConcurrency(1);
@@ -126,6 +127,7 @@ application
 if (application.Environment.IsDevelopment())
 {
     application.MapCacheAdminEndpoints();
+    application.MapSyncAdminEndpoints();
 }
 
 await application.RunAsync();

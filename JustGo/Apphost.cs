@@ -38,7 +38,23 @@ var api = builder.AddProject<Projects.JustGo_Api>("api")
     .WithReference(cache)
     .WithReference(database)
     .WaitFor(cache)
-    .WaitFor(database);
+    .WaitFor(database)
+    .WithHttpCommand(
+        path: "/admin/sync/members",
+        displayName: "Sync Members",
+        commandOptions: new HttpCommandOptions
+        {
+            Method = HttpMethod.Post,
+            Description = "Trigger an on-demand member sync job",
+            IconName = "PeopleSync",
+            IconVariant = IconVariant.Filled,
+            IsHighlighted = true,
+            UpdateState = context =>
+                context.ResourceSnapshot.HealthStatus is Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy
+                    ? ResourceCommandState.Enabled
+                    : ResourceCommandState.Disabled,
+            ResultMode = HttpCommandResultMode.Auto
+        });
 
 cache.WithHttpCommand(
     path: "/admin/cache/clear",

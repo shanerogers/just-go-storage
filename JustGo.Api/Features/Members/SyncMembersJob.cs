@@ -28,7 +28,18 @@ public sealed class SyncMembersJob(
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
 
-        await foreach (var result in ProcessPagesAsync(syncedAtUtc, db, cancellationToken))
+        var lastSyncedAt = await db.Members
+            .TagWith("Get last sync timestamp for incremental sync")
+            .MaxAsync(r => (DateTimeOffset?)r.LastSyncedAt, cancellationToken);
+
+        var modifiedAfter = lastSyncedAt ?? In.AprilOf(2005);
+
+        logger.LogInformation(
+            "SyncMembersJob starting. Mode: {Mode}, ModifiedAfter: {ModifiedAfter}.",
+            lastSyncedAt.HasValue ? "incremental" : "full",
+            modifiedAfter);
+
+        await foreach (var result in ProcessPagesAsync(syncedAtUtc, modifiedAfter, db, cancellationToken))
         {
             result
                 .ThenDo(outcome => totalSynced += outcome.SyncedCount)
@@ -54,6 +65,7 @@ public sealed class SyncMembersJob(
 
     private async IAsyncEnumerable<ErrorOr<PageOutcome>> ProcessPagesAsync(
         DateTimeOffset syncedAtUtc,
+        DateTimeOffset modifiedAfter,
         ApiDbContext db,
         [EnumeratorCancellation] CancellationToken ct)
     {
@@ -62,7 +74,7 @@ public sealed class SyncMembersJob(
 
         while (shouldContinue && !ct.IsCancellationRequested)
         {
-            var result = await ProcessSinglePageAsync(pageNumber, syncedAtUtc, db, ct);
+            var result = await ProcessSinglePageAsync(pageNumber, syncedAtUtc, modifiedAfter, db, ct);
 
             shouldContinue = !result.IsError && result.Value.ShouldContinue;
 
@@ -74,10 +86,11 @@ public sealed class SyncMembersJob(
     private async Task<ErrorOr<PageOutcome>> ProcessSinglePageAsync(
         int pageNumber,
         DateTimeOffset syncedAtUtc,
+        DateTimeOffset modifiedAfter,
         ApiDbContext db,
         CancellationToken ct)
     {
-        var pageResult = await FetchPageAsync(pageNumber, syncedAtUtc, ct);
+        var pageResult = await FetchPageAsync(pageNumber, syncedAtUtc, modifiedAfter, ct);
         return await pageResult
             .ThenDo(page => logger.LogDebug("Fetched members page {Page} with {Count} records (total pages: {TotalPages}).",
                 pageNumber,
@@ -163,6 +176,7 @@ public sealed class SyncMembersJob(
     private async Task<ErrorOr<MemberPage>> FetchPageAsync(
         int pageNumber,
         DateTimeOffset syncedAtUtc,
+        DateTimeOffset modifiedAfter,
         CancellationToken ct)
     {
         try
@@ -172,7 +186,7 @@ public sealed class SyncMembersJob(
                 PageSize = 100,
                 PageNumber = pageNumber,
                 ModifiedBefore = syncedAtUtc,
-                ModifiedAfter = In.AprilOf(2005)
+                ModifiedAfter = modifiedAfter
             };
             var response = await memberClient.FindMembersByAttributesAsync(request, ct);
             return new MemberPage(response, response.Data ?? []);
