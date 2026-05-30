@@ -1,5 +1,8 @@
 @page "/grading"
 @rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
 
 <PageTitle>Grading Entry - ITKD</PageTitle>
 
@@ -84,15 +87,23 @@
         {
             <MudPaper Class="pa-4 mb-4" Elevation="2">
                 <MudGrid>
-                    <MudItem xs="12" sm="6">
+                    <MudItem xs="12" sm="4">
                         <MudText Typo="Typo.h6">
                             Members
                             <MudChip T="string" Color="Color.Primary" Size="Size.Small">
-                                @_members.Count total
+                                @_totalMemberCount total
                             </MudChip>
                         </MudText>
                     </MudItem>
-                    <MudItem xs="12" sm="6" Class="d-flex justify-end align-center">
+                    <MudItem xs="12" sm="4">
+                        <MudTextField @bind-Value="_memberSearch" Label="Search members"
+                                      Variant="Variant.Outlined" Adornment="Adornment.End"
+                                      AdornmentIcon="@Icons.Material.Filled.Search"
+                                      Placeholder="Name..." Immediate="true"
+                                      DebounceInterval="400"
+                                      OnDebounceIntervalElapsed="OnMemberSearchChanged" />
+                    </MudItem>
+                    <MudItem xs="12" sm="4" Class="d-flex justify-end align-center">
                         <MudText Typo="Typo.h6" Color="Color.Primary">
                             Number Grading: @_members.Count(m => m.Grading)
                         </MudText>
@@ -133,7 +144,7 @@
                                          Disabled="context.IsWithin90Days" />
                         </MudTd>
                         <MudTd>
-                            <MudCheckBox @bind-Value="context.DoubleGrading" Color="Color.Secondary"
+                            <MudCheckBox @bind-Value="context.IsDoubleGrading" Color="Color.Secondary"
                                          Disabled="!context.Grading" />
                         </MudTd>
                         <MudTd>
@@ -167,14 +178,18 @@
 
 @code {
     private string _eventSearch = string.Empty;
+    private string _memberSearch = string.Empty;
     private bool _searching;
     private bool _searchCompleted;
     private bool _eventLoaded;
     private bool _loadingMembers;
     private bool _submitting;
+    private int _totalMemberCount;
     private EventResult? _selectedEvent;
     private List<EventResult> _searchResults = [];
     private List<GradingMember> _members = [];
+
+    private HttpClient Api => HttpClientFactory.CreateClient("JustGoApi");
 
     private async Task SearchEvents()
     {
@@ -183,19 +198,29 @@
         _searchResults.Clear();
         StateHasChanged();
 
-        // TODO: Call JustGo API to search events
-        await Task.Delay(500); // Placeholder
+        try
+        {
+            var response = await Api.GetFromJsonAsync<JsonElement>(
+                $"events/search?name={Uri.EscapeDataString(_eventSearch)}&pageNumber=1&pageSize=20");
 
-        _searchResults =
-        [
-            new EventResult
+            if (response.TryGetProperty("data", out var items))
             {
-                Id = Guid.NewGuid(),
-                Name = "Miramar ITKD Club Gup Grading",
-                Date = new DateTime(2026, 7, 31),
-                Club = "Miramar ITKD Club"
+                foreach (var item in items.EnumerateArray())
+                {
+                    _searchResults.Add(new EventResult
+                    {
+                        Id = item.TryGetProperty("id", out var id) ? id.GetGuid() : Guid.Empty,
+                        Name = item.TryGetProperty("eventName", out var name) ? name.GetString() ?? "" : "",
+                        Date = item.TryGetProperty("startDate", out var date) ? date.GetDateTime() : null,
+                        Club = item.TryGetProperty("organizationName", out var org) ? org.GetString() ?? "" : "",
+                    });
+                }
             }
-        ];
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Event search failed: {ex.Message}", Severity.Error);
+        }
 
         _searching = false;
         _searchCompleted = true;
@@ -205,14 +230,53 @@
     {
         _selectedEvent = eventResult;
         _eventLoaded = true;
+        _memberSearch = string.Empty;
+        await LoadMembers();
+    }
+
+    private async Task OnMemberSearchChanged(string _)
+    {
+        await LoadMembers();
+    }
+
+    private async Task LoadMembers()
+    {
         _loadingMembers = true;
         StateHasChanged();
 
-        // TODO: Call JustGo API to load members for this club/event
-        await Task.Delay(500); // Placeholder
+        try
+        {
+            var searchParam = string.IsNullOrWhiteSpace(_memberSearch) ? "" : $"&search={Uri.EscapeDataString(_memberSearch)}";
+            var response = await Api.GetFromJsonAsync<GradingMembersApiResponse>(
+                $"grading/members?page=1&pageSize=200{searchParam}");
 
-        _members = GetSampleMembers();
+            if (response is not null)
+            {
+                var eventDate = _selectedEvent?.Date ?? DateTime.Today;
+                _totalMemberCount = response.TotalCount;
+                _members = response.Members.Select(m => new GradingMember
+                {
+                    JustGoMemberId = m.JustGoMemberId,
+                    MemberId = m.MemberId,
+                    FirstName = m.FirstName,
+                    LastName = m.LastName,
+                    LastGradingDate = m.LastGradingDate is { } d ? d.ToDateTime(TimeOnly.MinValue) : null,
+                    CurrentGrade = m.CurrentGrade ?? "Ungraded",
+                    NextGrade = m.NextGrade ?? "10th Gup",
+                    NextGradeDefinitionId = m.NextGradeDefinitionId,
+                    DoubleGrade = m.DoubleGrade,
+                    DoubleGradeDefinitionId = m.DoubleGradeDefinitionId,
+                    GradingEventDate = eventDate,
+                }).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to load members: {ex.Message}", Severity.Error);
+        }
+
         _loadingMembers = false;
+        StateHasChanged();
     }
 
     private void ClearEvent()
@@ -222,33 +286,82 @@
         _members.Clear();
         _searchResults.Clear();
         _searchCompleted = false;
+        _memberSearch = string.Empty;
+        _totalMemberCount = 0;
     }
 
     private async Task SubmitGrading()
     {
+        var gradingMembers = _members.Where(m => m.Grading).ToList();
+        if (gradingMembers.Count == 0) return;
+
         _submitting = true;
         StateHasChanged();
 
-        // TODO: Call JustGo API to issue credentials for selected members
-        await Task.Delay(1000); // Placeholder
+        try
+        {
+            var request = new
+            {
+                EventId = _selectedEvent?.Id,
+                EventName = _selectedEvent?.Name ?? "",
+                EventDate = _selectedEvent?.Date?.ToString("yyyy-MM-dd") ?? DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd"),
+                Results = gradingMembers.Select(m => new
+                {
+                    MemberId = m.JustGoMemberId,
+                    CredentialDefinitionId = m.IsDoubleGrading && m.DoubleGradeDefinitionId.HasValue
+                        ? m.DoubleGradeDefinitionId.Value
+                        : m.NextGradeDefinitionId ?? Guid.Empty,
+                    GradeName = m.IsDoubleGrading ? m.DoubleGrade ?? m.NextGrade : m.NextGrade,
+                    TheoryMark = m.TheoryMark,
+                    IsDoubleGrading = m.IsDoubleGrading,
+                }).ToList(),
+            };
+
+            var response = await Api.PostAsJsonAsync("grading/submit", request);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<JsonElement>();
+                var succeeded = result.TryGetProperty("succeeded", out var s) ? s.GetInt32() : 0;
+                var failed = result.TryGetProperty("failed", out var f) ? f.GetInt32() : 0;
+
+                if (failed == 0)
+                    Snackbar.Add($"Successfully issued {succeeded} credential(s)!", Severity.Success);
+                else
+                    Snackbar.Add($"{succeeded} succeeded, {failed} failed. Check details.", Severity.Warning);
+            }
+            else
+            {
+                var body = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Submit failed: {response.StatusCode} — {body}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Submit error: {ex.Message}", Severity.Error);
+        }
 
         _submitting = false;
     }
 
-    private static List<GradingMember> GetSampleMembers()
+    // API response DTOs
+    private sealed class GradingMembersApiResponse
     {
-        var gradingDate = new DateTime(2026, 7, 31);
-        return
-        [
-            new() { MemberId = "032514", FirstName = "Haroon", LastName = "Adam", LastGradingDate = new(2024,12,10), CurrentGrade = "8th Gup", NextGrade = "7th Gup", GradingEventDate = gradingDate },
-            new() { MemberId = "032515", FirstName = "Nabil", LastName = "Adam", LastGradingDate = new(2025,9,22), CurrentGrade = "3rd Gup", NextGrade = "2nd Gup", GradingEventDate = gradingDate, Grading = true, TheoryMark = 70 },
-            new() { MemberId = "032582", FirstName = "Tariq", LastName = "Adam", LastGradingDate = new(2024,11,16), CurrentGrade = "7th Gup", NextGrade = "6th Gup", GradingEventDate = gradingDate, Grading = true, TheoryMark = 80 },
-            new() { MemberId = "031540", FirstName = "Sophie", LastName = "Cook", LastGradingDate = new(2024,11,16), CurrentGrade = "3rd Gup", NextGrade = "2nd Gup", GradingEventDate = gradingDate, Grading = true, DoubleGrading = true, TheoryMark = 100 },
-            new() { MemberId = "080984", FirstName = "Alexander", LastName = "Day", LastGradingDate = new(2026,4,9), CurrentGrade = "9th Gup", NextGrade = "8th Gup", GradingEventDate = gradingDate },
-            new() { MemberId = "032724", FirstName = "Georg", LastName = "Duemlein", LastGradingDate = new(2025,11,27), CurrentGrade = "6th Gup", NextGrade = "5th Gup", GradingEventDate = gradingDate, Grading = true, TheoryMark = 100 },
-            new() { MemberId = "018134", FirstName = "Felix", LastName = "Exley", LastGradingDate = new(2025,3,20), CurrentGrade = "7th Gup", NextGrade = "6th Gup", GradingEventDate = gradingDate, Grading = true, TheoryMark = 70 },
-            new() { MemberId = "027737", FirstName = "Zoe", LastName = "Franklin", LastGradingDate = new(2025,11,27), CurrentGrade = "5th Gup", NextGrade = "4th Gup", GradingEventDate = gradingDate, Grading = true, TheoryMark = 50 },
-        ];
+        public List<GradingMemberApiDto> Members { get; set; } = [];
+        public int TotalCount { get; set; }
+    }
+
+    private sealed class GradingMemberApiDto
+    {
+        public Guid JustGoMemberId { get; set; }
+        public string MemberId { get; set; } = string.Empty;
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string? CurrentGrade { get; set; }
+        public DateOnly? LastGradingDate { get; set; }
+        public string? NextGrade { get; set; }
+        public Guid? NextGradeDefinitionId { get; set; }
+        public string? DoubleGrade { get; set; }
+        public Guid? DoubleGradeDefinitionId { get; set; }
     }
 
     public class EventResult
@@ -261,14 +374,18 @@
 
     public class GradingMember
     {
+        public Guid JustGoMemberId { get; set; }
         public string MemberId { get; set; } = string.Empty;
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
         public DateTime? LastGradingDate { get; set; }
         public string CurrentGrade { get; set; } = string.Empty;
         public string NextGrade { get; set; } = string.Empty;
+        public Guid? NextGradeDefinitionId { get; set; }
+        public string? DoubleGrade { get; set; }
+        public Guid? DoubleGradeDefinitionId { get; set; }
         public bool Grading { get; set; }
-        public bool DoubleGrading { get; set; }
+        public bool IsDoubleGrading { get; set; }
         public int? TheoryMark { get; set; }
         public DateTime GradingEventDate { get; set; }
 
