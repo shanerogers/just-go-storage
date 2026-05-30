@@ -56,6 +56,11 @@ var api = builder.AddProject<Projects.JustGo_Api>("api")
             ResultMode = HttpCommandResultMode.Auto
         });
 
+builder.AddProject<Projects.JustGo_Grading>("grading")
+    .WithExternalHttpEndpoints()
+    .WithReference(api)
+    .WaitFor(api);
+
 cache.WithHttpCommand(
     path: "/admin/cache/clear",
     displayName: "Clear Fusion Cache",

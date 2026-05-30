@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\JustGo.Api\JustGo.Api.csproj" IsAspireProjectResource="true" />
+    <ProjectReference Include="..\JustGo.Grading\JustGo.Grading.csproj" IsAspireProjectResource="true" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.Redis" />

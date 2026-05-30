@@ -1,0 +1,279 @@
+@page "/grading"
+@rendermode InteractiveServer
+
+<PageTitle>Grading Entry - ITKD</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge">
+    <MudText Typo="Typo.h4" GutterBottom="true">Grading Entry</MudText>
+
+    @if (!_eventLoaded)
+    {
+        <MudPaper Class="pa-4 mb-4" Elevation="2">
+            <MudText Typo="Typo.h6" GutterBottom="true">Event Lookup</MudText>
+            <MudGrid>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudTextField @bind-Value="_eventSearch" Label="Event Number or Name"
+                                  Variant="Variant.Outlined" Adornment="Adornment.End"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Placeholder="e.g. EV102452" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4" Class="d-flex align-end">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               OnClick="SearchEvents" Disabled="_searching"
+                               StartIcon="@Icons.Material.Filled.Search">
+                        @if (_searching)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        }
+                        Search
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+
+            @if (_searchResults.Count > 0)
+            {
+                <MudTable Items="_searchResults" Hover="true" Striped="true" Class="mt-4"
+                          T="EventResult" OnRowClick="@(args => SelectEvent(args.Item!))">
+                    <HeaderContent>
+                        <MudTh>Event Name</MudTh>
+                        <MudTh>Date</MudTh>
+                        <MudTh>Club</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.Name</MudTd>
+                        <MudTd>@context.Date?.ToString("dd MMM yyyy")</MudTd>
+                        <MudTd>@context.Club</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+            else if (_searchCompleted)
+            {
+                <MudAlert Severity="Severity.Info" Class="mt-4">No events found.</MudAlert>
+            }
+        </MudPaper>
+    }
+    else
+    {
+        <MudPaper Class="pa-4 mb-4" Elevation="2">
+            <MudGrid>
+                <MudItem xs="12" sm="4">
+                    <MudText Typo="Typo.subtitle2" Color="Color.Primary">Event</MudText>
+                    <MudText Typo="Typo.body1">@_selectedEvent!.Name</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudText Typo="Typo.subtitle2" Color="Color.Primary">Grading Date</MudText>
+                    <MudText Typo="Typo.body1">@_selectedEvent!.Date?.ToString("dd MMM yyyy")</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudText Typo="Typo.subtitle2" Color="Color.Primary">Club</MudText>
+                    <MudText Typo="Typo.body1">@_selectedEvent!.Club</MudText>
+                </MudItem>
+            </MudGrid>
+            <MudButton Variant="Variant.Text" Color="Color.Secondary" OnClick="ClearEvent"
+                       StartIcon="@Icons.Material.Filled.ArrowBack" Class="mt-2">
+                Change Event
+            </MudButton>
+        </MudPaper>
+
+        @if (_loadingMembers)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+            <MudText>Loading members...</MudText>
+        }
+        else
+        {
+            <MudPaper Class="pa-4 mb-4" Elevation="2">
+                <MudGrid>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.h6">
+                            Members
+                            <MudChip T="string" Color="Color.Primary" Size="Size.Small">
+                                @_members.Count total
+                            </MudChip>
+                        </MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" Class="d-flex justify-end align-center">
+                        <MudText Typo="Typo.h6" Color="Color.Primary">
+                            Number Grading: @_members.Count(m => m.Grading)
+                        </MudText>
+                    </MudItem>
+                </MudGrid>
+
+                <MudTable Items="_members" Hover="true" Striped="true" Dense="true" Class="mt-4"
+                          T="GradingMember" FixedHeader="true" Height="500px">
+                    <HeaderContent>
+                        <MudTh>MID</MudTh>
+                        <MudTh>First Name</MudTh>
+                        <MudTh>Last Name</MudTh>
+                        <MudTh>Last Grading</MudTh>
+                        <MudTh>Current Grade</MudTh>
+                        <MudTh>Next Grade</MudTh>
+                        <MudTh>Grading</MudTh>
+                        <MudTh>Double</MudTh>
+                        <MudTh>Theory Mark</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.MemberId</MudTd>
+                        <MudTd>@context.FirstName</MudTd>
+                        <MudTd>@context.LastName</MudTd>
+                        <MudTd>
+                            <MudText Color="@(context.IsWithin90Days ? Color.Error : Color.Default)">
+                                @context.LastGradingDate?.ToString("dd-MM-yyyy")
+                                @if (context.IsWithin90Days)
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.Warning" Size="Size.Small"
+                                             Color="Color.Error" Title="Within 90 days of last grading" />
+                                }
+                            </MudText>
+                        </MudTd>
+                        <MudTd>@context.CurrentGrade</MudTd>
+                        <MudTd>@context.NextGrade</MudTd>
+                        <MudTd>
+                            <MudCheckBox @bind-Value="context.Grading" Color="Color.Primary"
+                                         Disabled="context.IsWithin90Days" />
+                        </MudTd>
+                        <MudTd>
+                            <MudCheckBox @bind-Value="context.DoubleGrading" Color="Color.Secondary"
+                                         Disabled="!context.Grading" />
+                        </MudTd>
+                        <MudTd>
+                            <MudNumericField @bind-Value="context.TheoryMark" Min="0" Max="100"
+                                             Variant="Variant.Outlined" Margin="Margin.Dense"
+                                             Style="max-width: 80px;"
+                                             Disabled="!context.Grading" />
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+
+            <MudGrid>
+                <MudItem xs="12" Class="d-flex justify-end gap-4">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               Disabled="@(!_members.Any(m => m.Grading) || _submitting)"
+                               OnClick="SubmitGrading"
+                               StartIcon="@Icons.Material.Filled.CheckCircle"
+                               Size="Size.Large">
+                        @if (_submitting)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        }
+                        Issue Credentials
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+        }
+    }
+</MudContainer>
+
+@code {
+    private string _eventSearch = string.Empty;
+    private bool _searching;
+    private bool _searchCompleted;
+    private bool _eventLoaded;
+    private bool _loadingMembers;
+    private bool _submitting;
+    private EventResult? _selectedEvent;
+    private List<EventResult> _searchResults = [];
+    private List<GradingMember> _members = [];
+
+    private async Task SearchEvents()
+    {
+        _searching = true;
+        _searchCompleted = false;
+        _searchResults.Clear();
+        StateHasChanged();
+
+        // TODO: Call JustGo API to search events
+        await Task.Delay(500); // Placeholder
+
+        _searchResults =
+        [
+            new EventResult
+            {
+                Id = Guid.NewGuid(),
+                Name = "Miramar ITKD Club Gup Grading",
+                Date = new DateTime(2026, 7, 31),
+                Club = "Miramar ITKD Club"
+            }
+        ];
+
+        _searching = false;
+        _searchCompleted = true;
+    }
+
+    private async Task SelectEvent(EventResult eventResult)
+    {
+        _selectedEvent = eventResult;
+        _eventLoaded = true;
+        _loadingMembers = true;
+        StateHasChanged();
+
+        // TODO: Call JustGo API to load members for this club/event
+        await Task.Delay(500); // Placeholder
+
+        _members = GetSampleMembers();
+        _loadingMembers = false;
+    }
+
+    private void ClearEvent()
+    {
+        _eventLoaded = false;
+        _selectedEvent = null;
+        _members.Clear();
+        _searchResults.Clear();
+        _searchCompleted = false;
+    }
+
+    private async Task SubmitGrading()
+    {
+        _submitting = true;
+        StateHasChanged();
+
+        // TODO: Call JustGo API to issue credentials for selected members
+        await Task.Delay(1000); // Placeholder
+
+        _submitting = false;
+    }
+
+    private static List<GradingMember> GetSampleMembers()
+    {
+        var gradingDate = new DateTime(2026, 7, 31);
+        return
+        [
+            new() { MemberId = "032514", FirstName = "Haroon", LastName = "Adam", LastGradingDate = new(2024,12,10), CurrentGrade = "8th Gup", NextGrade = "7th Gup", GradingEventDate = gradingDate },
+            new() { MemberId = "032515", FirstName = "Nabil", LastName = "Adam", LastGradingDate = new(2025,9,22), CurrentGrade = "3rd Gup", NextGrade = "2nd Gup", GradingEventDate = gradingDate, Grading = true, TheoryMark = 70 },
+            new() { MemberId = "032582", FirstName = "Tariq", LastName = "Adam", LastGradingDate = new(2024,11,16), CurrentGrade = "7th Gup", NextGrade = "6th Gup", GradingEventDate = gradingDate, Grading = true, TheoryMark = 80 },
+            new() { MemberId = "031540", FirstName = "Sophie", LastName = "Cook", LastGradingDate = new(2024,11,16), CurrentGrade = "3rd Gup", NextGrade = "2nd Gup", GradingEventDate = gradingDate, Grading = true, DoubleGrading = true, TheoryMark = 100 },
+            new() { MemberId = "080984", FirstName = "Alexander", LastName = "Day", LastGradingDate = new(2026,4,9), CurrentGrade = "9th Gup", NextGrade = "8th Gup", GradingEventDate = gradingDate },
+            new() { MemberId = "032724", FirstName = "Georg", LastName = "Duemlein", LastGradingDate = new(2025,11,27), CurrentGrade = "6th Gup", NextGrade = "5th Gup", GradingEventDate = gradingDate, Grading = true, TheoryMark = 100 },
+            new() { MemberId = "018134", FirstName = "Felix", LastName = "Exley", LastGradingDate = new(2025,3,20), CurrentGrade = "7th Gup", NextGrade = "6th Gup", GradingEventDate = gradingDate, Grading = true, TheoryMark = 70 },
+            new() { MemberId = "027737", FirstName = "Zoe", LastName = "Franklin", LastGradingDate = new(2025,11,27), CurrentGrade = "5th Gup", NextGrade = "4th Gup", GradingEventDate = gradingDate, Grading = true, TheoryMark = 50 },
+        ];
+    }
+
+    public class EventResult
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public DateTime? Date { get; set; }
+        public string Club { get; set; } = string.Empty;
+    }
+
+    public class GradingMember
+    {
+        public string MemberId { get; set; } = string.Empty;
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public DateTime? LastGradingDate { get; set; }
+        public string CurrentGrade { get; set; } = string.Empty;
+        public string NextGrade { get; set; } = string.Empty;
+        public bool Grading { get; set; }
+        public bool DoubleGrading { get; set; }
+        public int? TheoryMark { get; set; }
+        public DateTime GradingEventDate { get; set; }
+
+        public bool IsWithin90Days =>
+            LastGradingDate.HasValue &&
+            (GradingEventDate - LastGradingDate.Value).TotalDays < 90;
+    }
+}

@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="JustGo.Api/JustGo.Api.csproj" />
+  <Project Path="JustGo.Grading/JustGo.Grading.csproj" />
   <Project Path="JustGo.ServiceDefaults/JustGo.ServiceDefaults.csproj" />
   <Project Path="JustGo/JustGo.AppHost.csproj" />
 </Solution>
