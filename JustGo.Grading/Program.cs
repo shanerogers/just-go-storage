@@ -31,4 +31,13 @@ app.MapRazorComponents<App>()
 
 app.MapDefaultEndpoints();
 
+app.MapPost("/telemetry/browser-error", async (HttpContext ctx, ILoggerFactory loggerFactory) =>
+{
+    using var reader = new StreamReader(ctx.Request.Body);
+    var body = await reader.ReadToEndAsync();
+    var logger = loggerFactory.CreateLogger("Browser");
+    logger.LogError("Browser error: {ErrorJson}", body);
+    return Results.NoContent();
+}).ExcludeFromDescription();
+
 app.Run();
