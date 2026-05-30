@@ -9,6 +9,7 @@
     <ProjectReference Include="..\JustGo.Grading\JustGo.Grading.csproj" IsAspireProjectResource="true" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.Browsers" />
     <PackageReference Include="Aspire.Hosting.Redis" />
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
     <PackageReference Include="CommunityToolkit.Aspire.Hosting.PostgreSQL.Extensions" />

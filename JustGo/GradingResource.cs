@@ -22,7 +22,9 @@ internal static class GradingResource
 
                 .WithReference(api)
 
-                .WaitFor(api);
+                .WaitFor(api)
+
+                .WithBrowserLogs();
 
         }
 
