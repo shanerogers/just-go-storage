@@ -7,8 +7,8 @@ public static class EndpointGroupExtensions
     {
 
         public RouteGroupBuilder MapGroup(string prefix, string groupName)
-    {
-        return app.MapGroup(prefix).WithTags(groupName);
-    }
+        {
+            return app.MapGroup(prefix).WithTags(groupName);
+        }
     }
 }

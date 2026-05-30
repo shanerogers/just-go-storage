@@ -21,26 +21,26 @@ internal static class JustGoClientExtensions
     {
 
         public IServiceCollection AddJustGoClient()
-    {
-        services.AddHttpClient("JustGoAuth", (sp, client) =>
-       {
-           var opts = sp.GetRequiredService<IOptions<JustGoOptions>>().Value;
-           client.BaseAddress = new Uri(opts.BaseUrl);
-       });
+        {
+            services.AddHttpClient("JustGoAuth", (sp, client) =>
+           {
+               var opts = sp.GetRequiredService<IOptions<JustGoOptions>>().Value;
+               client.BaseAddress = new Uri(opts.BaseUrl);
+           });
 
-       services
-            .AddOptions<JustGoOptions>()
-            .BindConfiguration(JustGoOptions.SectionName)
-            .ValidateDataAnnotations()
-            .ValidateOnStart();
+            services
+                 .AddOptions<JustGoOptions>()
+                 .BindConfiguration(JustGoOptions.SectionName)
+                 .ValidateDataAnnotations()
+                 .ValidateOnStart();
 
-        services
-            .AddTransient<JustGoAuthHandler>()
-            .AddTransient<IJustGoTokenService, JustGoTokenService>();
+            services
+                .AddTransient<JustGoAuthHandler>()
+                .AddTransient<IJustGoTokenService, JustGoTokenService>();
 
-        IHttpClientBuilder[] httpClientBuilders =
-        [
-            services.AddHttpClient<IAuthClient, AuthClient>(configureJustGoClient),
+            IHttpClientBuilder[] httpClientBuilders =
+            [
+                services.AddHttpClient<IAuthClient, AuthClient>(configureJustGoClient),
             services.AddHttpClient<ICompetitionClient, CompetitionClient>(configureJustGoClient),
             services.AddHttpClient<ICredentialClient, CredentialClient>(configureJustGoClient),
             services.AddHttpClient<IEventClient, EventClient>(configureJustGoClient),
@@ -50,20 +50,20 @@ internal static class JustGoClientExtensions
             services.AddHttpClient<IMembershipClient, MembershipClient>(configureJustGoClient),
             services.AddHttpClient<IOrganisationClient, OrganisationClient>(configureJustGoClient),
             services.AddHttpClient<IRewardClient, RewardClient>(configureJustGoClient)
-        ];
+            ];
 
-        foreach (var builder in httpClientBuilders)
-        {
-            builder.AddHttpMessageHandler<JustGoAuthHandler>();
+            foreach (var builder in httpClientBuilders)
+            {
+                builder.AddHttpMessageHandler<JustGoAuthHandler>();
+            }
+
+            return services;
+
+            static void configureJustGoClient(IServiceProvider serviceProvider, HttpClient client)
+            {
+                var opts = serviceProvider.GetRequiredService<IOptions<JustGoOptions>>().Value;
+                client.BaseAddress = new Uri(opts.BaseUrl);
+            }
         }
-
-        return services;
-
-        static void configureJustGoClient(IServiceProvider serviceProvider, HttpClient client)
-        {
-            var opts = serviceProvider.GetRequiredService<IOptions<JustGoOptions>>().Value;
-            client.BaseAddress = new Uri(opts.BaseUrl);
-        }
-    }
     }
 }

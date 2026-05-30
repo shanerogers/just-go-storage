@@ -1,7 +1,9 @@
+using HealthChecks.UI.Client;
+using JustGo.Api;
 using JustGo.Api.Data;
 using JustGo.Api.Features.Auth;
-using JustGo.Api.Features.Clubs;
 using JustGo.Api.Features.Cache;
+using JustGo.Api.Features.Clubs;
 using JustGo.Api.Features.Competitions;
 using JustGo.Api.Features.Credentials;
 using JustGo.Api.Features.Events;
@@ -12,11 +14,10 @@ using JustGo.Api.Features.Organisations;
 using JustGo.Api.Features.Rewards;
 using JustGo.Api.Features.Shops;
 using JustGo.Api.Health;
-using HealthChecks.UI.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using TickerQ.DependencyInjection;
 using TickerQ.Dashboard.DependencyInjection;
+using TickerQ.DependencyInjection;
 using TickerQ.EntityFrameworkCore.Customizer;
 using TickerQ.EntityFrameworkCore.DependencyInjection;
 using TickerQ.Instrumentation.OpenTelemetry;
@@ -25,7 +26,6 @@ using ZiggyCreatures.Caching.Fusion.Backplane;
 using ZiggyCreatures.Caching.Fusion.Backplane.StackExchangeRedis;
 using ZiggyCreatures.Caching.Fusion.Serialization;
 using ZiggyCreatures.Caching.Fusion.Serialization.SystemTextJson;
-using JustGo.Api;
 
 var builder = WebApplication.CreateBuilder(args);
 

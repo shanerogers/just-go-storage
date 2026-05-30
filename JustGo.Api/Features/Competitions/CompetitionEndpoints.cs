@@ -9,26 +9,26 @@ public static class CompetitionEndpoints
     {
 
         public IEndpointRouteBuilder MapCompetitionEndpoints()
-    {
-        var group = app.MapGroup("/competitions").WithTags("Competitions");
-
-        group.MapPost("/entry-validation", async (EntryValidationRequest request, ICompetitionClient client, CancellationToken ct) =>
         {
-            var result = await client.ValidateEntryAsync(request, ct);
-            return Results.Ok(result);
-        })
-        .WithName("ValidateEntry")
-        .WithSummary("Validate a competition entry");
+            var group = app.MapGroup("/competitions").WithTags("Competitions");
 
-        group.MapPost("/rankings", async (RankingsRequest request, ICompetitionClient client, CancellationToken ct) =>
-        {
-            var result = await client.GetRankingsAsync(request, ct);
-            return Results.Ok(result);
-        })
-        .WithName("GetRankings")
-        .WithSummary("Get competition rankings for a member");
+            group.MapPost("/entry-validation", async (EntryValidationRequest request, ICompetitionClient client, CancellationToken ct) =>
+            {
+                var result = await client.ValidateEntryAsync(request, ct);
+                return Results.Ok(result);
+            })
+            .WithName("ValidateEntry")
+            .WithSummary("Validate a competition entry");
 
-        return app;
-    }
+            group.MapPost("/rankings", async (RankingsRequest request, ICompetitionClient client, CancellationToken ct) =>
+            {
+                var result = await client.GetRankingsAsync(request, ct);
+                return Results.Ok(result);
+            })
+            .WithName("GetRankings")
+            .WithSummary("Get competition rankings for a member");
+
+            return app;
+        }
     }
 }

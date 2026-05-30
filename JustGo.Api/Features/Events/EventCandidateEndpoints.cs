@@ -9,37 +9,37 @@ public static class EventCandidateEndpoints
     {
 
         public IEndpointRouteBuilder MapEventCandidateEndpoints()
-    {
-        var group = app.MapGroup("/events").WithTags("Event Candidates");
-
-        group.MapGet("/candidates/search", async (
-            [AsParameters] FindEventCandidatesRequest request,
-            IEventClient client,
-            CancellationToken ct) =>
         {
-            var result = await client.FindEventCandidatesByAttributesAsync(request, ct);
-            return Results.Ok(result);
-        })
-        .WithName("FindEventCandidates")
-        .WithSummary("Search event candidates/bookings by attributes");
+            var group = app.MapGroup("/events").WithTags("Event Candidates");
 
-        group.MapPost("/{eventId:guid}/candidates", async (Guid eventId, EventCandidateCreateRequest request, IEventClient client, CancellationToken ct) =>
-        {
-            var result = await client.AddEventCandidateAsync(eventId, request, ct);
-            return Results.Created($"/events/{eventId}/candidates/{result.BookingId}", result);
-        })
-        .WithName("AddEventCandidate")
-        .WithSummary("Register a candidate for an event");
+            group.MapGet("/candidates/search", async (
+                [AsParameters] FindEventCandidatesRequest request,
+                IEventClient client,
+                CancellationToken ct) =>
+            {
+                var result = await client.FindEventCandidatesByAttributesAsync(request, ct);
+                return Results.Ok(result);
+            })
+            .WithName("FindEventCandidates")
+            .WithSummary("Search event candidates/bookings by attributes");
 
-        group.MapPut("/candidates/{bookingId:guid}/status", async (Guid bookingId, EventCandidateStatusUpdateRequest request, IEventClient client, CancellationToken ct) =>
-        {
-            await client.UpdateEventCandidateStatusAsync(bookingId, request, ct);
-            return Results.NoContent();
-        })
-        .WithName("UpdateEventCandidateStatus")
-        .WithSummary("Update the booking status of an event candidate");
+            group.MapPost("/{eventId:guid}/candidates", async (Guid eventId, EventCandidateCreateRequest request, IEventClient client, CancellationToken ct) =>
+            {
+                var result = await client.AddEventCandidateAsync(eventId, request, ct);
+                return Results.Created($"/events/{eventId}/candidates/{result.BookingId}", result);
+            })
+            .WithName("AddEventCandidate")
+            .WithSummary("Register a candidate for an event");
 
-        return app;
-    }
+            group.MapPut("/candidates/{bookingId:guid}/status", async (Guid bookingId, EventCandidateStatusUpdateRequest request, IEventClient client, CancellationToken ct) =>
+            {
+                await client.UpdateEventCandidateStatusAsync(bookingId, request, ct);
+                return Results.NoContent();
+            })
+            .WithName("UpdateEventCandidateStatus")
+            .WithSummary("Update the booking status of an event candidate");
+
+            return app;
+        }
     }
 }

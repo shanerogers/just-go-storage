@@ -1,10 +1,10 @@
 using System.Runtime.CompilerServices;
 using ErrorOr;
+using Humanizer;
 using JustGo.Api.Data;
 using Microsoft.EntityFrameworkCore;
-using Humanizer;
-using TickerQ.Utilities.Interfaces;
 using TickerQ.Utilities.Base;
+using TickerQ.Utilities.Interfaces;
 
 namespace JustGo.Api.Features.Members;
 
