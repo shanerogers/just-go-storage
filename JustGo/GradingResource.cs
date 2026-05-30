@@ -13,7 +13,7 @@ internal static class GradingResource
                 .WithExternalHttpEndpoints()
                 .WithReference(api)
                 .WaitFor(api)
-                .WithBrowserLogs(userDataMode: BrowserUserDataMode.Isolated);
+                .WithBrowserLogs(browser: "chrome", userDataMode: BrowserUserDataMode.Isolated);
         }
     }
 }
