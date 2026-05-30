@@ -8,10 +8,21 @@ public static class SyncAdminEndpoints
     {
         var group = app.MapGroup("/admin/sync").WithTags("Sync");
 
-        group.MapPost("/members", async (SyncMembersJob job, CancellationToken ct) =>
+        group.MapPost("/members", (SyncMembersJob job, ILogger<SyncMembersJob> logger) =>
         {
-            await job.ExecuteAsync(new TickerFunctionContext(), ct);
-            return Results.Ok(new { status = "Completed" });
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await job.ExecuteAsync(new TickerFunctionContext(), CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "On-demand member sync failed.");
+                }
+            });
+
+            return Results.Accepted(value: new { status = "Started" });
         })
         .WithName("TriggerMemberSync")
         .WithSummary("Trigger an on-demand member sync");
