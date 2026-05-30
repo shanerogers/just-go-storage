@@ -6,8 +6,9 @@ var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOpt
     DashboardApplicationName = "Just Go"
 });
 
-var database = builder.AddItkdDatabase();
 var cache = builder.AddAppCache();
+var database = builder.AddItkdDatabase();
+
 var apiKey = builder.AddParameter("justgo-apikey", secret: true);
 
 var api = builder.AddJustGoApi(database, cache, apiKey);

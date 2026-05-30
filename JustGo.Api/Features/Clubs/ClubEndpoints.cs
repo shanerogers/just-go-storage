@@ -4,7 +4,11 @@ namespace JustGo.Api.Features.Clubs;
 
 public static class ClubEndpoints
 {
-    public static IEndpointRouteBuilder MapClubEndpoints(this IEndpointRouteBuilder app)
+    extension(IEndpointRouteBuilder app)
+
+    {
+
+        public IEndpointRouteBuilder MapClubEndpoints()
     {
         var group = app.MapGroup("/clubs").WithTags("Clubs");
 
@@ -44,5 +48,6 @@ public static class ClubEndpoints
         .WithSummary("Add a member to a club");
 
         return app;
+    }
     }
 }

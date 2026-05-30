@@ -4,7 +4,11 @@ namespace JustGo.Api.Features.Memberships;
 
 public static class MembershipEndpoints
 {
-    public static IEndpointRouteBuilder MapMembershipEndpoints(this IEndpointRouteBuilder app)
+    extension(IEndpointRouteBuilder app)
+
+    {
+
+        public IEndpointRouteBuilder MapMembershipEndpoints()
     {
         var group = app.MapGroup("/memberships").WithTags("Memberships");
 
@@ -74,5 +78,6 @@ public static class MembershipEndpoints
         .WithSummary("Create a membership for a club");
 
         return app;
+    }
     }
 }

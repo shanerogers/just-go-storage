@@ -4,7 +4,11 @@ namespace JustGo.Api.Features.Competitions;
 
 public static class CompetitionEndpoints
 {
-    public static IEndpointRouteBuilder MapCompetitionEndpoints(this IEndpointRouteBuilder app)
+    extension(IEndpointRouteBuilder app)
+
+    {
+
+        public IEndpointRouteBuilder MapCompetitionEndpoints()
     {
         var group = app.MapGroup("/competitions").WithTags("Competitions");
 
@@ -25,5 +29,6 @@ public static class CompetitionEndpoints
         .WithSummary("Get competition rankings for a member");
 
         return app;
+    }
     }
 }

@@ -4,7 +4,11 @@ namespace JustGo.Api.Features.Events;
 
 public static class EventEndpoints
 {
-    public static IEndpointRouteBuilder MapEventEndpoints(this IEndpointRouteBuilder app)
+    extension(IEndpointRouteBuilder app)
+
+    {
+
+        public IEndpointRouteBuilder MapEventEndpoints()
     {
         var group = app.MapGroup("/events").WithTags("Events");
 
@@ -60,5 +64,6 @@ public static class EventEndpoints
         .WithSummary("Get the event data schema");
 
         return app;
+    }
     }
 }

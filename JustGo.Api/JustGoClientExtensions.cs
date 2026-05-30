@@ -16,7 +16,11 @@ namespace JustGo.Api;
 
 internal static class JustGoClientExtensions
 {
-    public static IServiceCollection AddJustGoClient(this IServiceCollection services)
+    extension(IServiceCollection services)
+
+    {
+
+        public IServiceCollection AddJustGoClient()
     {
         services.AddHttpClient("JustGoAuth", (sp, client) =>
        {
@@ -60,5 +64,6 @@ internal static class JustGoClientExtensions
             var opts = serviceProvider.GetRequiredService<IOptions<JustGoOptions>>().Value;
             client.BaseAddress = new Uri(opts.BaseUrl);
         }
+    }
     }
 }

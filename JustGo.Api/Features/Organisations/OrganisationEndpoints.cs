@@ -4,7 +4,11 @@ namespace JustGo.Api.Features.Organisations;
 
 public static class OrganisationEndpoints
 {
-    public static IEndpointRouteBuilder MapOrganisationEndpoints(this IEndpointRouteBuilder app)
+    extension(IEndpointRouteBuilder app)
+
+    {
+
+        public IEndpointRouteBuilder MapOrganisationEndpoints()
     {
         var group = app.MapGroup("/organisations").WithTags("Organisations");
 
@@ -76,5 +80,6 @@ public static class OrganisationEndpoints
         .WithSummary("Remove a member from an organisation");
 
         return app;
+    }
     }
 }

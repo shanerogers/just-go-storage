@@ -2,6 +2,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <UserSecretsId>1e6b8c9d-4f2a-4b6e-8a1c-5d9e3f7a2b0c</UserSecretsId>
+    <LangVersion>preview</LangVersion>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\JustGo.Api\JustGo.Api.csproj" IsAspireProjectResource="true" />

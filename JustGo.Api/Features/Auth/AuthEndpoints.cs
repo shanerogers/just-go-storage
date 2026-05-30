@@ -4,7 +4,11 @@ namespace JustGo.Api.Features.Auth;
 
 public static class AuthEndpoints
 {
-    public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder app)
+    extension(IEndpointRouteBuilder app)
+
+    {
+
+        public IEndpointRouteBuilder MapAuthEndpoints()
     {
         var group = app.MapGroup("/auth").WithTags("Auth");
 
@@ -33,5 +37,6 @@ public static class AuthEndpoints
         .WithSummary("Request a password reset for a member");
 
         return app;
+    }
     }
 }

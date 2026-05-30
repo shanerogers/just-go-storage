@@ -4,7 +4,11 @@ namespace JustGo.Api.Features.Events;
 
 public static class EventCandidateEndpoints
 {
-    public static IEndpointRouteBuilder MapEventCandidateEndpoints(this IEndpointRouteBuilder app)
+    extension(IEndpointRouteBuilder app)
+
+    {
+
+        public IEndpointRouteBuilder MapEventCandidateEndpoints()
     {
         var group = app.MapGroup("/events").WithTags("Event Candidates");
 
@@ -36,5 +40,6 @@ public static class EventCandidateEndpoints
         .WithSummary("Update the booking status of an event candidate");
 
         return app;
+    }
     }
 }

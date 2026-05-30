@@ -4,7 +4,11 @@ namespace JustGo.Api.Features.Events;
 
 public static class EventStageEndpoints
 {
-    public static IEndpointRouteBuilder MapEventStageEndpoints(this IEndpointRouteBuilder app)
+    extension(IEndpointRouteBuilder app)
+
+    {
+
+        public IEndpointRouteBuilder MapEventStageEndpoints()
     {
         var group = app.MapGroup("/events").WithTags("Event Stages");
 
@@ -33,5 +37,6 @@ public static class EventStageEndpoints
         .WithSummary("Delete a stage from an event");
 
         return app;
+    }
     }
 }

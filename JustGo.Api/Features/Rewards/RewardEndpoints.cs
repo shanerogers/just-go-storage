@@ -2,7 +2,11 @@ namespace JustGo.Api.Features.Rewards;
 
 public static class RewardEndpoints
 {
-    public static IEndpointRouteBuilder MapRewardEndpoints(this IEndpointRouteBuilder app)
+    extension(IEndpointRouteBuilder app)
+
+    {
+
+        public IEndpointRouteBuilder MapRewardEndpoints()
     {
         var group = app.MapGroup("/rewards").WithTags("Rewards");
 
@@ -15,5 +19,6 @@ public static class RewardEndpoints
         .WithSummary("Get the rewards user link for a member");
 
         return app;
+    }
     }
 }

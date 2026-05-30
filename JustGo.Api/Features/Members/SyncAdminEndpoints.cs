@@ -4,7 +4,11 @@ namespace JustGo.Api.Features.Members;
 
 public static class SyncAdminEndpoints
 {
-    public static IEndpointRouteBuilder MapSyncAdminEndpoints(this IEndpointRouteBuilder app)
+    extension(IEndpointRouteBuilder app)
+
+    {
+
+        public IEndpointRouteBuilder MapSyncAdminEndpoints()
     {
         var group = app.MapGroup("/admin/sync").WithTags("Sync");
 
@@ -28,5 +32,6 @@ public static class SyncAdminEndpoints
         .WithSummary("Trigger an on-demand member sync");
 
         return app;
+    }
     }
 }

@@ -4,7 +4,11 @@ namespace JustGo.Api.Features.Cache;
 
 public static class CacheAdminEndpoints
 {
-    public static IEndpointRouteBuilder MapCacheAdminEndpoints(this IEndpointRouteBuilder app)
+    extension(IEndpointRouteBuilder app)
+
+    {
+
+        public IEndpointRouteBuilder MapCacheAdminEndpoints()
     {
         var group = app.MapGroup("/admin/cache").WithTags("Cache");
 
@@ -17,5 +21,6 @@ public static class CacheAdminEndpoints
         .WithSummary("Clear FusionCache memory and distributed cache entries");
 
         return app;
+    }
     }
 }

@@ -2,7 +2,11 @@ namespace JustGo.Api.Features.Members;
 
 public static class MemberEndpoints
 {
-    public static IEndpointRouteBuilder MapMemberEndpoints(this IEndpointRouteBuilder app)
+    extension(IEndpointRouteBuilder app)
+
+    {
+
+        public IEndpointRouteBuilder MapMemberEndpoints()
     {
         var group = app.MapGroup("/members").WithTags("Members");
 
@@ -68,5 +72,6 @@ public static class MemberEndpoints
         .WithSummary("Get the member data schema");
 
         return app;
+    }
     }
 }

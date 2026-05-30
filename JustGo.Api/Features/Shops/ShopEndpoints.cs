@@ -4,7 +4,11 @@ namespace JustGo.Api.Features.Shops;
 
 public static class ShopEndpoints
 {
-    public static IEndpointRouteBuilder MapShopEndpoints(this IEndpointRouteBuilder app)
+    extension(IEndpointRouteBuilder app)
+
+    {
+
+        public IEndpointRouteBuilder MapShopEndpoints()
     {
         var group = app.MapGroup("/shops").WithTags("Shops");
 
@@ -55,5 +59,6 @@ public static class ShopEndpoints
         .WithSummary("Get a shop order by ID");
 
         return app;
+    }
     }
 }

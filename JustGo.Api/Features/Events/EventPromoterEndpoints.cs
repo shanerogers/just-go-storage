@@ -4,7 +4,11 @@ namespace JustGo.Api.Features.Events;
 
 public static class EventPromoterEndpoints
 {
-    public static IEndpointRouteBuilder MapEventPromoterEndpoints(this IEndpointRouteBuilder app)
+    extension(IEndpointRouteBuilder app)
+
+    {
+
+        public IEndpointRouteBuilder MapEventPromoterEndpoints()
     {
         var group = app.MapGroup("/events").WithTags("Event Promoters");
 
@@ -33,5 +37,6 @@ public static class EventPromoterEndpoints
         .WithSummary("Remove a promoter from an event");
 
         return app;
+    }
     }
 }

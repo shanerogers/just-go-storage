@@ -1,6 +1,6 @@
 ﻿@inherits LayoutComponentBase
 
-<MudThemeProvider Theme="_theme" />
+<MudThemeProvider Theme="_theme" IsDarkMode="true" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -17,7 +17,7 @@
         <NavMenu />
     </MudDrawer>
 
-    <MudMainContent Class="pa-4">
+    <MudMainContent Class="px-4 pb-4">
         @Body
     </MudMainContent>
 </MudLayout>
@@ -32,6 +32,16 @@
             Primary = "#1565C0",
             Secondary = "#FF6F00",
             AppbarBackground = "#1565C0"
+        },
+        PaletteDark = new PaletteDark
+        {
+            Primary = "#1E88E5",
+            Secondary = "#FF6F00",
+            AppbarBackground = "#0D47A1",
+            Background = "#121212",
+            Surface = "#1E1E1E",
+            DrawerBackground = "#1A1A1A",
+            DrawerText = "rgba(255,255,255,0.7)"
         },
         Typography = new Typography
         {

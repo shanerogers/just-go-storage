@@ -4,7 +4,11 @@ namespace JustGo.Api.Features.Credentials;
 
 public static class CredentialEndpoints
 {
-    public static IEndpointRouteBuilder MapCredentialEndpoints(this IEndpointRouteBuilder app)
+    extension(IEndpointRouteBuilder app)
+
+    {
+
+        public IEndpointRouteBuilder MapCredentialEndpoints()
     {
         var group = app.MapGroup("/credentials").WithTags("Credentials");
 
@@ -95,5 +99,6 @@ public static class CredentialEndpoints
         .WithSummary("Create a credential for a club");
 
         return app;
+    }
     }
 }
