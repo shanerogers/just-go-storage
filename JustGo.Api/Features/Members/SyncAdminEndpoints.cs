@@ -1,4 +1,5 @@
-using TickerQ.Utilities.Base;
+using TickerQ.Utilities.Entities;
+using TickerQ.Utilities.Interfaces.Managers;
 
 namespace JustGo.Api.Features.Members;
 
@@ -12,21 +13,16 @@ public static class SyncAdminEndpoints
         {
             var group = app.MapGroup("/admin/sync").WithTags("Sync");
 
-            group.MapPost("/members", (SyncMembersJob job, ILogger<SyncMembersJob> logger) =>
+            group.MapPost("/members", async (ITimeTickerManager<TimeTickerEntity> timeTicker, CancellationToken ct) =>
             {
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await job.ExecuteAsync(new TickerFunctionContext(), CancellationToken.None);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogError(ex, "On-demand member sync failed.");
-                    }
-                });
+                var scheduleResult = await timeTicker.AddAsync<SyncMembersJob>(DateTime.UtcNow, ct);
 
-                return Results.Accepted(value: new { status = "Started" });
+                if (!scheduleResult.IsSucceeded)
+                {
+                    return Results.Problem(title: "Failed to trigger member sync");
+                }
+
+                return Results.Accepted();
             })
             .WithName("TriggerMemberSync")
             .WithSummary("Trigger an on-demand member sync");

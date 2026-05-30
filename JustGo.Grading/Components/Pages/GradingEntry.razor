@@ -1,7 +1,9 @@
 @page "/grading"
+@using JustGo.Grading.Models
 @inject IHttpClientFactory HttpClientFactory
 @inject ISnackbar Snackbar
 @inject NavigationManager Navigation
+@inject IDialogService DialogService
 
 <PageTitle>Grading Entry - ITKD</PageTitle>
 
@@ -17,7 +19,8 @@
                     <MudTextField @bind-Value="_eventSearch" Label="Event Number or Name"
                                   Variant="Variant.Outlined" Adornment="Adornment.End"
                                   AdornmentIcon="@Icons.Material.Filled.Search"
-                                  Placeholder="e.g. EV102452" />
+                                  Placeholder="e.g. EV102452"
+                                  OnKeyDown="OnEventSearchKeyDown" />
                 </MudItem>
                 <MudItem xs="12" sm="6" md="4" Class="d-flex align-end">
                     <MudButton Variant="Variant.Filled" Color="Color.Primary"
@@ -29,8 +32,19 @@
                         }
                         Search
                     </MudButton>
+                    <MudButton Variant="Variant.Text" Color="Color.Secondary"
+                               OnClick="LoadAllEvents" Disabled="_searching"
+                               StartIcon="@Icons.Material.Filled.ViewList"
+                               Class="ml-2">
+                        Show All
+                    </MudButton>
                 </MudItem>
             </MudGrid>
+
+            @if (_searching)
+            {
+                <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mt-4" />
+            }
 
             @if (_searchResults.Count > 0)
             {
@@ -86,30 +100,38 @@
         {
             <MudPaper Class="pa-4 mb-4" Elevation="2">
                 <MudGrid>
-                    <MudItem xs="12" sm="4">
+                    <MudItem xs="12" Class="d-flex justify-start align-center">
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                                   OnClick="OpenAddMembersDialog"
+                                   Disabled="@(_loadingMembers || _submitting || EventCredentialEligibleMembers.Count == 0)"
+                                   StartIcon="@Icons.Material.Filled.PersonAdd">
+                            Add Members to Grading
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+                <MudText Typo="Typo.caption" Class="mt-2 d-block">
+                    Eligible members for this event credential: @EventCredentialEligibleMembers.Count
+                </MudText>
+            </MudPaper>
+
+            <MudPaper Class="pa-4 mb-4" Elevation="2">
+                <MudGrid>
+                    <MudItem xs="12" sm="6">
                         <MudText Typo="Typo.h6">
-                            Members
+                            Members in Grading
                             <MudChip T="string" Color="Color.Primary" Size="Size.Small">
-                                @_totalMemberCount total
+                                @GradingMembers.Count() selected
                             </MudChip>
                         </MudText>
                     </MudItem>
-                    <MudItem xs="12" sm="4">
-                        <MudTextField @bind-Value="_memberSearch" Label="Search members"
-                                      Variant="Variant.Outlined" Adornment="Adornment.End"
-                                      AdornmentIcon="@Icons.Material.Filled.Search"
-                                      Placeholder="Name..." Immediate="true"
-                                      DebounceInterval="400"
-                                      OnDebounceIntervalElapsed="OnMemberSearchChanged" />
-                    </MudItem>
-                    <MudItem xs="12" sm="4" Class="d-flex justify-end align-center">
+                    <MudItem xs="12" sm="6" Class="d-flex justify-end align-center">
                         <MudText Typo="Typo.h6" Color="Color.Primary">
-                            Number Grading: @_members.Count(m => m.Grading)
+                            Total Loaded: @_totalMemberCount
                         </MudText>
                     </MudItem>
                 </MudGrid>
 
-                <MudTable Items="_members" Hover="true" Striped="true" Dense="true" Class="mt-4"
+                <MudTable Items="GradingMembers" Hover="true" Striped="true" Dense="true" Class="mt-4"
                           T="GradingMember" FixedHeader="true" Height="500px">
                     <HeaderContent>
                         <MudTh>MID</MudTh>
@@ -118,9 +140,9 @@
                         <MudTh>Last Grading</MudTh>
                         <MudTh>Current Grade</MudTh>
                         <MudTh>Next Grade</MudTh>
-                        <MudTh>Grading</MudTh>
                         <MudTh>Double</MudTh>
                         <MudTh>Theory Mark</MudTh>
+                        <MudTh></MudTh>
                     </HeaderContent>
                     <RowTemplate>
                         <MudTd>@context.MemberId</MudTd>
@@ -139,18 +161,20 @@
                         <MudTd>@context.CurrentGrade</MudTd>
                         <MudTd>@context.NextGrade</MudTd>
                         <MudTd>
-                            <MudCheckBox @bind-Value="context.Grading" Color="Color.Primary"
-                                         Disabled="context.IsWithin90Days" />
-                        </MudTd>
-                        <MudTd>
                             <MudCheckBox @bind-Value="context.IsDoubleGrading" Color="Color.Secondary"
-                                         Disabled="!context.Grading" />
+                                         Disabled="context.IsWithin90Days" />
                         </MudTd>
                         <MudTd>
                             <MudNumericField @bind-Value="context.TheoryMark" Min="0" Max="100"
                                              Variant="Variant.Outlined" Margin="Margin.Dense"
-                                             Style="max-width: 80px;"
-                                             Disabled="!context.Grading" />
+                                             Style="max-width: 80px;" />
+                        </MudTd>
+                        <MudTd>
+                            <MudButton Variant="Variant.Text" Color="Color.Error"
+                                       OnClick="@(() => RemoveFromGrading(context))"
+                                       StartIcon="@Icons.Material.Filled.RemoveCircleOutline">
+                                Remove
+                            </MudButton>
                         </MudTd>
                     </RowTemplate>
                 </MudTable>
@@ -159,7 +183,7 @@
             <MudGrid>
                 <MudItem xs="12" Class="d-flex justify-end gap-4">
                     <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                               Disabled="@(!_members.Any(m => m.Grading) || _submitting)"
+                               Disabled="@(!GradingMembers.Any() || _submitting)"
                                OnClick="SubmitGrading"
                                StartIcon="@Icons.Material.Filled.CheckCircle"
                                Size="Size.Large">
@@ -177,7 +201,7 @@
 
 @code {
     private string _eventSearch = string.Empty;
-    private string _memberSearch = string.Empty;
+    private string? _eventCredential;
     private bool _searching;
     private bool _searchCompleted;
     private bool _eventLoaded;
@@ -188,9 +212,38 @@
     private List<EventResult> _searchResults = [];
     private List<GradingMember> _members = [];
 
+    private IEnumerable<GradingMember> GradingMembers => _members.Where(m => m.Grading);
+    private List<GradingMember> EventCredentialEligibleMembers =>
+        _members.Where(m => m.MatchesEventCredential).ToList();
+
     private HttpClient Api => HttpClientFactory.CreateClient("JustGoApi");
 
+    protected override async Task OnInitializedAsync()
+    {
+        await FetchEvents();
+    }
+
     private async Task SearchEvents()
+    {
+        await FetchEvents(_eventSearch);
+    }
+
+    private async Task LoadAllEvents()
+    {
+        _eventSearch = string.Empty;
+        await FetchEvents();
+    }
+
+    private async Task OnEventSearchKeyDown(KeyboardEventArgs args)
+    {
+        if (_searching) return;
+        if (args.Key is "Enter" or "NumpadEnter")
+        {
+            await SearchEvents();
+        }
+    }
+
+    private async Task FetchEvents(string? name = null)
     {
         _searching = true;
         _searchCompleted = false;
@@ -199,8 +252,12 @@
 
         try
         {
-            var response = await Api.GetFromJsonAsync<JsonElement>(
-                $"events/search?name={Uri.EscapeDataString(_eventSearch)}&pageNumber=1&pageSize=20");
+            var baseUri = "events/search?pageNumber=1&pageSize=50";
+            var requestUri = string.IsNullOrWhiteSpace(name)
+                ? baseUri
+                : $"{baseUri}&name={Uri.EscapeDataString(name)}";
+
+            var response = await Api.GetFromJsonAsync<JsonElement>(requestUri);
 
             if (response.TryGetProperty("data", out var items))
             {
@@ -209,7 +266,7 @@
                     _searchResults.Add(new EventResult
                     {
                         Id = item.TryGetProperty("id", out var id) ? id.GetGuid() : Guid.Empty,
-                        Name = item.TryGetProperty("eventName", out var name) ? name.GetString() ?? "" : "",
+                        Name = item.TryGetProperty("eventName", out var eventName) ? eventName.GetString() ?? "" : "",
                         Date = item.TryGetProperty("startDate", out var date) ? date.GetDateTime() : null,
                         Club = item.TryGetProperty("organizationName", out var org) ? org.GetString() ?? "" : "",
                     });
@@ -229,12 +286,6 @@
     {
         _selectedEvent = eventResult;
         _eventLoaded = true;
-        _memberSearch = string.Empty;
-        await LoadMembers();
-    }
-
-    private async Task OnMemberSearchChanged(string _)
-    {
         await LoadMembers();
     }
 
@@ -245,13 +296,13 @@
 
         try
         {
-            var searchParam = string.IsNullOrWhiteSpace(_memberSearch) ? "" : $"&search={Uri.EscapeDataString(_memberSearch)}";
             var response = await Api.GetFromJsonAsync<GradingMembersApiResponse>(
-                $"grading/members?page=1&pageSize=200{searchParam}");
+                "grading/members?page=1&pageSize=500");
 
             if (response is not null)
             {
                 var eventDate = _selectedEvent?.Date ?? DateTime.Today;
+                _eventCredential = DetectEventCredential(response.Members, _selectedEvent?.Name);
                 _totalMemberCount = response.TotalCount;
                 _members = response.Members.Select(m => new GradingMember
                 {
@@ -266,7 +317,14 @@
                     DoubleGrade = m.DoubleGrade,
                     DoubleGradeDefinitionId = m.DoubleGradeDefinitionId,
                     GradingEventDate = eventDate,
+                    MatchesEventCredential = MatchesEventCredentialForMember(m, _eventCredential),
                 }).ToList();
+
+                foreach (var member in _members.Where(m => m.MatchesEventCredential && !m.IsWithin90Days))
+                {
+                    member.Grading = true;
+                    member.TheoryMark ??= 0;
+                }
             }
         }
         catch (Exception ex)
@@ -285,8 +343,91 @@
         _members.Clear();
         _searchResults.Clear();
         _searchCompleted = false;
-        _memberSearch = string.Empty;
+        _eventCredential = null;
         _totalMemberCount = 0;
+    }
+
+    private async Task OpenAddMembersDialog()
+    {
+        if (_selectedEvent is null) return;
+
+        var candidates = _members
+            .Where(m => m.MatchesEventCredential && !m.Grading)
+            .Select(m => new GradingMemberCandidate
+            {
+                JustGoMemberId = m.JustGoMemberId,
+                MemberId = m.MemberId,
+                FirstName = m.FirstName,
+                LastName = m.LastName,
+                LastGradingDate = m.LastGradingDate,
+                CurrentGrade = m.CurrentGrade,
+                NextGrade = m.NextGrade,
+                IsWithin90Days = m.IsWithin90Days,
+            })
+            .ToList();
+
+        if (candidates.Count == 0)
+        {
+            Snackbar.Add("No additional members available for this event credential.", Severity.Info);
+            return;
+        }
+
+        var parameters = new DialogParameters
+        {
+            ["Candidates"] = candidates,
+            ["CredentialLabel"] = _eventCredential,
+        };
+
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true,
+            CloseButton = true,
+            CloseOnEscapeKey = true,
+        };
+
+        var dialog = await DialogService.ShowAsync<AddMembersToGradingDialog>("Add Members to Grading", parameters, options);
+        var result = await dialog.Result;
+        if (result is null || result.Canceled || result.Data is not List<Guid> selectedMemberIds) return;
+
+        foreach (var id in selectedMemberIds)
+        {
+            var member = _members.FirstOrDefault(m => m.JustGoMemberId == id);
+            if (member is null || member.IsWithin90Days) continue;
+            member.Grading = true;
+            member.TheoryMark ??= 0;
+        }
+    }
+
+    private void RemoveFromGrading(GradingMember member)
+    {
+        member.Grading = false;
+        member.IsDoubleGrading = false;
+        member.TheoryMark = null;
+    }
+
+    private static string? DetectEventCredential(IEnumerable<GradingMemberApiDto> members, string? eventName)
+    {
+        if (string.IsNullOrWhiteSpace(eventName)) return null;
+
+        var possibleCredentials = members
+            .SelectMany(m => new[] { m.NextGrade, m.DoubleGrade })
+            .Where(grade => !string.IsNullOrWhiteSpace(grade))
+            .Select(grade => grade!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(grade => grade.Length)
+            .ToList();
+
+        return possibleCredentials
+            .FirstOrDefault(grade => eventName.Contains(grade, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool MatchesEventCredentialForMember(GradingMemberApiDto member, string? eventCredential)
+    {
+        if (string.IsNullOrWhiteSpace(eventCredential)) return false;
+
+        return string.Equals(member.NextGrade, eventCredential, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(member.DoubleGrade, eventCredential, StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task SubmitGrading()
@@ -387,6 +528,7 @@
         public bool IsDoubleGrading { get; set; }
         public int? TheoryMark { get; set; }
         public DateTime GradingEventDate { get; set; }
+        public bool MatchesEventCredential { get; set; }
 
         public bool IsWithin90Days =>
             LastGradingDate.HasValue &&

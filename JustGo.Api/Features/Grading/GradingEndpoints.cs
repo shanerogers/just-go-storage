@@ -1,16 +1,7 @@
-using JustGo.Api.Data;
-
 using JustGo.Api.Features.Credentials;
-
 using JustGo.Api.Features.Members;
 
-using Microsoft.EntityFrameworkCore;
-
-
-
 namespace JustGo.Api.Features.Grading;
-
-
 
 public static class GradingEndpoints
 
@@ -40,7 +31,7 @@ public static class GradingEndpoints
 
                 .WithName("GetGradingMembers")
 
-                .WithSummary("Get synced members with current grade and eligibility for grading");
+                .WithSummary("Get API members with current grade and eligibility for grading");
 
 
 
@@ -68,7 +59,7 @@ public static class GradingEndpoints
 
         int pageSize,
 
-        ApiDbContext db,
+        IMemberClient memberClient,
 
         CancellationToken ct)
 
@@ -80,99 +71,24 @@ public static class GradingEndpoints
 
 
 
-        IQueryable<MemberSyncRecord> query = db.Members
-
-            .TagWith("Get synced members for grading");
-
-
-
-        if (!string.IsNullOrWhiteSpace(search))
-
+        var memberSearchRequest = new FindMembersRequest
         {
+            PageNumber = page,
+            PageSize = pageSize,
+            LastName = string.IsNullOrWhiteSpace(search) ? null : search.Trim(),
+        };
 
-            var term = search.Trim().ToLower();
+        var memberSearchResponse = await memberClient.FindMembersByAttributesAsync(memberSearchRequest, ct);
+        var memberRows = memberSearchResponse.Data ?? [];
 
-            query = query.Where(m =>
+        var memberDetails = await Task.WhenAll(
+            memberRows.Select(member => memberClient.GetMemberAsync(member.Id, ct)));
 
-                (m.FirstName != null && m.FirstName.ToLower().Contains(term)) ||
-
-                (m.LastName != null && m.LastName.ToLower().Contains(term)));
-
-        }
-
-
-
-        var totalCount = await query.CountAsync(ct);
-
-
-
-        var members = await query
-
-            .OrderBy(m => m.LastName)
-
-            .ThenBy(m => m.FirstName)
-
-            .Skip((page - 1) * pageSize)
-
-            .Take(pageSize)
-
-            .ToListAsync(ct);
-
-
-
-        var gradingMembers = members.Select(m =>
-
-        {
-
-            var credentials = m.MemberInformation.Credentials;
-
-            var currentGrade = GradeDefinitions.GetCurrentGrade(credentials);
-
-            var lastGradingDate = GradeDefinitions.GetLastGradingDate(credentials);
-
-            var nextGrade = currentGrade is not null
-
-                ? GradeDefinitions.GetNextGrade(currentGrade.DefinitionId)
-
-                : GradeDefinitions.All[0]; // 10th Gup for ungraded members
-
-            var doubleGrade = currentGrade is not null
-
-                ? GradeDefinitions.GetDoubleGrade(currentGrade.DefinitionId)
-
-                : GradeDefinitions.All.Count > 1 ? GradeDefinitions.All[1] : null;
-
-
-
-            return new GradingMemberDto
-
-            {
-
-                JustGoMemberId = m.JustGoMemberId,
-
-                MemberId = m.MemberInformation.MemberId ?? m.MemberInformation.UserName ?? string.Empty,
-
-                FirstName = m.FirstName ?? string.Empty,
-
-                LastName = m.LastName ?? string.Empty,
-
-                CurrentGrade = currentGrade?.Name,
-
-                CurrentGradeDefinitionId = currentGrade?.DefinitionId,
-
-                LastGradingDate = lastGradingDate,
-
-                NextGrade = nextGrade?.Name,
-
-                NextGradeDefinitionId = nextGrade?.DefinitionId,
-
-                DoubleGrade = doubleGrade?.Name,
-
-                DoubleGradeDefinitionId = doubleGrade?.DefinitionId,
-
-            };
-
-        }).ToList();
+        var gradingMembers = memberDetails
+            .Select(ToGradingMemberDto)
+            .OrderBy(member => member.LastName)
+            .ThenBy(member => member.FirstName)
+            .ToList();
 
 
 
@@ -182,10 +98,38 @@ public static class GradingEndpoints
 
             Members = gradingMembers,
 
-            TotalCount = totalCount,
+            TotalCount = memberSearchResponse.TotalRecords,
 
         });
 
+    }
+
+    private static GradingMemberDto ToGradingMemberDto(MemberDetailDto member)
+    {
+        var credentials = member.Credentials;
+        var currentGrade = GradeDefinitions.GetCurrentGrade(credentials);
+        var lastGradingDate = GradeDefinitions.GetLastGradingDate(credentials);
+        var nextGrade = currentGrade is not null
+            ? GradeDefinitions.GetNextGrade(currentGrade.DefinitionId)
+            : GradeDefinitions.All[0]; // 10th Gup for ungraded members
+        var doubleGrade = currentGrade is not null
+            ? GradeDefinitions.GetDoubleGrade(currentGrade.DefinitionId)
+            : GradeDefinitions.All.Count > 1 ? GradeDefinitions.All[1] : null;
+
+        return new GradingMemberDto
+        {
+            JustGoMemberId = member.Id,
+            MemberId = member.MemberId ?? member.UserName ?? string.Empty,
+            FirstName = member.FirstName ?? string.Empty,
+            LastName = member.LastName ?? string.Empty,
+            CurrentGrade = currentGrade?.Name,
+            CurrentGradeDefinitionId = currentGrade?.DefinitionId,
+            LastGradingDate = lastGradingDate,
+            NextGrade = nextGrade?.Name,
+            NextGradeDefinitionId = nextGrade?.DefinitionId,
+            DoubleGrade = doubleGrade?.Name,
+            DoubleGradeDefinitionId = doubleGrade?.DefinitionId,
+        };
     }
 
 
@@ -341,4 +285,3 @@ public static class GradingEndpoints
     }
 
 }
-

@@ -1,0 +1,98 @@
+@using JustGo.Grading.Models
+
+<MudDialog>
+    <DialogContent>
+        @if (!string.IsNullOrWhiteSpace(CredentialLabel))
+        {
+            <MudText Typo="Typo.subtitle2" Color="Color.Primary" Class="mb-2">
+                Showing members for credential: @CredentialLabel
+            </MudText>
+        }
+
+        <MudTextField @bind-Value="_searchTerm" Label="Search members"
+                      Variant="Variant.Outlined" Adornment="Adornment.End"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Placeholder="Name or member ID..." Immediate="true" />
+
+        <MudTable Items="FilteredCandidates" Hover="true" Striped="true" Dense="true" Class="mt-4"
+                  T="GradingMemberCandidate" FixedHeader="true" Height="420px">
+            <HeaderContent>
+                <MudTh></MudTh>
+                <MudTh>MID</MudTh>
+                <MudTh>First Name</MudTh>
+                <MudTh>Last Name</MudTh>
+                <MudTh>Last Grading</MudTh>
+                <MudTh>Current Grade</MudTh>
+                <MudTh>Next Grade</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>
+                    <MudCheckBox T="bool"
+                                 Value="@IsSelected(context.JustGoMemberId)"
+                                 ValueChanged="@(selected => ToggleSelected(context.JustGoMemberId, selected))"
+                                 Disabled="context.IsWithin90Days" />
+                </MudTd>
+                <MudTd>@context.MemberId</MudTd>
+                <MudTd>@context.FirstName</MudTd>
+                <MudTd>@context.LastName</MudTd>
+                <MudTd>
+                    <MudText Color="@(context.IsWithin90Days ? Color.Error : Color.Default)">
+                        @context.LastGradingDate?.ToString("dd-MM-yyyy")
+                        @if (context.IsWithin90Days)
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.Warning" Size="Size.Small"
+                                     Color="Color.Error" Title="Within 90 days of last grading" />
+                        }
+                    </MudText>
+                </MudTd>
+                <MudTd>@context.CurrentGrade</MudTd>
+                <MudTd>@context.NextGrade</MudTd>
+            </RowTemplate>
+        </MudTable>
+    </DialogContent>
+    <DialogActions>
+        <MudText Typo="Typo.caption" Class="mr-auto">
+            Selected: @_selectedMemberIds.Count
+        </MudText>
+        <MudButton Variant="Variant.Text" Color="Color.Secondary" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddSelected"
+                   Disabled="@(_selectedMemberIds.Count == 0)">
+            Add Selected
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public List<GradingMemberCandidate> Candidates { get; set; } = [];
+    [Parameter] public string? CredentialLabel { get; set; }
+
+    private string _searchTerm = string.Empty;
+    private HashSet<Guid> _selectedMemberIds = [];
+
+    private IEnumerable<GradingMemberCandidate> FilteredCandidates =>
+        Candidates.Where(candidate =>
+            string.IsNullOrWhiteSpace(_searchTerm) ||
+            candidate.MemberId.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+            candidate.FirstName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+            candidate.LastName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase));
+
+    private bool IsSelected(Guid memberId) => _selectedMemberIds.Contains(memberId);
+
+    private void ToggleSelected(Guid memberId, bool selected)
+    {
+        if (selected) _selectedMemberIds.Add(memberId);
+        else _selectedMemberIds.Remove(memberId);
+    }
+
+    private void AddSelected()
+    {
+        MudDialog.Close(DialogResult.Ok(_selectedMemberIds.ToList()));
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}
