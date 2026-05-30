@@ -1,7 +1,5 @@
 namespace JustGo;
 
-
-
 internal static class GradingResource
 {
     /// <summary>
@@ -9,26 +7,13 @@ internal static class GradingResource
     /// </summary>
     extension(IDistributedApplicationBuilder builder)
     {
-
-        public IResourceBuilder<ProjectResource> AddGradingApp(
-
-            IResourceBuilder<ProjectResource> api)
-
+        public IResourceBuilder<ProjectResource> AddGradingApp(IResourceBuilder<ProjectResource> api)
         {
-
             return builder.AddProject<Projects.JustGo_Grading>("grading")
-
                 .WithExternalHttpEndpoints()
-
                 .WithReference(api)
-
                 .WaitFor(api)
-
                 .WithBrowserLogs();
-
         }
-
     }
-
 }
-
