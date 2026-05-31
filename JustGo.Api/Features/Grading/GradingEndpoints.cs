@@ -47,20 +47,52 @@ public static class GradingEndpoints
     private static async Task<IResult> GetGradingEventsAsync(
         IEventClient eventClient,
         CancellationToken ct,
-        string? name = null,
+        string? search = null,
         int pageNumber = 1,
-        int pageSize = 50)
+        int pageSize = 200)
     {
+        var isEventNumber = search is not null &&
+            search.StartsWith("EV", StringComparison.OrdinalIgnoreCase);
+
         var request = new FindEventsRequest
         {
             PageNumber = pageNumber,
             PageSize = pageSize,
-            Name = name,
+            EventNumber = isEventNumber ? search : null,
             Category = GradingCategories[0],
         };
 
         var result = await eventClient.FindEventsByAttributesAsync(request, ct);
+
+        // EventName filter is ignored by JustGo API, so filter locally by name
+        if (!isEventNumber && !string.IsNullOrWhiteSpace(search))
+        {
+            result = FilterEventsByName(result, search);
+        }
+
         return Results.Ok(result);
+    }
+
+    private static object FilterEventsByName(object result, string search)
+    {
+        if (result is not System.Text.Json.JsonElement json) return result;
+        if (!json.TryGetProperty("data", out var data)) return result;
+
+        var filtered = data.EnumerateArray()
+            .Where(e => e.TryGetProperty("eventName", out var name) &&
+                        name.GetString()?.Contains(search, StringComparison.OrdinalIgnoreCase) == true)
+            .ToList();
+
+        return new
+        {
+            statusCode = json.TryGetProperty("statusCode", out var sc) ? sc.GetInt32() : 200,
+            message = json.TryGetProperty("message", out var msg) ? msg.GetString() : null,
+            pageNumber = json.TryGetProperty("pageNumber", out var pn) ? pn.GetInt32() : 1,
+            pageSize = json.TryGetProperty("pageSize", out var ps) ? ps.GetInt32() : 200,
+            totalPages = 1,
+            totalRecords = filtered.Count,
+            data = filtered,
+        };
     }
 
     private static async Task<IResult> GetGradingMembersAsync(

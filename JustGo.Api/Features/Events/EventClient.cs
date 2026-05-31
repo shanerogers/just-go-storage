@@ -21,6 +21,7 @@ public sealed class EventClient(HttpClient httpClient, IOptions<JustGoOptions> o
             [PageSize] = request.PageSize.ToString()
         };
         if (request.Name is not null) query["EventName"] = request.Name;
+        if (request.EventNumber is not null) query["EventNumber"] = request.EventNumber;
         if (request.Category is not null) query["EventCategory"] = ToJustGoCategory(request.Category.Value);
 
         var uri = QueryHelpers.AddQueryString($"/api/{ApiVersion}/Events/FindByAttributes", query);
