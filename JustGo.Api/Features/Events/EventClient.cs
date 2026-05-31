@@ -21,10 +21,22 @@ public sealed class EventClient(HttpClient httpClient, IOptions<JustGoOptions> o
             [PageSize] = request.PageSize.ToString()
         };
         if (request.Name is not null) query["EventName"] = request.Name;
+        if (request.Category is not null) query["EventCategory"] = ToJustGoCategory(request.Category.Value);
 
         var uri = QueryHelpers.AddQueryString($"/api/{ApiVersion}/Events/FindByAttributes", query);
         return GetAsync<object>(uri, ct);
     }
+
+    private static string ToJustGoCategory(EventCategory category) => category switch
+    {
+        EventCategory.GupGrading => "Gup Grading",
+        EventCategory.DanGrading => "Dan Grading",
+        EventCategory.DanPassIncomplete => "Dan Pass Incomplete",
+        EventCategory.Courses => "Courses",
+        EventCategory.ClubEvents => "Club Events",
+        EventCategory.Other => "Other",
+        _ => throw new ArgumentOutOfRangeException(nameof(category), category, null),
+    };
 
     public Task<object> GetEventAsync(Guid eventId, CancellationToken ct) =>
         GetAsync<object>($"/api/{ApiVersion}/Events/{eventId}", ct);

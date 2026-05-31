@@ -295,7 +295,7 @@
 
         try
         {
-            var baseUri = "events/search?pageNumber=1&pageSize=50";
+            var baseUri = "grading/events?pageNumber=1&pageSize=50";
             var requestUri = string.IsNullOrWhiteSpace(name)
                 ? baseUri
                 : $"{baseUri}&name={Uri.EscapeDataString(name)}";

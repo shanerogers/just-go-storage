@@ -8,6 +8,9 @@ namespace JustGo.Api.Features.Grading;
 
 public static class GradingEndpoints
 {
+    private static readonly EventCategory[] GradingCategories =
+        [EventCategory.GupGrading];
+
     private const int MaxConcurrentMemberDetailRequests = 20;
     private const int EventPageSize = 200;
 
@@ -20,6 +23,10 @@ public static class GradingEndpoints
             group.MapGet("/grades", () => Results.Ok(GradeDefinitions.All))
                 .WithName("GetGradeDefinitions")
                 .WithSummary("Get all Gup and Dan grade definitions in rank order");
+
+            group.MapGet("/events", GetGradingEventsAsync)
+                .WithName("GetGradingEvents")
+                .WithSummary("Search grading events (Gup Grading, Dan Grading, Dan Pass Incomplete)");
 
             group.MapGet("/members", GetGradingMembersAsync)
                 .WithName("GetGradingMembers")
@@ -35,6 +42,25 @@ public static class GradingEndpoints
 
             return app;
         }
+    }
+
+    private static async Task<IResult> GetGradingEventsAsync(
+        IEventClient eventClient,
+        CancellationToken ct,
+        string? name = null,
+        int pageNumber = 1,
+        int pageSize = 50)
+    {
+        var request = new FindEventsRequest
+        {
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            Name = name,
+            Category = GradingCategories[0],
+        };
+
+        var result = await eventClient.FindEventsByAttributesAsync(request, ct);
+        return Results.Ok(result);
     }
 
     private static async Task<IResult> GetGradingMembersAsync(

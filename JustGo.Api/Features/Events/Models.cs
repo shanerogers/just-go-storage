@@ -2,11 +2,24 @@ using System.Text.Json.Serialization;
 
 namespace JustGo.Integrations.JustGo.Features.Events.Models;
 
+/// <summary>JustGo event category values. The integer values are for internal use; the JustGo API accepts the string name.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum EventCategory
+{
+    GupGrading = 1,
+    DanGrading = 2,
+    DanPassIncomplete = 3,
+    Courses = 4,
+    ClubEvents = 5,
+    Other = 6,
+}
+
 public sealed class FindEventsRequest
 {
     public int PageNumber { get; set; } = 1;
     public int PageSize { get; set; } = 20;
     public string? Name { get; set; }
+    public EventCategory? Category { get; set; }
 }
 
 public sealed class EventCreateRequest
