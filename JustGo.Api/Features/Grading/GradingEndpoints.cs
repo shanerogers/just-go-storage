@@ -3,13 +3,12 @@ using JustGo.Api.Features.Events;
 using JustGo.Api.Features.Members;
 using JustGo.Integrations.JustGo.Features.Credentials.Models;
 using JustGo.Integrations.JustGo.Features.Events.Models;
-using JustGo.Integrations.JustGo.Services;
 
 namespace JustGo.Api.Features.Grading;
 
 public static class GradingEndpoints
 {
-    private const int MaxConcurrentMemberDetailRequests = 10;
+    private const int MaxConcurrentMemberDetailRequests = 20;
     private const int EventPageSize = 200;
 
     extension(IEndpointRouteBuilder app)
@@ -104,40 +103,35 @@ public static class GradingEndpoints
         Guid eventId,
         IEventClient eventClient,
         IMemberClient memberClient,
-        ILoggerFactory loggerFactory,
         CancellationToken ct)
     {
-        var logger = loggerFactory.CreateLogger("JustGo.Api.Features.Grading.GradingEndpoints");
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var getTickets = GetAllEventTicketsAsync(eventClient, eventId, ct);
+        var getCandidates = GetAllEventCandidatesAsync(eventClient, eventId, ct);
 
-        var tickets = await GetAllEventTicketsAsync(eventClient, eventId, ct);
-        logger.LogInformation("GetEventState: Loaded {Count} tickets in {ElapsedMs}ms", tickets.Count, sw.ElapsedMilliseconds);
+        await Task.WhenAll(getTickets, getCandidates);
 
-        var candidates = await GetAllEventCandidatesAsync(eventClient, eventId, ct);
-        logger.LogInformation("GetEventState: Loaded {Count} candidates in {ElapsedMs}ms (cumulative)", candidates.Count, sw.ElapsedMilliseconds);
+        var candidates = await getCandidates;
+        var tickets = await getTickets;
 
         var candidateMemberIds = candidates
             .Select(candidate => candidate.CandidateId)
             .Distinct()
             .ToList();
 
-        var memberDetails = await LoadMemberDetailsAsync(candidateMemberIds, memberClient, logger, ct);
-        logger.LogInformation("GetEventState: Loaded {Count}/{Total} member details in {ElapsedMs}ms (cumulative)", memberDetails.Length, candidateMemberIds.Count, sw.ElapsedMilliseconds);
+        var memberDetails = await LoadMemberDetailsAsync(candidateMemberIds, memberClient, ct);
         var memberDetailById = memberDetails.ToDictionary(member => member.Id);
         var ticketById = tickets.ToDictionary(ticket => ticket.Id);
 
         var response = new GradingEventStateResponse
         {
             EventId = eventId,
-            Tickets = tickets
+            Tickets = [.. tickets
                 .Select(ToEventTicketState)
-                .OrderBy(ticket => ticket.GradeName ?? ticket.TicketName)
-                .ToList(),
-            Candidates = candidates
+                .OrderBy(ticket => ticket.GradeName ?? ticket.TicketName)],
+            Candidates = [.. candidates
                 .Select(candidate => ToEventCandidateState(candidate, ticketById, memberDetailById))
                 .OrderBy(candidate => candidate.LastName)
-                .ThenBy(candidate => candidate.FirstName)
-                .ToList(),
+                .ThenBy(candidate => candidate.FirstName)],
         };
 
         return Results.Ok(response);
@@ -169,7 +163,11 @@ public static class GradingEndpoints
             .GroupBy(candidate => (candidate.CandidateId, candidate.TicketId))
             .ToDictionary(group => group.Key, group => group.First());
 
-        var memberDetails = await LoadMemberDetailsAsync(request.Results.Select(result => result.MemberId).Distinct(), memberClient, logger, ct);
+        var memberDetails = await LoadMemberDetailsAsync(
+            request.Results.Select(result => result.MemberId).Distinct(),
+            memberClient,
+            ct);
+
         var memberDetailById = memberDetails.ToDictionary(member => member.Id);
 
         var details = new List<GradingResultStatus>();
@@ -326,37 +324,19 @@ public static class GradingEndpoints
     private static async Task<MemberDetailDto[]> LoadMemberDetailsAsync(
         IEnumerable<Guid> memberIds,
         IMemberClient memberClient,
-        ILogger logger,
         CancellationToken ct)
     {
-        using var throttler = new SemaphoreSlim(MaxConcurrentMemberDetailRequests);
-        var tasks = memberIds.Distinct().Select(memberId => LoadMemberDetailAsync(memberId, memberClient, throttler, logger, ct));
+        var tasks = memberIds.Distinct().Select(memberId => LoadMemberDetailAsync(memberId, memberClient, ct));
         var results = await Task.WhenAll(tasks);
-        return results.Where(r => r is not null).ToArray()!;
+        return results.Where(result => result is not null).ToArray()!;
     }
 
     private static async Task<MemberDetailDto?> LoadMemberDetailAsync(
         Guid memberId,
         IMemberClient memberClient,
-        SemaphoreSlim throttler,
-        ILogger logger,
         CancellationToken ct)
     {
-        await throttler.WaitAsync(ct);
-
-        try
-        {
-            return await memberClient.GetMemberAsync(memberId, ct);
-        }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JustGoApiException)
-        {
-            logger.LogWarning(ex, "Skipping member {MemberId} — JustGo detail lookup failed.", memberId);
-            return null;
-        }
-        finally
-        {
-            throttler.Release();
-        }
+        return await memberClient.GetMemberAsync(memberId, ct);
     }
 
     private static async Task<List<EventTicketDto>> GetAllEventTicketsAsync(
