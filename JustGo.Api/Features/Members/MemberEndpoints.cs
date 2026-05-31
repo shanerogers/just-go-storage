@@ -3,9 +3,7 @@ namespace JustGo.Api.Features.Members;
 public static class MemberEndpoints
 {
     extension(IEndpointRouteBuilder app)
-
     {
-
         public IEndpointRouteBuilder MapMemberEndpoints()
         {
             var group = app.MapGroup("/members").WithTags("Members");

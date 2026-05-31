@@ -9,7 +9,7 @@ namespace JustGo.Api.Features.Grading;
 
 public static class GradingEndpoints
 {
-    private const int MaxConcurrentMemberDetailRequests = 4;
+    private const int MaxConcurrentMemberDetailRequests = 10;
     private const int EventPageSize = 200;
 
     extension(IEndpointRouteBuilder app)
@@ -108,8 +108,13 @@ public static class GradingEndpoints
         CancellationToken ct)
     {
         var logger = loggerFactory.CreateLogger("JustGo.Api.Features.Grading.GradingEndpoints");
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
         var tickets = await GetAllEventTicketsAsync(eventClient, eventId, ct);
+        logger.LogInformation("GetEventState: Loaded {Count} tickets in {ElapsedMs}ms", tickets.Count, sw.ElapsedMilliseconds);
+
         var candidates = await GetAllEventCandidatesAsync(eventClient, eventId, ct);
+        logger.LogInformation("GetEventState: Loaded {Count} candidates in {ElapsedMs}ms (cumulative)", candidates.Count, sw.ElapsedMilliseconds);
 
         var candidateMemberIds = candidates
             .Select(candidate => candidate.CandidateId)
@@ -117,6 +122,7 @@ public static class GradingEndpoints
             .ToList();
 
         var memberDetails = await LoadMemberDetailsAsync(candidateMemberIds, memberClient, logger, ct);
+        logger.LogInformation("GetEventState: Loaded {Count}/{Total} member details in {ElapsedMs}ms (cumulative)", memberDetails.Length, candidateMemberIds.Count, sw.ElapsedMilliseconds);
         var memberDetailById = memberDetails.ToDictionary(member => member.Id);
         var ticketById = tickets.ToDictionary(ticket => ticket.Id);
 
