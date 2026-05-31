@@ -1,4 +1,5 @@
 @page "/grading"
+@page "/grading/{RouteEventId:guid}"
 @using JustGo.Grading.Models
 @inject IHttpClientFactory HttpClientFactory
 @inject ISnackbar Snackbar
@@ -261,9 +262,20 @@
 
     private HttpClient Api => HttpClientFactory.CreateClient("JustGoApi");
 
+    [Parameter] public Guid? RouteEventId { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         await FetchEvents();
+
+        if (RouteEventId is { } eventId && eventId != Guid.Empty)
+        {
+            var match = _searchResults.FirstOrDefault(e => e.Id == eventId);
+            if (match is not null)
+            {
+                await SelectEvent(match);
+            }
+        }
     }
 
     private async Task SearchEvents()
@@ -385,6 +397,7 @@
         _selectedEvent = eventResult;
         _eventLoaded = true;
         _loadingMembers = true;
+        Navigation.NavigateTo($"/grading/{eventResult.Id}", replace: true);
         StateHasChanged();
 
         try
@@ -483,6 +496,7 @@
         _totalMemberCount = 0;
         _eventTickets.Clear();
         _eventCandidates.Clear();
+        Navigation.NavigateTo("/grading", replace: true);
     }
 
     private async Task OpenAddMembersDialog()
