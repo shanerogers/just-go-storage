@@ -105,4 +105,11 @@ public sealed class GradingEventCandidateDto
     public bool HasIssuedCredential { get; init; }
     public Guid? JustGoCredentialId { get; init; }
     public DateOnly? CredentialGrantedDate { get; init; }
+    public string? CurrentGrade { get; init; }
+    public Guid? CurrentGradeDefinitionId { get; init; }
+    public DateOnly? LastGradingDate { get; init; }
+    public string? NextGrade { get; init; }
+    public Guid? NextGradeDefinitionId { get; init; }
+    public string? DoubleGrade { get; init; }
+    public Guid? DoubleGradeDefinitionId { get; init; }
 }

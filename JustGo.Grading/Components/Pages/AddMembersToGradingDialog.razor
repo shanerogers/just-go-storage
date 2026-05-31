@@ -1,62 +1,71 @@
 @using JustGo.Grading.Models
+@inject IHttpClientFactory HttpClientFactory
+@inject ISnackbar Snackbar
+@inject ILogger<AddMembersToGradingDialog> Logger
 
 <MudDialog>
     <DialogContent>
-        @if (!string.IsNullOrWhiteSpace(CredentialLabel))
+        <MudGrid>
+            <MudItem xs="12" sm="8">
+                <MudTextField @bind-Value="_searchTerm" Label="Search by name"
+                              Variant="Variant.Outlined" Adornment="Adornment.End"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              Placeholder="Last name..."
+                              OnKeyDown="OnSearchKeyDown" />
+            </MudItem>
+            <MudItem xs="12" sm="4" Class="d-flex align-end">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           OnClick="SearchMembers" Disabled="_searching"
+                           StartIcon="@Icons.Material.Filled.Search">
+                    Search
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+
+        @if (_searching)
         {
-            <MudText Typo="Typo.subtitle2" Color="Color.Primary" Class="mb-2">
-                Showing members for credential: @CredentialLabel
-            </MudText>
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mt-4" />
         }
 
-        <MudTextField @bind-Value="_searchTerm" Label="Search members"
-                      Variant="Variant.Outlined" Adornment="Adornment.End"
-                      AdornmentIcon="@Icons.Material.Filled.Search"
-                      Placeholder="Name or member ID..." Immediate="true" />
-
-        <MudTable Items="FilteredCandidates" Hover="true" Striped="true" Dense="true" Class="mt-4"
-                  T="GradingMemberCandidate" FixedHeader="true" Height="420px">
-            <HeaderContent>
-                <MudTh></MudTh>
-                <MudTh>MID</MudTh>
-                <MudTh>First Name</MudTh>
-                <MudTh>Last Name</MudTh>
-                <MudTh>Last Grading</MudTh>
-                <MudTh>Current Grade</MudTh>
-                <MudTh>Next Grade</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd>
-                    <MudCheckBox T="bool"
-                                 Value="@IsSelected(context.JustGoMemberId)"
-                                 ValueChanged="@(selected => ToggleSelected(context.JustGoMemberId, selected))"
-                                 Disabled="context.IsWithin90Days" />
-                </MudTd>
-                <MudTd>@context.MemberId</MudTd>
-                <MudTd>@context.FirstName</MudTd>
-                <MudTd>@context.LastName</MudTd>
-                <MudTd>
-                    <MudText Color="@(context.IsWithin90Days ? Color.Error : Color.Default)">
-                        @context.LastGradingDate?.ToString("dd-MM-yyyy")
-                        @if (context.IsWithin90Days)
-                        {
-                            <MudIcon Icon="@Icons.Material.Filled.Warning" Size="Size.Small"
-                                     Color="Color.Error" Title="Within 90 days of last grading" />
-                        }
-                    </MudText>
-                </MudTd>
-                <MudTd>@context.CurrentGrade</MudTd>
-                <MudTd>@context.NextGrade</MudTd>
-            </RowTemplate>
-        </MudTable>
+        @if (_searchResults.Count > 0)
+        {
+            <MudTable Items="_searchResults" Hover="true" Striped="true" Dense="true" Class="mt-4"
+                      T="SearchResult" FixedHeader="true" Height="420px">
+                <HeaderContent>
+                    <MudTh></MudTh>
+                    <MudTh>MID</MudTh>
+                    <MudTh>First Name</MudTh>
+                    <MudTh>Last Name</MudTh>
+                    <MudTh>Current Grade</MudTh>
+                    <MudTh>Next Grade</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>
+                        <MudCheckBox T="bool"
+                                     Value="@IsSelected(context.JustGoMemberId)"
+                                     ValueChanged="@(selected => ToggleSelected(context, selected))"
+                                     Disabled="context.AlreadyAttached" />
+                    </MudTd>
+                    <MudTd>@context.MemberId</MudTd>
+                    <MudTd>@context.FirstName</MudTd>
+                    <MudTd>@context.LastName</MudTd>
+                    <MudTd>@context.CurrentGrade</MudTd>
+                    <MudTd>@context.NextGrade</MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+        else if (_searchCompleted)
+        {
+            <MudAlert Severity="Severity.Info" Class="mt-4">No members found. Try a different search term.</MudAlert>
+        }
     </DialogContent>
     <DialogActions>
         <MudText Typo="Typo.caption" Class="mr-auto">
-            Selected: @_selectedMemberIds.Count
+            Selected: @_selectedMembers.Count
         </MudText>
         <MudButton Variant="Variant.Text" Color="Color.Secondary" OnClick="Cancel">Cancel</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddSelected"
-                   Disabled="@(_selectedMemberIds.Count == 0)">
+                   Disabled="@(_selectedMembers.Count == 0)">
             Add Selected
         </MudButton>
     </DialogActions>
@@ -65,34 +74,154 @@
 @code {
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
 
-    [Parameter] public List<GradingMemberCandidate> Candidates { get; set; } = [];
-    [Parameter] public string? CredentialLabel { get; set; }
+    [Parameter] public Guid EventId { get; set; }
+    [Parameter] public HashSet<Guid> ExistingMemberIds { get; set; } = [];
+    [Parameter] public List<EventTicketApiDto> EventTickets { get; set; } = [];
+    [Parameter] public DateTime EventDate { get; set; }
 
     private string _searchTerm = string.Empty;
-    private HashSet<Guid> _selectedMemberIds = [];
+    private bool _searching;
+    private bool _searchCompleted;
+    private List<SearchResult> _searchResults = [];
+    private Dictionary<Guid, GradingMember> _selectedMembers = [];
 
-    private IEnumerable<GradingMemberCandidate> FilteredCandidates =>
-        Candidates.Where(candidate =>
-            string.IsNullOrWhiteSpace(_searchTerm) ||
-            candidate.MemberId.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
-            candidate.FirstName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
-            candidate.LastName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase));
+    private HttpClient Api => HttpClientFactory.CreateClient("JustGoApi");
 
-    private bool IsSelected(Guid memberId) => _selectedMemberIds.Contains(memberId);
-
-    private void ToggleSelected(Guid memberId, bool selected)
+    private async Task OnSearchKeyDown(KeyboardEventArgs args)
     {
-        if (selected) _selectedMemberIds.Add(memberId);
-        else _selectedMemberIds.Remove(memberId);
+        if (_searching) return;
+        if (args.Key is "Enter" or "NumpadEnter")
+        {
+            await SearchMembers();
+        }
+    }
+
+    private async Task SearchMembers()
+    {
+        if (string.IsNullOrWhiteSpace(_searchTerm)) return;
+
+        _searching = true;
+        _searchCompleted = false;
+        _searchResults.Clear();
+        StateHasChanged();
+
+        try
+        {
+            var httpResponse = await Api.GetAsync(
+                $"grading/members?search={Uri.EscapeDataString(_searchTerm.Trim())}&page=1&pageSize=50");
+            if (!httpResponse.IsSuccessStatusCode)
+            {
+                Logger.LogError("Member search failed: {StatusCode}", (int)httpResponse.StatusCode);
+                Snackbar.Add("Member search failed", Severity.Error);
+            }
+            else
+            {
+                var response = await httpResponse.Content.ReadFromJsonAsync<GradingMembersApiResponse>();
+                if (response is not null)
+                {
+                    _searchResults = response.Members.Select(m => new SearchResult
+                    {
+                        JustGoMemberId = m.JustGoMemberId,
+                        MemberId = m.MemberId,
+                        FirstName = m.FirstName,
+                        LastName = m.LastName,
+                        CurrentGrade = m.CurrentGrade ?? "Ungraded",
+                        NextGrade = m.NextGrade ?? "10th Gup",
+                        NextGradeDefinitionId = m.NextGradeDefinitionId,
+                        DoubleGrade = m.DoubleGrade,
+                        DoubleGradeDefinitionId = m.DoubleGradeDefinitionId,
+                        LastGradingDate = m.LastGradingDate is { } d ? d.ToDateTime(TimeOnly.MinValue) : null,
+                        AlreadyAttached = ExistingMemberIds.Contains(m.JustGoMemberId),
+                    }).ToList();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Member search failed for event {EventId}", EventId);
+            Snackbar.Add($"Search error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _searching = false;
+            _searchCompleted = true;
+        }
+    }
+
+    private bool IsSelected(Guid memberId) => _selectedMembers.ContainsKey(memberId);
+
+    private void ToggleSelected(SearchResult result, bool selected)
+    {
+        if (result.AlreadyAttached)
+        {
+            return;
+        }
+
+        if (selected)
+        {
+            _selectedMembers[result.JustGoMemberId] = new GradingMember
+            {
+                JustGoMemberId = result.JustGoMemberId,
+                MemberId = result.MemberId,
+                FirstName = result.FirstName,
+                LastName = result.LastName,
+                LastGradingDate = result.LastGradingDate,
+                CurrentGrade = result.CurrentGrade,
+                NextGrade = result.NextGrade,
+                NextGradeDefinitionId = result.NextGradeDefinitionId,
+                DoubleGrade = result.DoubleGrade,
+                DoubleGradeDefinitionId = result.DoubleGradeDefinitionId,
+                GradingEventDate = EventDate,
+            };
+        }
+        else
+        {
+            _selectedMembers.Remove(result.JustGoMemberId);
+        }
     }
 
     private void AddSelected()
     {
-        MudDialog.Close(DialogResult.Ok(_selectedMemberIds.ToList()));
+        MudDialog.Close(DialogResult.Ok(_selectedMembers.Values.ToList()));
     }
 
     private void Cancel()
     {
         MudDialog.Cancel();
+    }
+
+    private sealed class GradingMembersApiResponse
+    {
+        public List<GradingMemberApiDto> Members { get; set; } = [];
+        public int TotalCount { get; set; }
+    }
+
+    private sealed class GradingMemberApiDto
+    {
+        public Guid JustGoMemberId { get; set; }
+        public string MemberId { get; set; } = string.Empty;
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string? CurrentGrade { get; set; }
+        public DateOnly? LastGradingDate { get; set; }
+        public string? NextGrade { get; set; }
+        public Guid? NextGradeDefinitionId { get; set; }
+        public string? DoubleGrade { get; set; }
+        public Guid? DoubleGradeDefinitionId { get; set; }
+    }
+
+    private sealed class SearchResult
+    {
+        public Guid JustGoMemberId { get; set; }
+        public string MemberId { get; set; } = string.Empty;
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string CurrentGrade { get; set; } = string.Empty;
+        public string NextGrade { get; set; } = string.Empty;
+        public Guid? NextGradeDefinitionId { get; set; }
+        public string? DoubleGrade { get; set; }
+        public Guid? DoubleGradeDefinitionId { get; set; }
+        public DateTime? LastGradingDate { get; set; }
+        public bool AlreadyAttached { get; set; }
     }
 }

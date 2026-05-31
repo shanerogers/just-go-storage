@@ -104,15 +104,12 @@
                     <MudItem xs="12" Class="d-flex justify-start align-center">
                         <MudButton Variant="Variant.Outlined" Color="Color.Primary"
                                    OnClick="OpenAddMembersDialog"
-                                   Disabled="@(_loadingMembers || _submitting || !AddableMembers.Any())"
+                                   Disabled="@(_loadingMembers || _submitting)"
                                    StartIcon="@Icons.Material.Filled.PersonAdd">
                             Add Members to Grading
                         </MudButton>
                     </MudItem>
                 </MudGrid>
-                <MudText Typo="Typo.caption" Class="mt-2 d-block">
-                    Members available to add: @AddableMembers.Count
-                </MudText>
             </MudPaper>
 
             <MudPaper Class="pa-4 mb-4" Elevation="2">
@@ -247,7 +244,6 @@
 
 @code {
     private string _eventSearch = string.Empty;
-    private string? _eventCredential;
     private bool _searching;
     private bool _searchCompleted;
     private bool _eventLoaded;
@@ -261,7 +257,6 @@
     private List<EventCandidateApiDto> _eventCandidates = [];
 
     private IEnumerable<GradingMember> ActiveGradingMembers => _members.Where(m => m.Grading);
-    private List<GradingMember> AddableMembers => _members.Where(m => !m.Grading && !m.HasIssuedCredential).ToList();
 
     private HttpClient Api => HttpClientFactory.CreateClient("JustGoApi");
 
@@ -388,73 +383,51 @@
     {
         _selectedEvent = eventResult;
         _eventLoaded = true;
-        await LoadMembers();
-    }
-
-    private async Task LoadMembers()
-    {
         _loadingMembers = true;
         StateHasChanged();
 
         try
         {
-            if (_selectedEvent?.Id is null || _selectedEvent.Id == Guid.Empty)
-            {
-                Snackbar.Add("Selected event is missing a valid ID.", Severity.Error);
-                _loadingMembers = false;
-                StateHasChanged();
-                return;
-            }
-
-            var httpResponse = await Api.GetAsync(
-                $"grading/members?page=1&pageSize=500&eventId={_selectedEvent.Id}");
-            if (!httpResponse.IsSuccessStatusCode)
-            {
-                await ShowApiErrorAsync(httpResponse, "Failed to load members");
-                return;
-            }
-
-            var response = await httpResponse.Content.ReadFromJsonAsync<GradingMembersApiResponse>();
-
-            if (response is not null)
-            {
-                var eventDate = _selectedEvent?.Date ?? DateTime.Today;
-                _eventCredential = DetectEventCredential(response.Members, _selectedEvent?.Name);
-                _totalMemberCount = response.TotalCount;
-                _eventTickets.Clear();
-                _eventCandidates.Clear();
-                _members = response.Members.Select(m => new GradingMember
-                {
-                    JustGoMemberId = m.JustGoMemberId,
-                    MemberId = m.MemberId,
-                    FirstName = m.FirstName,
-                    LastName = m.LastName,
-                    LastGradingDate = m.LastGradingDate is { } d ? d.ToDateTime(TimeOnly.MinValue) : null,
-                    CurrentGrade = m.CurrentGrade ?? "Ungraded",
-                    NextGrade = m.NextGrade ?? "10th Gup",
-                    NextGradeDefinitionId = m.NextGradeDefinitionId,
-                    DoubleGrade = m.DoubleGrade,
-                    DoubleGradeDefinitionId = m.DoubleGradeDefinitionId,
-                    GradingEventDate = eventDate,
-                    MatchesEventCredential = MatchesEventCredentialForMember(m, _eventCredential),
-                }).ToList();
-
-                foreach (var member in _members.Where(m => m.MatchesEventCredential && !m.IsWithin90Days))
-                {
-                    member.Grading = true;
-                    member.TheoryMark ??= 0;
-                }
-
-                await LoadEventStateAsync();
-            }
+            await LoadEventStateAsync();
+            RebuildMembersFromCandidates();
         }
         catch (Exception ex)
         {
-            ShowError("Failed to load members", ex);
+            ShowError("Failed to load event", ex);
         }
+        finally
+        {
+            _loadingMembers = false;
+            StateHasChanged();
+        }
+    }
 
-        _loadingMembers = false;
-        StateHasChanged();
+    private void RebuildMembersFromCandidates()
+    {
+        var eventDate = _selectedEvent?.Date ?? DateTime.Today;
+        _members = _eventCandidates
+            .Where(c => !c.HasIssuedCredential)
+            .Select(c => new GradingMember
+            {
+                JustGoMemberId = c.MemberId,
+                MemberId = c.MemberNumber,
+                FirstName = c.FirstName,
+                LastName = c.LastName,
+                LastGradingDate = c.LastGradingDate is { } d ? d.ToDateTime(TimeOnly.MinValue) : null,
+                CurrentGrade = c.CurrentGrade ?? "Ungraded",
+                NextGrade = c.NextGrade ?? "10th Gup",
+                NextGradeDefinitionId = c.NextGradeDefinitionId,
+                DoubleGrade = c.DoubleGrade,
+                DoubleGradeDefinitionId = c.DoubleGradeDefinitionId,
+                GradingEventDate = eventDate,
+                BookingId = c.BookingId,
+                Grading = true,
+                TheoryMark = 0,
+                HasIssuedCredential = c.HasIssuedCredential,
+            })
+            .ToList();
+
+        _totalMemberCount = _eventCandidates.Count;
     }
 
     private void ShowError(string prefix, Exception ex)
@@ -501,11 +474,11 @@
     private void ClearEvent()
     {
         _eventLoaded = false;
+        _loadingMembers = false;
         _selectedEvent = null;
         _members.Clear();
         _searchResults.Clear();
         _searchCompleted = false;
-        _eventCredential = null;
         _totalMemberCount = 0;
         _eventTickets.Clear();
         _eventCandidates.Clear();
@@ -515,30 +488,14 @@
     {
         if (_selectedEvent is null) return;
 
-        var candidates = AddableMembers
-            .Select(m => new GradingMemberCandidate
-            {
-                JustGoMemberId = m.JustGoMemberId,
-                MemberId = m.MemberId,
-                FirstName = m.FirstName,
-                LastName = m.LastName,
-                LastGradingDate = m.LastGradingDate,
-                CurrentGrade = m.CurrentGrade,
-                NextGrade = m.NextGrade,
-                IsWithin90Days = m.IsWithin90Days,
-            })
-            .ToList();
-
-        if (candidates.Count == 0)
-        {
-            Snackbar.Add("No additional members available to add.", Severity.Info);
-            return;
-        }
+        var existingMemberIds = _members.Select(m => m.JustGoMemberId).ToHashSet();
 
         var parameters = new DialogParameters
         {
-            ["Candidates"] = candidates,
-            ["CredentialLabel"] = _eventCredential,
+            ["EventId"] = _selectedEvent.Id,
+            ["ExistingMemberIds"] = existingMemberIds,
+            ["EventTickets"] = _eventTickets,
+            ["EventDate"] = _selectedEvent.Date ?? DateTime.Today,
         };
 
         var options = new DialogOptions
@@ -551,15 +508,21 @@
 
         var dialog = await DialogService.ShowAsync<AddMembersToGradingDialog>("Add Members to Grading", parameters, options);
         var result = await dialog.Result;
-        if (result is null || result.Canceled || result.Data is not List<Guid> selectedMemberIds) return;
+        if (result is null || result.Canceled || result.Data is not List<GradingMember> newMembers) return;
 
-        foreach (var id in selectedMemberIds)
+        foreach (var member in newMembers)
         {
-            var member = _members.FirstOrDefault(m => m.JustGoMemberId == id);
-            if (member is null || member.IsWithin90Days) continue;
+            if (_members.Any(existing => existing.JustGoMemberId == member.JustGoMemberId))
+            {
+                continue;
+            }
+
             member.Grading = true;
             member.TheoryMark ??= 0;
+            _members.Add(member);
         }
+
+        _totalMemberCount = _members.Count;
     }
 
     private void RemoveFromGrading(GradingMember member)
@@ -578,60 +541,16 @@
             return;
         }
 
-        try
+        var httpResponse = await Api.GetAsync($"grading/events/{_selectedEvent.Id}/state");
+        if (!httpResponse.IsSuccessStatusCode)
         {
-            var httpResponse = await Api.GetAsync($"grading/events/{_selectedEvent.Id}/state");
-            if (!httpResponse.IsSuccessStatusCode)
-            {
-                await ShowApiErrorAsync(httpResponse, "Failed to load event state");
-                return;
-            }
-
-            var response = await httpResponse.Content.ReadFromJsonAsync<EventStateApiResponse>();
-            _eventTickets = response?.Tickets ?? [];
-            _eventCandidates = response?.Candidates ?? [];
-
-            foreach (var candidate in _eventCandidates)
-            {
-                var member = _members.FirstOrDefault(m => m.JustGoMemberId == candidate.MemberId);
-                if (member is null) continue;
-
-                if (candidate.HasIssuedCredential)
-                {
-                    member.HasIssuedCredential = true;
-                }
-
-                member.BookingId = candidate.BookingId;
-            }
+            await ShowApiErrorAsync(httpResponse, "Failed to load event state");
+            return;
         }
-        catch (Exception ex)
-        {
-            ShowError("Failed to load event state", ex);
-        }
-    }
 
-    private static string? DetectEventCredential(IEnumerable<GradingMemberApiDto> members, string? eventName)
-    {
-        if (string.IsNullOrWhiteSpace(eventName)) return null;
-
-        var possibleCredentials = members
-            .SelectMany(m => new[] { m.NextGrade, m.DoubleGrade })
-            .Where(grade => !string.IsNullOrWhiteSpace(grade))
-            .Select(grade => grade!)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderByDescending(grade => grade.Length)
-            .ToList();
-
-        return possibleCredentials
-            .FirstOrDefault(grade => eventName.Contains(grade, StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static bool MatchesEventCredentialForMember(GradingMemberApiDto member, string? eventCredential)
-    {
-        if (string.IsNullOrWhiteSpace(eventCredential)) return false;
-
-        return string.Equals(member.NextGrade, eventCredential, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(member.DoubleGrade, eventCredential, StringComparison.OrdinalIgnoreCase);
+        var response = await httpResponse.Content.ReadFromJsonAsync<EventStateApiResponse>();
+        _eventTickets = response?.Tickets ?? [];
+        _eventCandidates = response?.Candidates ?? [];
     }
 
     private async Task SubmitGrading()
@@ -680,11 +599,16 @@
                 var failed = result.TryGetProperty("failed", out var f) ? f.GetInt32() : 0;
 
                 if (failed == 0)
+                {
                     Snackbar.Add($"Successfully issued {succeeded} credential(s)!", Severity.Success);
+                }
                 else
+                {
                     Snackbar.Add($"{succeeded} succeeded, {failed} failed. Check details.", Severity.Warning);
+                }
 
-                await LoadMembers();
+                await LoadEventStateAsync();
+                RebuildMembersFromCandidates();
             }
             else
             {
@@ -695,15 +619,11 @@
         {
             ShowError("Submit error", ex);
         }
-
-        _submitting = false;
-    }
-
-    // API response DTOs
-    private sealed class GradingMembersApiResponse
-    {
-        public List<GradingMemberApiDto> Members { get; set; } = [];
-        public int TotalCount { get; set; }
+        finally
+        {
+            _submitting = false;
+            StateHasChanged();
+        }
     }
 
     private sealed class EventStateApiResponse
@@ -711,16 +631,6 @@
         public Guid EventId { get; set; }
         public List<EventTicketApiDto> Tickets { get; set; } = [];
         public List<EventCandidateApiDto> Candidates { get; set; } = [];
-    }
-
-    private sealed class EventTicketApiDto
-    {
-        public Guid TicketId { get; set; }
-        public string TicketName { get; set; } = string.Empty;
-        public Guid? CredentialDefinitionId { get; set; }
-        public string? GradeName { get; set; }
-        public decimal TotalBooked { get; set; }
-        public decimal RemainingPlaces { get; set; }
     }
 
     private sealed class EventCandidateApiDto
@@ -735,15 +645,8 @@
         public string? GradeName { get; set; }
         public bool HasIssuedCredential { get; set; }
         public DateTimeOffset? BookingDate { get; set; }
-    }
-
-    private sealed class GradingMemberApiDto
-    {
-        public Guid JustGoMemberId { get; set; }
-        public string MemberId { get; set; } = string.Empty;
-        public string FirstName { get; set; } = string.Empty;
-        public string LastName { get; set; } = string.Empty;
         public string? CurrentGrade { get; set; }
+        public Guid? CurrentGradeDefinitionId { get; set; }
         public DateOnly? LastGradingDate { get; set; }
         public string? NextGrade { get; set; }
         public Guid? NextGradeDefinitionId { get; set; }
@@ -757,30 +660,5 @@
         public string Name { get; set; } = string.Empty;
         public DateTime? Date { get; set; }
         public string Club { get; set; } = string.Empty;
-    }
-
-    public class GradingMember
-    {
-        public Guid JustGoMemberId { get; set; }
-        public string MemberId { get; set; } = string.Empty;
-        public string FirstName { get; set; } = string.Empty;
-        public string LastName { get; set; } = string.Empty;
-        public DateTime? LastGradingDate { get; set; }
-        public string CurrentGrade { get; set; } = string.Empty;
-        public string NextGrade { get; set; } = string.Empty;
-        public Guid? NextGradeDefinitionId { get; set; }
-        public string? DoubleGrade { get; set; }
-        public Guid? DoubleGradeDefinitionId { get; set; }
-        public bool Grading { get; set; }
-        public bool IsDoubleGrading { get; set; }
-        public int? TheoryMark { get; set; }
-        public DateTime GradingEventDate { get; set; }
-        public bool MatchesEventCredential { get; set; }
-        public bool HasIssuedCredential { get; set; }
-        public Guid? BookingId { get; set; }
-
-        public bool IsWithin90Days =>
-            LastGradingDate.HasValue &&
-            (GradingEventDate - LastGradingDate.Value).TotalDays < 90;
     }
 }

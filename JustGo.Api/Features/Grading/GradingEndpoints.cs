@@ -67,24 +67,7 @@ public static class GradingEndpoints
         var memberRows = memberSearchResponse.Data ?? [];
         var logger = loggerFactory.CreateLogger("JustGo.Api.Features.Grading.GradingEndpoints");
 
-        MemberDetailDto[] memberDetails;
-        try
-        {
-            memberDetails = await LoadMemberDetailsAsync(memberRows.Select(member => member.Id), memberClient, ct);
-        }
-        catch (GradingMemberDetailLoadException ex)
-        {
-            logger.LogError(
-                ex,
-                "Failed to load grading member detail for member {MemberId} while loading grading members for event {EventId}.",
-                ex.MemberId,
-                eventId);
-
-            return Results.Problem(
-                title: "Failed to load grading members",
-                detail: ex.Message,
-                statusCode: StatusCodes.Status502BadGateway);
-        }
+        var memberDetails = await LoadMemberDetailsAsync(memberRows.Select(member => member.Id), memberClient, logger, ct);
 
         var gradingMembers = memberDetails
             .Select(ToGradingMemberDto)
@@ -103,8 +86,10 @@ public static class GradingEndpoints
         Guid eventId,
         IEventClient eventClient,
         IMemberClient memberClient,
+        ILoggerFactory loggerFactory,
         CancellationToken ct)
     {
+        var logger = loggerFactory.CreateLogger("JustGo.Api.Features.Grading.GradingEndpoints");
         var tickets = await GetAllEventTicketsAsync(eventClient, eventId, ct);
         var candidates = await GetAllEventCandidatesAsync(eventClient, eventId, ct);
 
@@ -113,7 +98,7 @@ public static class GradingEndpoints
             .Distinct()
             .ToList();
 
-        var memberDetails = await LoadMemberDetailsAsync(candidateMemberIds, memberClient, ct);
+        var memberDetails = await LoadMemberDetailsAsync(candidateMemberIds, memberClient, logger, ct);
         var memberDetailById = memberDetails.ToDictionary(member => member.Id);
         var ticketById = tickets.ToDictionary(ticket => ticket.Id);
 
@@ -160,7 +145,7 @@ public static class GradingEndpoints
             .GroupBy(candidate => (candidate.CandidateId, candidate.TicketId))
             .ToDictionary(group => group.Key, group => group.First());
 
-        var memberDetails = await LoadMemberDetailsAsync(request.Results.Select(result => result.MemberId).Distinct(), memberClient, ct);
+        var memberDetails = await LoadMemberDetailsAsync(request.Results.Select(result => result.MemberId).Distinct(), memberClient, logger, ct);
         var memberDetailById = memberDetails.ToDictionary(member => member.Id);
 
         var details = new List<GradingResultStatus>();
@@ -317,17 +302,20 @@ public static class GradingEndpoints
     private static async Task<MemberDetailDto[]> LoadMemberDetailsAsync(
         IEnumerable<Guid> memberIds,
         IMemberClient memberClient,
+        ILogger logger,
         CancellationToken ct)
     {
         using var throttler = new SemaphoreSlim(MaxConcurrentMemberDetailRequests);
-        var tasks = memberIds.Distinct().Select(memberId => LoadMemberDetailAsync(memberId, memberClient, throttler, ct));
-        return await Task.WhenAll(tasks);
+        var tasks = memberIds.Distinct().Select(memberId => LoadMemberDetailAsync(memberId, memberClient, throttler, logger, ct));
+        var results = await Task.WhenAll(tasks);
+        return results.Where(r => r is not null).ToArray()!;
     }
 
-    private static async Task<MemberDetailDto> LoadMemberDetailAsync(
+    private static async Task<MemberDetailDto?> LoadMemberDetailAsync(
         Guid memberId,
         IMemberClient memberClient,
         SemaphoreSlim throttler,
+        ILogger logger,
         CancellationToken ct)
     {
         await throttler.WaitAsync(ct);
@@ -338,7 +326,8 @@ public static class GradingEndpoints
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JustGoApiException)
         {
-            throw new GradingMemberDetailLoadException(memberId, ex);
+            logger.LogWarning(ex, "Skipping member {MemberId} — JustGo detail lookup failed.", memberId);
+            return null;
         }
         finally
         {
@@ -455,6 +444,14 @@ public static class GradingEndpoints
         var issuedCredential = grade is null
             ? null
             : FindIssuedCredential(memberDetail?.Credentials, grade.DefinitionId);
+        var currentGrade = memberDetail is not null ? GradeDefinitions.GetCurrentGrade(memberDetail.Credentials) : null;
+        var lastGradingDate = memberDetail is not null ? GradeDefinitions.GetLastGradingDate(memberDetail.Credentials) : null;
+        var nextGrade = currentGrade is not null
+            ? GradeDefinitions.GetNextGrade(currentGrade.DefinitionId)
+            : GradeDefinitions.All[0];
+        var doubleGrade = currentGrade is not null
+            ? GradeDefinitions.GetDoubleGrade(currentGrade.DefinitionId)
+            : GradeDefinitions.All.Count > 1 ? GradeDefinitions.All[1] : null;
 
         return new GradingEventCandidateDto
         {
@@ -471,6 +468,13 @@ public static class GradingEndpoints
             HasIssuedCredential = issuedCredential is not null,
             JustGoCredentialId = issuedCredential?.Id,
             CredentialGrantedDate = NormalizeDate(issuedCredential?.GrantedDate),
+            CurrentGrade = currentGrade?.Name,
+            CurrentGradeDefinitionId = currentGrade?.DefinitionId,
+            LastGradingDate = lastGradingDate,
+            NextGrade = nextGrade?.Name,
+            NextGradeDefinitionId = nextGrade?.DefinitionId,
+            DoubleGrade = doubleGrade?.Name,
+            DoubleGradeDefinitionId = doubleGrade?.DefinitionId,
         };
     }
 
@@ -497,10 +501,4 @@ public static class GradingEndpoints
 
     private static DateOnly? NormalizeDate(DateOnly? value) =>
         value is null || value == DateOnly.MinValue ? null : value;
-
-    private sealed class GradingMemberDetailLoadException(Guid memberId, Exception innerException)
-        : Exception($"JustGo member detail lookup failed for member {memberId}: {innerException.Message}", innerException)
-    {
-        public Guid MemberId { get; } = memberId;
-    }
 }
