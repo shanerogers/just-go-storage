@@ -36,6 +36,7 @@ internal static class JustGoClientExtensions
 
             services
                 .AddTransient<JustGoAuthHandler>()
+                .AddTransient<JustGoResponseLoggingHandler>()
                 .AddTransient<IJustGoTokenService, JustGoTokenService>();
 
             IHttpClientBuilder[] httpClientBuilders =
@@ -54,7 +55,9 @@ internal static class JustGoClientExtensions
 
             foreach (var builder in httpClientBuilders)
             {
-                builder.AddHttpMessageHandler<JustGoAuthHandler>();
+                builder
+                    .AddHttpMessageHandler<JustGoAuthHandler>()
+                    .AddHttpMessageHandler<JustGoResponseLoggingHandler>();
             }
 
             return services;
