@@ -18,14 +18,14 @@
             <MudText Typo="Typo.h6" GutterBottom="true">Event Lookup</MudText>
             <MudGrid>
                 <MudItem xs="12" sm="6" md="4">
-                    <MudTextField @bind-Value="_eventSearch" Label="Event Number or Name"
+                    <MudTextField @ref="_eventSearchField" @bind-Value="_eventSearch" Label="Event Number or Name"
                                   Variant="Variant.Outlined" Adornment="Adornment.End"
                                   AdornmentIcon="@Icons.Material.Filled.Search"
                                   Placeholder="e.g. EV102452"
                                   Immediate="true"
                                   OnKeyDown="OnEventSearchKeyDown" />
                 </MudItem>
-                <MudItem xs="12" sm="6" md="4" Class="d-flex align-end">
+                <MudItem xs="12" sm="6" md="4" Class="d-flex align-end mb-1">
                     <MudButton Variant="Variant.Filled" Color="Color.Primary"
                                OnClick="SearchEvents" Disabled="_searching"
                                StartIcon="@Icons.Material.Filled.Search">
@@ -158,8 +158,26 @@
                                 }
                             </MudText>
                         </MudTd>
-                        <MudTd>@context.CurrentGrade</MudTd>
-                        <MudTd>@context.NextGrade</MudTd>
+                        <MudTd>
+                            @if (_loadingGrades && context.CurrentGrade is null)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
+                            }
+                            else
+                            {
+                                @(context.CurrentGrade ?? "Ungraded")
+                            }
+                        </MudTd>
+                        <MudTd>
+                            @if (_loadingGrades && context.NextGrade is null)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
+                            }
+                            else
+                            {
+                                @(context.NextGrade ?? "10th Gup")
+                            }
+                        </MudTd>
                         <MudTd>
                             <MudCheckBox @bind-Value="context.IsDoubleGrading" Color="Color.Secondary"
                                          Disabled="context.IsWithin90Days" />
@@ -245,6 +263,7 @@
 </MudContainer>
 
 @code {
+    private MudTextField<string>? _eventSearchField;
     private string _eventSearch = string.Empty;
     private bool _searching;
     private bool _searchCompleted;
@@ -276,6 +295,14 @@
             {
                 await SelectEvent(match);
             }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _eventSearchField is not null && !_eventLoaded)
+        {
+            await _eventSearchField.FocusAsync();
         }
     }
 
@@ -433,8 +460,8 @@
                 FirstName = c.FirstName,
                 LastName = c.LastName,
                 LastGradingDate = c.LastGradingDate is { } d ? d.ToDateTime(TimeOnly.MinValue) : null,
-                CurrentGrade = c.CurrentGrade ?? (_loadingGrades ? "Loading..." : "Ungraded"),
-                NextGrade = c.NextGrade ?? (_loadingGrades ? "Loading..." : "10th Gup"),
+                CurrentGrade = c.CurrentGrade ?? (_loadingGrades ? null : "Ungraded"),
+                NextGrade = c.NextGrade ?? (_loadingGrades ? null : GradingEntry. "10th Gup"),
                 NextGradeDefinitionId = c.NextGradeDefinitionId,
                 DoubleGrade = c.DoubleGrade,
                 DoubleGradeDefinitionId = c.DoubleGradeDefinitionId,
@@ -617,7 +644,7 @@
             {
                 Logger.LogWarning("Grade enrichment failed: {StatusCode}", (int)response.StatusCode);
                 // Fall back gracefully — members still show with basic data
-                foreach (var m in _members.Where(m => m.CurrentGrade == "Loading..."))
+                foreach (var m in _members.Where(m => m.CurrentGrade is null))
                 {
                     m.CurrentGrade = "Ungraded";
                     m.NextGrade = "10th Gup";
@@ -637,7 +664,7 @@
             {
                 if (!detailById.TryGetValue(member.JustGoMemberId, out var detail))
                 {
-                    if (member.CurrentGrade == "Loading...")
+                    if (member.CurrentGrade is null)
                     {
                         member.CurrentGrade = "Ungraded";
                         member.NextGrade = "10th Gup";
@@ -661,7 +688,7 @@
         catch (Exception ex)
         {
             Logger.LogError(ex, "Grade enrichment failed");
-            foreach (var m in _members.Where(m => m.CurrentGrade == "Loading..."))
+            foreach (var m in _members.Where(m => m.CurrentGrade is null))
             {
                 m.CurrentGrade = "Ungraded";
                 m.NextGrade = "10th Gup";

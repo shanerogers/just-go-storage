@@ -7,13 +7,14 @@
     <DialogContent>
         <MudGrid>
             <MudItem xs="12" sm="8">
-                <MudTextField @bind-Value="_searchTerm" Label="Search by name"
+                <MudTextField @ref="_searchField" @bind-Value="_searchTerm" Label="Search by name"
                               Variant="Variant.Outlined" Adornment="Adornment.End"
                               AdornmentIcon="@Icons.Material.Filled.Search"
                               Placeholder="Last name..."
+                              Immediate="true"
                               OnKeyDown="OnSearchKeyDown" />
             </MudItem>
-            <MudItem xs="12" sm="4" Class="d-flex align-end">
+            <MudItem xs="12" sm="4" Class="d-flex align-end mb-1">
                 <MudButton Variant="Variant.Filled" Color="Color.Primary"
                            OnClick="SearchMembers" Disabled="_searching"
                            StartIcon="@Icons.Material.Filled.Search">
@@ -49,8 +50,26 @@
                     <MudTd>@context.MemberId</MudTd>
                     <MudTd>@context.FirstName</MudTd>
                     <MudTd>@context.LastName</MudTd>
-                    <MudTd>@context.CurrentGrade</MudTd>
-                    <MudTd>@context.NextGrade</MudTd>
+                    <MudTd>
+                        @if (context.CurrentGrade is null)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
+                        }
+                        else
+                        {
+                            @context.CurrentGrade
+                        }
+                    </MudTd>
+                    <MudTd>
+                        @if (context.NextGrade is null)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
+                        }
+                        else
+                        {
+                            @context.NextGrade
+                        }
+                    </MudTd>
                 </RowTemplate>
             </MudTable>
         }
@@ -79,6 +98,7 @@
     [Parameter] public List<EventTicketApiDto> EventTickets { get; set; } = [];
     [Parameter] public DateTime EventDate { get; set; }
 
+    private MudTextField<string>? _searchField;
     private string _searchTerm = string.Empty;
     private bool _searching;
     private bool _searchCompleted;
@@ -86,6 +106,14 @@
     private Dictionary<Guid, GradingMember> _selectedMembers = [];
 
     private HttpClient Api => HttpClientFactory.CreateClient("JustGoApi");
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _searchField is not null)
+        {
+            await _searchField.FocusAsync();
+        }
+    }
 
     private async Task OnSearchKeyDown(KeyboardEventArgs args)
     {
