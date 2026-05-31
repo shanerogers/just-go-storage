@@ -1,8 +1,10 @@
+using JustGo.Api.Data;
 using JustGo.Api.Features.Credentials;
 using JustGo.Api.Features.Events;
 using JustGo.Api.Features.Members;
 using JustGo.Integrations.JustGo.Features.Credentials.Models;
 using JustGo.Integrations.JustGo.Features.Events.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace JustGo.Api.Features.Grading;
 
@@ -97,6 +99,7 @@ public static class GradingEndpoints
 
     private static async Task<IResult> GetGradingMembersAsync(
         IMemberClient memberClient,
+        ApiDbContext db,
         CancellationToken ct,
         Guid? eventId = null,
         string? search = null,
@@ -136,15 +139,45 @@ public static class GradingEndpoints
             ? string.Join(' ', searchTerm.Split(' ', StringSplitOptions.RemoveEmptyEntries)[..^1])
             : null;
 
-        var gradingMembers = memberRows
+        var filtered = memberRows
             .Where(m => firstName is null ||
                 (m.FirstName is not null && m.FirstName.StartsWith(firstName, StringComparison.OrdinalIgnoreCase)))
-            .Select(m => new GradingMemberDto
+            .ToList();
+
+        // Enrich with grade data from local sync DB (credentials aren't in the list endpoint)
+        var memberIds = filtered.Select(m => m.Id).ToHashSet();
+        var syncRecords = await db.Members
+            .Where(r => memberIds.Contains(r.JustGoMemberId))
+            .ToDictionaryAsync(r => r.JustGoMemberId, ct);
+
+        var gradingMembers = filtered
+            .Select(m =>
             {
-                JustGoMemberId = m.Id,
-                MemberId = m.MemberNumber ?? m.MemberId ?? string.Empty,
-                FirstName = m.FirstName ?? string.Empty,
-                LastName = m.LastName ?? string.Empty,
+                syncRecords.TryGetValue(m.Id, out var syncRecord);
+                var credentials = syncRecord?.MemberInformation?.Credentials;
+                var currentGrade = GradeDefinitions.GetCurrentGrade(credentials);
+                var lastGradingDate = GradeDefinitions.GetLastGradingDate(credentials);
+                var nextGrade = currentGrade is not null
+                    ? GradeDefinitions.GetNextGrade(currentGrade.DefinitionId)
+                    : GradeDefinitions.All[0];
+                var doubleGrade = currentGrade is not null
+                    ? GradeDefinitions.GetDoubleGrade(currentGrade.DefinitionId)
+                    : GradeDefinitions.All.Count > 1 ? GradeDefinitions.All[1] : null;
+
+                return new GradingMemberDto
+                {
+                    JustGoMemberId = m.Id,
+                    MemberId = m.MemberNumber ?? m.MemberId ?? string.Empty,
+                    FirstName = m.FirstName ?? string.Empty,
+                    LastName = m.LastName ?? string.Empty,
+                    CurrentGrade = currentGrade?.Name,
+                    CurrentGradeDefinitionId = currentGrade?.DefinitionId,
+                    LastGradingDate = lastGradingDate,
+                    NextGrade = nextGrade?.Name,
+                    NextGradeDefinitionId = nextGrade?.DefinitionId,
+                    DoubleGrade = doubleGrade?.Name,
+                    DoubleGradeDefinitionId = doubleGrade?.DefinitionId,
+                };
             })
             .OrderBy(member => member.LastName)
             .ThenBy(member => member.FirstName)
