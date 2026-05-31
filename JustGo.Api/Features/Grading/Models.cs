@@ -27,6 +27,11 @@ public sealed class GradingMembersResponse
 public sealed class GradingResultItem
 {
     public Guid MemberId { get; init; }
+    public Guid? BookingId { get; init; }
+    public Guid TicketId { get; init; }
+    public string MemberNumber { get; init; } = string.Empty;
+    public string FirstName { get; init; } = string.Empty;
+    public string LastName { get; init; } = string.Empty;
     public Guid CredentialDefinitionId { get; init; }
     public string GradeName { get; init; } = string.Empty;
     public int? TheoryMark { get; init; }
@@ -36,7 +41,7 @@ public sealed class GradingResultItem
 /// <summary>Batch grading submission request.</summary>
 public sealed class GradingSubmitRequest
 {
-    public Guid? EventId { get; init; }
+    public Guid EventId { get; init; }
     public string EventName { get; init; } = string.Empty;
     public DateOnly EventDate { get; init; }
     public List<GradingResultItem> Results { get; init; } = [];
@@ -46,9 +51,15 @@ public sealed class GradingSubmitRequest
 public sealed class GradingResultStatus
 {
     public Guid MemberId { get; init; }
+    public Guid? BookingId { get; init; }
+    public Guid TicketId { get; init; }
+    public string MemberNumber { get; init; } = string.Empty;
     public string GradeName { get; init; } = string.Empty;
     public bool Success { get; init; }
+    public bool BookingCreated { get; init; }
+    public bool SkippedDuplicate { get; init; }
     public string? Error { get; init; }
+    public Guid? JustGoCredentialId { get; init; }
 }
 
 /// <summary>Batch grading submission response.</summary>
@@ -57,4 +68,41 @@ public sealed class GradingSubmitResponse
     public int Succeeded { get; init; }
     public int Failed { get; init; }
     public List<GradingResultStatus> Details { get; init; } = [];
+}
+
+/// <summary>Current JustGo-backed grading state for an event.</summary>
+public sealed class GradingEventStateResponse
+{
+    public Guid EventId { get; init; }
+    public List<GradingEventTicketDto> Tickets { get; init; } = [];
+    public List<GradingEventCandidateDto> Candidates { get; init; } = [];
+}
+
+public sealed class GradingEventTicketDto
+{
+    public Guid TicketId { get; init; }
+    public string TicketName { get; init; } = string.Empty;
+    public Guid? CredentialDefinitionId { get; init; }
+    public string? GradeName { get; init; }
+    public decimal TotalBooked { get; init; }
+    public decimal RemainingPlaces { get; init; }
+    public string? TicketCode { get; init; }
+    public DateOnly? EndDate { get; init; }
+}
+
+public sealed class GradingEventCandidateDto
+{
+    public Guid BookingId { get; init; }
+    public Guid MemberId { get; init; }
+    public Guid TicketId { get; init; }
+    public string TicketName { get; init; } = string.Empty;
+    public string MemberNumber { get; init; } = string.Empty;
+    public string FirstName { get; init; } = string.Empty;
+    public string LastName { get; init; } = string.Empty;
+    public Guid? CredentialDefinitionId { get; init; }
+    public string? GradeName { get; init; }
+    public DateTimeOffset? BookingDate { get; init; }
+    public bool HasIssuedCredential { get; init; }
+    public Guid? JustGoCredentialId { get; init; }
+    public DateOnly? CredentialGrantedDate { get; init; }
 }

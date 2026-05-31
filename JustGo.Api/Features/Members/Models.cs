@@ -58,10 +58,10 @@ public sealed class JustGoMemberDto
     public string? MemberStatus { get; set; }
 
     [JsonPropertyName("registerDate")]
-    public DateTimeOffset RegisterDate { get; set; }
+    public DateTimeOffset? RegisterDate { get; set; }
 
     [JsonPropertyName("lastModificationDate")]
-    public DateTimeOffset LastModificationDate { get; set; }
+    public DateTimeOffset? LastModificationDate { get; set; }
 
     [JsonPropertyName("userName")]
     public string? UserName { get; set; }
@@ -215,10 +215,10 @@ public sealed class MemberDetailDto
     public string? MemberStatus { get; set; }
 
     [JsonPropertyName("registerDate")]
-    public DateTimeOffset RegisterDate { get; set; }
+    public DateTimeOffset? RegisterDate { get; set; }
 
     [JsonPropertyName("lastModificationDate")]
-    public DateTimeOffset LastModificationDate { get; set; }
+    public DateTimeOffset? LastModificationDate { get; set; }
 
     [JsonPropertyName("userName")]
     public string? UserName { get; set; }
@@ -281,7 +281,7 @@ public sealed class MemberCredentialDtoV2_2
     public DateOnly? ExpiryDate { get; set; }
 
     [JsonPropertyName("lastModificationDate")]
-    public DateTimeOffset LastModificationDate { get; set; }
+    public DateTimeOffset? LastModificationDate { get; set; }
 
     [JsonPropertyName("status")]
     public string? Status { get; set; }

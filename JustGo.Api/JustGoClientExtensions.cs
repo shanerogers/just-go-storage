@@ -41,15 +41,15 @@ internal static class JustGoClientExtensions
             IHttpClientBuilder[] httpClientBuilders =
             [
                 services.AddHttpClient<IAuthClient, AuthClient>(configureJustGoClient),
-            services.AddHttpClient<ICompetitionClient, CompetitionClient>(configureJustGoClient),
-            services.AddHttpClient<ICredentialClient, CredentialClient>(configureJustGoClient),
-            services.AddHttpClient<IEventClient, EventClient>(configureJustGoClient),
-            services.AddHttpClient<IClubClient, ClubClient>(configureJustGoClient),
-            services.AddHttpClient<IShopClient, ShopClient>(configureJustGoClient),
-            services.AddHttpClient<IMemberClient, MemberClient>(configureJustGoClient),
-            services.AddHttpClient<IMembershipClient, MembershipClient>(configureJustGoClient),
-            services.AddHttpClient<IOrganisationClient, OrganisationClient>(configureJustGoClient),
-            services.AddHttpClient<IRewardClient, RewardClient>(configureJustGoClient)
+                services.AddHttpClient<ICompetitionClient, CompetitionClient>(configureJustGoClient),
+                services.AddHttpClient<ICredentialClient, CredentialClient>(configureJustGoClient),
+                services.AddHttpClient<IEventClient, EventClient>(configureJustGoClient),
+                services.AddHttpClient<IClubClient, ClubClient>(configureJustGoClient),
+                services.AddHttpClient<IShopClient, ShopClient>(configureJustGoClient),
+                services.AddHttpClient<IMemberClient, MemberClient>(configureJustGoClient),
+                services.AddHttpClient<IMembershipClient, MembershipClient>(configureJustGoClient),
+                services.AddHttpClient<IOrganisationClient, OrganisationClient>(configureJustGoClient),
+                services.AddHttpClient<IRewardClient, RewardClient>(configureJustGoClient)
             ];
 
             foreach (var builder in httpClientBuilders)

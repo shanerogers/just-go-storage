@@ -25,7 +25,7 @@ public static class EventCandidateEndpoints
 
             group.MapPost("/{eventId:guid}/candidates", async (Guid eventId, EventCandidateCreateRequest request, IEventClient client, CancellationToken ct) =>
             {
-                var result = await client.AddEventCandidateAsync(eventId, request, ct);
+                var result = await client.AddEventCandidateAsync(request, ct);
                 return Results.Created($"/events/{eventId}/candidates/{result.BookingId}", result);
             })
             .WithName("AddEventCandidate")

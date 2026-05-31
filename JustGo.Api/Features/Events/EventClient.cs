@@ -45,7 +45,7 @@ public sealed class EventClient(HttpClient httpClient, IOptions<JustGoOptions> o
         await PutNoContentAsync(uri, new { eventName = request.Name }, ct);
     }
 
-    public Task<object> GetEventTicketsAsync(Guid eventId, int pageNumber, int pageSize, CancellationToken ct)
+    public Task<EventCollectionResponse<EventTicketDto>> GetEventTicketsAsync(Guid eventId, int pageNumber, int pageSize, CancellationToken ct)
     {
         var uri = QueryHelpers.AddQueryString($"/api/{ApiVersion}/Events/{eventId}/Tickets",
             new Dictionary<string, string?>
@@ -53,28 +53,28 @@ public sealed class EventClient(HttpClient httpClient, IOptions<JustGoOptions> o
                 [PageNumber] = pageNumber.ToString(),
                 [PageSize] = pageSize.ToString()
             });
-        return GetAsync<object>(uri, ct);
+        return GetAsync<EventCollectionResponse<EventTicketDto>>(uri, ct);
     }
 
     // ── Event Candidates ──────────────────────────────────────────────────────
 
-    public Task<object> FindEventCandidatesByAttributesAsync(FindEventCandidatesRequest request, CancellationToken ct)
+    public Task<EventCollectionResponse<EventCandidateDto>> FindEventCandidatesByAttributesAsync(FindEventCandidatesRequest request, CancellationToken ct)
     {
         var query = new Dictionary<string, string?>
         {
             [PageNumber] = request.PageNumber.ToString(),
             [PageSize] = request.PageSize.ToString()
         };
-        if (request.EventId is not null) query["Id"] = request.EventId.Value.ToString();
+        if (request.EventId is not null) query["EventId"] = request.EventId.Value.ToString();
 
         var uri = QueryHelpers.AddQueryString($"/api/{ApiVersion}/Events/Candidate/FindByAttributes", query);
-        return GetAsync<object>(uri, ct);
+        return GetAsync<EventCollectionResponse<EventCandidateDto>>(uri, ct);
     }
 
     public Task<EventCandidateCreatedResponse> AddEventCandidateAsync(
-        Guid eventId, EventCandidateCreateRequest request, CancellationToken ct) =>
+        EventCandidateCreateRequest request, CancellationToken ct) =>
         PostAsync<EventCandidateCreatedResponse>($"/api/{ApiVersion}/Events/Candidates",
-            new { candidateId = request.MemberId, ticketId = eventId }, ct);
+            new { candidateId = request.MemberId, ticketId = request.TicketId }, ct);
 
     public Task UpdateEventCandidateStatusAsync(
         Guid bookingId, EventCandidateStatusUpdateRequest request, CancellationToken ct) =>

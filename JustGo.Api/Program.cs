@@ -38,7 +38,7 @@ builder.AddNpgsqlDbContext<ApiDbContext>("itkd", configureDbContextOptions: opti
 
 builder.Services.AddHttpLogging(options => options.CombineLogs = true);
 builder.Services.AddProblemDetails();
-builder.Services.AddExceptionHandler(_ => { });
+builder.Services.AddExceptionHandler<JustGoExceptionHandler>();
 builder.Services.AddAntiforgery();
 builder.Services.AddTransient(_ => TimeProvider.System);
 
@@ -85,8 +85,6 @@ builder.Services
     .AddPostgreSqlStorage(
         builder.Configuration.GetConnectionString("itkd")!,
         dbOptions => dbOptions.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
-
-
 var application = builder.Build();
 
 await using (var scope = application.Services.CreateAsyncScope())

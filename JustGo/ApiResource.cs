@@ -69,5 +69,3 @@ internal static class ApiResource
         }
     }
 }
-
-
