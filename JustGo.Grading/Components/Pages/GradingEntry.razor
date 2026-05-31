@@ -1,10 +1,10 @@
 @page "/grading"
 @using JustGo.Grading.Models
 @inject IHttpClientFactory HttpClientFactory
-@inject IHostEnvironment HostEnvironment
 @inject ISnackbar Snackbar
 @inject NavigationManager Navigation
 @inject IDialogService DialogService
+@inject ILogger<GradingEntry> Logger
 
 <PageTitle>Grading Entry - ITKD</PageTitle>
 
@@ -307,7 +307,7 @@
             var httpResponse = await Api.GetAsync(requestUri);
             if (!httpResponse.IsSuccessStatusCode)
             {
-                Snackbar.Add(await BuildApiErrorMessageAsync(httpResponse, "Event search failed"), Severity.Error);
+                await ShowApiErrorAsync(httpResponse, "Event search failed");
                 return;
             }
 
@@ -329,7 +329,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add(BuildExceptionMessage("Event search failed", ex), Severity.Error);
+            ShowError("Event search failed", ex);
         }
 
         _searching = false;
@@ -410,7 +410,7 @@
                 $"grading/members?page=1&pageSize=500&eventId={_selectedEvent.Id}");
             if (!httpResponse.IsSuccessStatusCode)
             {
-                Snackbar.Add(await BuildApiErrorMessageAsync(httpResponse, "Failed to load members"), Severity.Error);
+                await ShowApiErrorAsync(httpResponse, "Failed to load members");
                 return;
             }
 
@@ -450,55 +450,52 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add(BuildExceptionMessage("Failed to load members", ex), Severity.Error);
+            ShowError("Failed to load members", ex);
         }
 
         _loadingMembers = false;
         StateHasChanged();
     }
 
-    private string BuildExceptionMessage(string prefix, Exception ex) =>
-        HostEnvironment.IsDevelopment()
-            ? $"{prefix}: {ex.Message}"
-            : prefix;
-
-    private async Task<string> BuildApiErrorMessageAsync(HttpResponseMessage response, string prefix)
+    private void ShowError(string prefix, Exception ex)
     {
-        if (!HostEnvironment.IsDevelopment())
-        {
-            return prefix;
-        }
+        Logger.LogError(ex, "{Prefix}", prefix);
+        Snackbar.Add($"{prefix}: {ex.Message}", Severity.Error);
+    }
 
+    private async Task ShowApiErrorAsync(HttpResponseMessage response, string prefix)
+    {
         var body = await response.Content.ReadAsStringAsync();
-        if (string.IsNullOrWhiteSpace(body))
-        {
-            return $"{prefix}: {(int)response.StatusCode} {response.ReasonPhrase}";
-        }
+        var message = $"{prefix}: {(int)response.StatusCode} {response.ReasonPhrase}";
 
-        try
+        if (!string.IsNullOrWhiteSpace(body))
         {
-            using var document = JsonDocument.Parse(body);
-            var root = document.RootElement;
-
-            if (root.TryGetProperty("detail", out var detail) &&
-                detail.ValueKind == JsonValueKind.String &&
-                !string.IsNullOrWhiteSpace(detail.GetString()))
+            try
             {
-                return $"{prefix}: {detail.GetString()}";
-            }
+                using var document = JsonDocument.Parse(body);
+                var root = document.RootElement;
 
-            if (root.TryGetProperty("title", out var title) &&
-                title.ValueKind == JsonValueKind.String &&
-                !string.IsNullOrWhiteSpace(title.GetString()))
+                if (root.TryGetProperty("detail", out var detail) &&
+                    detail.ValueKind == JsonValueKind.String &&
+                    !string.IsNullOrWhiteSpace(detail.GetString()))
+                {
+                    message = $"{prefix}: {detail.GetString()}";
+                }
+                else if (root.TryGetProperty("title", out var title) &&
+                    title.ValueKind == JsonValueKind.String &&
+                    !string.IsNullOrWhiteSpace(title.GetString()))
+                {
+                    message = $"{prefix}: {title.GetString()}";
+                }
+            }
+            catch (JsonException)
             {
-                return $"{prefix}: {title.GetString()}";
+                message = $"{prefix}: {body}";
             }
         }
-        catch (JsonException)
-        {
-        }
 
-        return $"{prefix}: {body}";
+        Logger.LogError("API error — {Message} (HTTP {StatusCode})", message, (int)response.StatusCode);
+        Snackbar.Add(message, Severity.Error);
     }
 
     private void ClearEvent()
@@ -581,28 +578,35 @@
             return;
         }
 
-        var httpResponse = await Api.GetAsync($"grading/events/{_selectedEvent.Id}/state");
-        if (!httpResponse.IsSuccessStatusCode)
+        try
         {
-            Snackbar.Add(await BuildApiErrorMessageAsync(httpResponse, "Failed to load event state"), Severity.Error);
-            return;
-        }
-
-        var response = await httpResponse.Content.ReadFromJsonAsync<EventStateApiResponse>();
-        _eventTickets = response?.Tickets ?? [];
-        _eventCandidates = response?.Candidates ?? [];
-
-        foreach (var candidate in _eventCandidates)
-        {
-            var member = _members.FirstOrDefault(m => m.JustGoMemberId == candidate.MemberId);
-            if (member is null) continue;
-
-            if (candidate.HasIssuedCredential)
+            var httpResponse = await Api.GetAsync($"grading/events/{_selectedEvent.Id}/state");
+            if (!httpResponse.IsSuccessStatusCode)
             {
-                member.HasIssuedCredential = true;
+                await ShowApiErrorAsync(httpResponse, "Failed to load event state");
+                return;
             }
 
-            member.BookingId = candidate.BookingId;
+            var response = await httpResponse.Content.ReadFromJsonAsync<EventStateApiResponse>();
+            _eventTickets = response?.Tickets ?? [];
+            _eventCandidates = response?.Candidates ?? [];
+
+            foreach (var candidate in _eventCandidates)
+            {
+                var member = _members.FirstOrDefault(m => m.JustGoMemberId == candidate.MemberId);
+                if (member is null) continue;
+
+                if (candidate.HasIssuedCredential)
+                {
+                    member.HasIssuedCredential = true;
+                }
+
+                member.BookingId = candidate.BookingId;
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowError("Failed to load event state", ex);
         }
     }
 
@@ -684,13 +688,12 @@
             }
             else
             {
-                var body = await response.Content.ReadAsStringAsync();
-                Snackbar.Add($"Submit failed: {response.StatusCode} — {body}", Severity.Error);
+                await ShowApiErrorAsync(response, "Submit failed");
             }
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Submit error: {ex.Message}", Severity.Error);
+            ShowError("Submit error", ex);
         }
 
         _submitting = false;
