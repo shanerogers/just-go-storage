@@ -113,3 +113,26 @@ public sealed class GradingEventCandidateDto
     public string? DoubleGrade { get; init; }
     public Guid? DoubleGradeDefinitionId { get; init; }
 }
+
+/// <summary>Request body for POST /grading/members/details — batch member credential lookup.</summary>
+public sealed class MemberDetailsRequest
+{
+    public List<Guid> MemberIds { get; init; } = [];
+}
+
+/// <summary>Grade-resolved member detail returned by POST /grading/members/details.</summary>
+public sealed class MemberDetailResult
+{
+    public Guid MemberId { get; init; }
+    public string MemberNumber { get; init; } = string.Empty;
+    public string FirstName { get; init; } = string.Empty;
+    public string LastName { get; init; } = string.Empty;
+    public string? CurrentGrade { get; init; }
+    public Guid? CurrentGradeDefinitionId { get; init; }
+    public DateOnly? LastGradingDate { get; init; }
+    public string? NextGrade { get; init; }
+    public Guid? NextGradeDefinitionId { get; init; }
+    public string? DoubleGrade { get; init; }
+    public Guid? DoubleGradeDefinitionId { get; init; }
+    public List<Guid> IssuedGradeDefinitionIds { get; init; } = [];
+}

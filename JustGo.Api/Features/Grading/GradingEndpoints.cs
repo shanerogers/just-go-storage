@@ -30,11 +30,23 @@ public static class GradingEndpoints
 
             group.MapGet("/members", GetGradingMembersAsync)
                 .WithName("GetGradingMembers")
-                .WithSummary("Get API members with current grade and eligibility for grading");
+                .WithSummary("Search members by name — fast, returns basic info only (no grades)");
+
+            group.MapGet("/events/{eventId:guid}/tickets", GetEventTicketsAsync)
+                .WithName("GetGradingEventTickets")
+                .WithSummary("Get grade ticket slots for an event — fast");
+
+            group.MapGet("/events/{eventId:guid}/candidates", GetEventCandidatesAsync)
+                .WithName("GetGradingEventCandidates")
+                .WithSummary("Get booked members for an event — fast, basic info from booking");
+
+            group.MapPost("/members/details", GetMemberDetailsAsync)
+                .WithName("GetGradingMemberDetails")
+                .WithSummary("Batch-fetch member credentials and resolve grades — slow, call separately");
 
             group.MapGet("/events/{eventId:guid}/state", GetEventStateAsync)
                 .WithName("GetGradingEventState")
-                .WithSummary("Get current JustGo-backed grading state for an event");
+                .WithSummary("Get current JustGo-backed grading state for an event (legacy monolithic)");
 
             group.MapPost("/submit", SubmitGradingAsync)
                 .WithName("SubmitGrading")
@@ -136,44 +148,15 @@ public static class GradingEndpoints
             ? string.Join(' ', searchTerm.Split(' ', StringSplitOptions.RemoveEmptyEntries)[..^1])
             : null;
 
-        var filtered = memberRows
+        var gradingMembers = memberRows
             .Where(m => firstName is null ||
                 (m.FirstName is not null && m.FirstName.StartsWith(firstName, StringComparison.OrdinalIgnoreCase)))
-            .ToList();
-
-        // Fetch full member details from JustGo API to get credentials/grades
-        var memberDetails = await LoadMemberDetailsAsync(
-            filtered.Select(m => m.Id), memberClient, ct);
-        var detailById = memberDetails.ToDictionary(d => d.Id);
-
-        var gradingMembers = filtered
-            .Select(m =>
+            .Select(m => new GradingMemberDto
             {
-                detailById.TryGetValue(m.Id, out var detail);
-                var credentials = detail?.Credentials;
-                var currentGrade = GradeDefinitions.GetCurrentGrade(credentials);
-                var lastGradingDate = GradeDefinitions.GetLastGradingDate(credentials);
-                var nextGrade = currentGrade is not null
-                    ? GradeDefinitions.GetNextGrade(currentGrade.DefinitionId)
-                    : GradeDefinitions.All[0];
-                var doubleGrade = currentGrade is not null
-                    ? GradeDefinitions.GetDoubleGrade(currentGrade.DefinitionId)
-                    : GradeDefinitions.All.Count > 1 ? GradeDefinitions.All[1] : null;
-
-                return new GradingMemberDto
-                {
-                    JustGoMemberId = m.Id,
-                    MemberId = m.MemberNumber ?? m.MemberId ?? string.Empty,
-                    FirstName = m.FirstName ?? string.Empty,
-                    LastName = m.LastName ?? string.Empty,
-                    CurrentGrade = currentGrade?.Name,
-                    CurrentGradeDefinitionId = currentGrade?.DefinitionId,
-                    LastGradingDate = lastGradingDate,
-                    NextGrade = nextGrade?.Name,
-                    NextGradeDefinitionId = nextGrade?.DefinitionId,
-                    DoubleGrade = doubleGrade?.Name,
-                    DoubleGradeDefinitionId = doubleGrade?.DefinitionId,
-                };
+                JustGoMemberId = m.Id,
+                MemberId = m.MemberNumber ?? m.MemberId ?? string.Empty,
+                FirstName = m.FirstName ?? string.Empty,
+                LastName = m.LastName ?? string.Empty,
             })
             .OrderBy(member => member.LastName)
             .ThenBy(member => member.FirstName)
@@ -184,6 +167,112 @@ public static class GradingEndpoints
             Members = gradingMembers,
             TotalCount = memberSearchResponse.TotalRecords,
         });
+    }
+
+    private static async Task<IResult> GetEventTicketsAsync(
+        Guid eventId,
+        IEventClient eventClient,
+        CancellationToken ct)
+    {
+        var tickets = await GetAllEventTicketsAsync(eventClient, eventId, ct);
+
+        var result = tickets
+            .Select(ToEventTicketState)
+            .OrderBy(t => t.GradeName ?? t.TicketName)
+            .ToList();
+
+        return Results.Ok(result);
+    }
+
+    private static async Task<IResult> GetEventCandidatesAsync(
+        Guid eventId,
+        IEventClient eventClient,
+        CancellationToken ct)
+    {
+        var candidates = await GetAllEventCandidatesAsync(eventClient, eventId, ct);
+        var tickets = await GetAllEventTicketsAsync(eventClient, eventId, ct);
+        var ticketById = tickets.ToDictionary(t => t.Id);
+
+        var result = candidates
+            .Select(c =>
+            {
+                ticketById.TryGetValue(c.TicketId, out var ticket);
+                var grade = ResolveGradeDefinition(c.CourseName) ?? ResolveGradeDefinition(ticket?.TicketName);
+
+                return new GradingEventCandidateDto
+                {
+                    BookingId = c.BookingId,
+                    MemberId = c.CandidateId,
+                    TicketId = c.TicketId,
+                    TicketName = c.CourseName ?? ticket?.TicketName ?? string.Empty,
+                    MemberNumber = c.MemberNumber ?? string.Empty,
+                    FirstName = c.FirstName ?? string.Empty,
+                    LastName = c.LastName ?? string.Empty,
+                    CredentialDefinitionId = grade?.DefinitionId,
+                    GradeName = grade?.Name,
+                    BookingDate = c.BookingDate,
+                };
+            })
+            .OrderBy(c => c.LastName)
+            .ThenBy(c => c.FirstName)
+            .ToList();
+
+        return Results.Ok(result);
+    }
+
+    private static async Task<IResult> GetMemberDetailsAsync(
+        MemberDetailsRequest request,
+        IMemberClient memberClient,
+        CancellationToken ct)
+    {
+        if (request.MemberIds is not { Count: > 0 })
+        {
+            return Results.BadRequest("At least one memberId is required.");
+        }
+
+        if (request.MemberIds.Count > 100)
+        {
+            return Results.BadRequest("Maximum 100 member IDs per request.");
+        }
+
+        var memberDetails = await LoadMemberDetailsAsync(request.MemberIds, memberClient, ct);
+
+        var result = memberDetails.Select(detail =>
+        {
+            var currentGrade = GradeDefinitions.GetCurrentGrade(detail.Credentials);
+            var lastGradingDate = GradeDefinitions.GetLastGradingDate(detail.Credentials);
+            var nextGrade = currentGrade is not null
+                ? GradeDefinitions.GetNextGrade(currentGrade.DefinitionId)
+                : GradeDefinitions.All[0];
+            var doubleGrade = currentGrade is not null
+                ? GradeDefinitions.GetDoubleGrade(currentGrade.DefinitionId)
+                : GradeDefinitions.All.Count > 1 ? GradeDefinitions.All[1] : null;
+
+            // Collect all issued grade credentials so the UI can check "already graded"
+            var issuedCredentialIds = (detail.Credentials ?? [])
+                .Where(c => string.Equals(c.Status, "Active", StringComparison.OrdinalIgnoreCase)
+                    && GradeDefinitions.GetGradeName(c.DefinitionId) is not null)
+                .Select(c => c.DefinitionId)
+                .ToList();
+
+            return new MemberDetailResult
+            {
+                MemberId = detail.Id,
+                MemberNumber = detail.MemberId ?? string.Empty,
+                FirstName = detail.FirstName ?? string.Empty,
+                LastName = detail.LastName ?? string.Empty,
+                CurrentGrade = currentGrade?.Name,
+                CurrentGradeDefinitionId = currentGrade?.DefinitionId,
+                LastGradingDate = lastGradingDate,
+                NextGrade = nextGrade?.Name,
+                NextGradeDefinitionId = nextGrade?.DefinitionId,
+                DoubleGrade = doubleGrade?.Name,
+                DoubleGradeDefinitionId = doubleGrade?.DefinitionId,
+                IssuedGradeDefinitionIds = issuedCredentialIds,
+            };
+        }).ToList();
+
+        return Results.Ok(result);
     }
 
     private static async Task<IResult> GetEventStateAsync(

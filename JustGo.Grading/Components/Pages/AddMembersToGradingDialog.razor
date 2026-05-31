@@ -125,14 +125,18 @@
                         MemberId = m.MemberId,
                         FirstName = m.FirstName,
                         LastName = m.LastName,
-                        CurrentGrade = m.CurrentGrade ?? "Ungraded",
-                        NextGrade = m.NextGrade ?? "10th Gup",
-                        NextGradeDefinitionId = m.NextGradeDefinitionId,
-                        DoubleGrade = m.DoubleGrade,
-                        DoubleGradeDefinitionId = m.DoubleGradeDefinitionId,
-                        LastGradingDate = m.LastGradingDate is { } d ? d.ToDateTime(TimeOnly.MinValue) : null,
+                        CurrentGrade = "Loading...",
+                        NextGrade = "Loading...",
                         AlreadyAttached = ExistingMemberIds.Contains(m.JustGoMemberId),
                     }).ToList();
+
+                    _searching = false;
+                    _searchCompleted = true;
+                    StateHasChanged();
+
+                    // Fire-and-forget grade enrichment
+                    _ = EnrichSearchResultGradesAsync();
+                    return;
                 }
             }
         }
@@ -145,6 +149,81 @@
         {
             _searching = false;
             _searchCompleted = true;
+        }
+    }
+
+    private async Task EnrichSearchResultGradesAsync()
+    {
+        try
+        {
+            var memberIds = _searchResults
+                .Select(r => r.JustGoMemberId)
+                .Where(id => id != Guid.Empty)
+                .Distinct()
+                .ToList();
+
+            if (memberIds.Count == 0) return;
+
+            var request = new { MemberIds = memberIds };
+            var response = await Api.PostAsJsonAsync("grading/members/details", request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var details = await response.Content
+                    .ReadFromJsonAsync<List<MemberDetailApiResult>>() ?? [];
+                var detailById = details.ToDictionary(d => d.MemberId);
+
+                foreach (var result in _searchResults)
+                {
+                    if (detailById.TryGetValue(result.JustGoMemberId, out var detail))
+                    {
+                        result.CurrentGrade = detail.CurrentGrade ?? "Ungraded";
+                        result.NextGrade = detail.NextGrade ?? "10th Gup";
+                        result.NextGradeDefinitionId = detail.NextGradeDefinitionId;
+                        result.DoubleGrade = detail.DoubleGrade;
+                        result.DoubleGradeDefinitionId = detail.DoubleGradeDefinitionId;
+                        result.LastGradingDate = detail.LastGradingDate is { } d
+                            ? d.ToDateTime(TimeOnly.MinValue)
+                            : null;
+                    }
+                    else
+                    {
+                        result.CurrentGrade = "Ungraded";
+                        result.NextGrade = "10th Gup";
+                    }
+
+                    // Update any already-selected members with enriched data
+                    if (_selectedMembers.TryGetValue(result.JustGoMemberId, out var selected))
+                    {
+                        selected.CurrentGrade = result.CurrentGrade;
+                        selected.NextGrade = result.NextGrade;
+                        selected.NextGradeDefinitionId = result.NextGradeDefinitionId;
+                        selected.DoubleGrade = result.DoubleGrade;
+                        selected.DoubleGradeDefinitionId = result.DoubleGradeDefinitionId;
+                        selected.LastGradingDate = result.LastGradingDate;
+                    }
+                }
+            }
+            else
+            {
+                foreach (var result in _searchResults.Where(r => r.CurrentGrade == "Loading..."))
+                {
+                    result.CurrentGrade = "Ungraded";
+                    result.NextGrade = "10th Gup";
+                }
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Grade enrichment failed");
+            foreach (var result in _searchResults.Where(r => r.CurrentGrade == "Loading..."))
+            {
+                result.CurrentGrade = "Ungraded";
+                result.NextGrade = "10th Gup";
+            }
+            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -223,5 +302,17 @@
         public Guid? DoubleGradeDefinitionId { get; set; }
         public DateTime? LastGradingDate { get; set; }
         public bool AlreadyAttached { get; set; }
+    }
+
+    private sealed class MemberDetailApiResult
+    {
+        public Guid MemberId { get; set; }
+        public string? CurrentGrade { get; set; }
+        public Guid? CurrentGradeDefinitionId { get; set; }
+        public DateOnly? LastGradingDate { get; set; }
+        public string? NextGrade { get; set; }
+        public Guid? NextGradeDefinitionId { get; set; }
+        public string? DoubleGrade { get; set; }
+        public Guid? DoubleGradeDefinitionId { get; set; }
     }
 }

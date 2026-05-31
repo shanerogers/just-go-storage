@@ -250,6 +250,7 @@
     private bool _searchCompleted;
     private bool _eventLoaded;
     private bool _loadingMembers;
+    private bool _loadingGrades;
     private bool _submitting;
     private int _totalMemberCount;
     private EventResult? _selectedEvent;
@@ -397,21 +398,25 @@
         _selectedEvent = eventResult;
         _eventLoaded = true;
         _loadingMembers = true;
+        _loadingGrades = true;
         Navigation.NavigateTo($"/grading/{eventResult.Id}", replace: true);
         StateHasChanged();
 
         try
         {
-            await LoadEventStateAsync();
+            await LoadEventFastDataAsync();
             RebuildMembersFromCandidates();
+            _loadingMembers = false;
+            StateHasChanged();
+
+            // Fire-and-forget grade enrichment — updates UI when done
+            _ = LoadMemberGradesAsync();
         }
         catch (Exception ex)
         {
             ShowError("Failed to load event", ex);
-        }
-        finally
-        {
             _loadingMembers = false;
+            _loadingGrades = false;
             StateHasChanged();
         }
     }
@@ -428,8 +433,8 @@
                 FirstName = c.FirstName,
                 LastName = c.LastName,
                 LastGradingDate = c.LastGradingDate is { } d ? d.ToDateTime(TimeOnly.MinValue) : null,
-                CurrentGrade = c.CurrentGrade ?? "Ungraded",
-                NextGrade = c.NextGrade ?? "10th Gup",
+                CurrentGrade = c.CurrentGrade ?? (_loadingGrades ? "Loading..." : "Ungraded"),
+                NextGrade = c.NextGrade ?? (_loadingGrades ? "Loading..." : "10th Gup"),
                 NextGradeDefinitionId = c.NextGradeDefinitionId,
                 DoubleGrade = c.DoubleGrade,
                 DoubleGradeDefinitionId = c.DoubleGradeDefinitionId,
@@ -489,6 +494,7 @@
     {
         _eventLoaded = false;
         _loadingMembers = false;
+        _loadingGrades = false;
         _selectedEvent = null;
         _members.Clear();
         _searchResults.Clear();
@@ -547,7 +553,7 @@
         member.TheoryMark = null;
     }
 
-    private async Task LoadEventStateAsync()
+    private async Task LoadEventFastDataAsync()
     {
         if (_selectedEvent?.Id is null || _selectedEvent.Id == Guid.Empty)
         {
@@ -556,16 +562,113 @@
             return;
         }
 
-        var httpResponse = await Api.GetAsync($"grading/events/{_selectedEvent.Id}/state");
-        if (!httpResponse.IsSuccessStatusCode)
+        var eventId = _selectedEvent.Id;
+
+        // Parallel fast calls — tickets + candidates
+        var ticketsTask = Api.GetAsync($"grading/events/{eventId}/tickets");
+        var candidatesTask = Api.GetAsync($"grading/events/{eventId}/candidates");
+        await Task.WhenAll(ticketsTask, candidatesTask);
+
+        var ticketsResponse = ticketsTask.Result;
+        var candidatesResponse = candidatesTask.Result;
+
+        if (!ticketsResponse.IsSuccessStatusCode)
         {
-            await ShowApiErrorAsync(httpResponse, "Failed to load event state");
-            return;
+            await ShowApiErrorAsync(ticketsResponse, "Failed to load tickets");
+        }
+        else
+        {
+            _eventTickets = await ticketsResponse.Content
+                .ReadFromJsonAsync<List<EventTicketApiDto>>() ?? [];
         }
 
-        var response = await httpResponse.Content.ReadFromJsonAsync<EventStateApiResponse>();
-        _eventTickets = response?.Tickets ?? [];
-        _eventCandidates = response?.Candidates ?? [];
+        if (!candidatesResponse.IsSuccessStatusCode)
+        {
+            await ShowApiErrorAsync(candidatesResponse, "Failed to load candidates");
+        }
+        else
+        {
+            _eventCandidates = await candidatesResponse.Content
+                .ReadFromJsonAsync<List<EventCandidateApiDto>>() ?? [];
+        }
+    }
+
+    private async Task LoadMemberGradesAsync()
+    {
+        try
+        {
+            var memberIds = _members
+                .Select(m => m.JustGoMemberId)
+                .Where(id => id != Guid.Empty)
+                .Distinct()
+                .ToList();
+
+            if (memberIds.Count == 0)
+            {
+                _loadingGrades = false;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+
+            var request = new { MemberIds = memberIds };
+            var response = await Api.PostAsJsonAsync("grading/members/details", request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                Logger.LogWarning("Grade enrichment failed: {StatusCode}", (int)response.StatusCode);
+                // Fall back gracefully — members still show with basic data
+                foreach (var m in _members.Where(m => m.CurrentGrade == "Loading..."))
+                {
+                    m.CurrentGrade = "Ungraded";
+                    m.NextGrade = "10th Gup";
+                }
+                _loadingGrades = false;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+
+            var details = await response.Content
+                .ReadFromJsonAsync<List<MemberDetailApiResult>>() ?? [];
+
+            var detailById = details.ToDictionary(d => d.MemberId);
+            var eventDate = _selectedEvent?.Date ?? DateTime.Today;
+
+            foreach (var member in _members)
+            {
+                if (!detailById.TryGetValue(member.JustGoMemberId, out var detail))
+                {
+                    if (member.CurrentGrade == "Loading...")
+                    {
+                        member.CurrentGrade = "Ungraded";
+                        member.NextGrade = "10th Gup";
+                    }
+                    continue;
+                }
+
+                member.CurrentGrade = detail.CurrentGrade ?? "Ungraded";
+                member.NextGrade = detail.NextGrade ?? "10th Gup";
+                member.NextGradeDefinitionId = detail.NextGradeDefinitionId;
+                member.DoubleGrade = detail.DoubleGrade;
+                member.DoubleGradeDefinitionId = detail.DoubleGradeDefinitionId;
+                member.LastGradingDate = detail.LastGradingDate is { } d
+                    ? d.ToDateTime(TimeOnly.MinValue)
+                    : null;
+            }
+
+            _loadingGrades = false;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Grade enrichment failed");
+            foreach (var m in _members.Where(m => m.CurrentGrade == "Loading..."))
+            {
+                m.CurrentGrade = "Ungraded";
+                m.NextGrade = "10th Gup";
+            }
+            _loadingGrades = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task SubmitGrading()
@@ -622,8 +725,9 @@
                     Snackbar.Add($"{succeeded} succeeded, {failed} failed. Check details.", Severity.Warning);
                 }
 
-                await LoadEventStateAsync();
+                await LoadEventFastDataAsync();
                 RebuildMembersFromCandidates();
+                _ = LoadMemberGradesAsync();
             }
             else
             {
@@ -667,6 +771,20 @@
         public Guid? NextGradeDefinitionId { get; set; }
         public string? DoubleGrade { get; set; }
         public Guid? DoubleGradeDefinitionId { get; set; }
+    }
+
+    private sealed class MemberDetailApiResult
+    {
+        public Guid MemberId { get; set; }
+        public string MemberNumber { get; set; } = string.Empty;
+        public string? CurrentGrade { get; set; }
+        public Guid? CurrentGradeDefinitionId { get; set; }
+        public DateOnly? LastGradingDate { get; set; }
+        public string? NextGrade { get; set; }
+        public Guid? NextGradeDefinitionId { get; set; }
+        public string? DoubleGrade { get; set; }
+        public Guid? DoubleGradeDefinitionId { get; set; }
+        public List<Guid> IssuedGradeDefinitionIds { get; set; } = [];
     }
 
     public class EventResult
