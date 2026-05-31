@@ -39,13 +39,12 @@ public static class GradingEndpoints
     }
 
     private static async Task<IResult> GetGradingMembersAsync(
-        Guid? eventId,
-        string? search,
-        int page,
-        int pageSize,
         IMemberClient memberClient,
-        ILoggerFactory loggerFactory,
-        CancellationToken ct)
+        CancellationToken ct,
+        Guid? eventId = null,
+        string? search = null,
+        int page = 1,
+        int pageSize = 50)
     {
         if (pageSize is < 1 or > 200) pageSize = 50;
         if (page < 1) page = 1;
@@ -65,12 +64,15 @@ public static class GradingEndpoints
 
         var memberSearchResponse = await memberClient.FindMembersByAttributesAsync(memberSearchRequest, ct);
         var memberRows = memberSearchResponse.Data ?? [];
-        var logger = loggerFactory.CreateLogger("JustGo.Api.Features.Grading.GradingEndpoints");
 
-        var memberDetails = await LoadMemberDetailsAsync(memberRows.Select(member => member.Id), memberClient, logger, ct);
-
-        var gradingMembers = memberDetails
-            .Select(ToGradingMemberDto)
+        var gradingMembers = memberRows
+            .Select(m => new GradingMemberDto
+            {
+                JustGoMemberId = m.Id,
+                MemberId = m.MemberId ?? string.Empty,
+                FirstName = m.FirstName ?? string.Empty,
+                LastName = m.LastName ?? string.Empty,
+            })
             .OrderBy(member => member.LastName)
             .ThenBy(member => member.FirstName)
             .ToList();
@@ -385,34 +387,6 @@ public static class GradingEndpoints
 
             page++;
         }
-    }
-
-    private static GradingMemberDto ToGradingMemberDto(MemberDetailDto member)
-    {
-        var credentials = member.Credentials;
-        var currentGrade = GradeDefinitions.GetCurrentGrade(credentials);
-        var lastGradingDate = GradeDefinitions.GetLastGradingDate(credentials);
-        var nextGrade = currentGrade is not null
-            ? GradeDefinitions.GetNextGrade(currentGrade.DefinitionId)
-            : GradeDefinitions.All[0];
-        var doubleGrade = currentGrade is not null
-            ? GradeDefinitions.GetDoubleGrade(currentGrade.DefinitionId)
-            : GradeDefinitions.All.Count > 1 ? GradeDefinitions.All[1] : null;
-
-        return new GradingMemberDto
-        {
-            JustGoMemberId = member.Id,
-            MemberId = member.MemberId ?? member.UserName ?? string.Empty,
-            FirstName = member.FirstName ?? string.Empty,
-            LastName = member.LastName ?? string.Empty,
-            CurrentGrade = currentGrade?.Name,
-            CurrentGradeDefinitionId = currentGrade?.DefinitionId,
-            LastGradingDate = lastGradingDate,
-            NextGrade = nextGrade?.Name,
-            NextGradeDefinitionId = nextGrade?.DefinitionId,
-            DoubleGrade = doubleGrade?.Name,
-            DoubleGradeDefinitionId = doubleGrade?.DefinitionId,
-        };
     }
 
     private static GradingEventTicketDto ToEventTicketState(EventTicketDto ticket)
