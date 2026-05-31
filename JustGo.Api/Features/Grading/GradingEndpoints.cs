@@ -142,7 +142,7 @@ public static class GradingEndpoints
             .Select(m => new GradingMemberDto
             {
                 JustGoMemberId = m.Id,
-                MemberId = m.MemberId ?? string.Empty,
+                MemberId = m.MemberNumber ?? m.MemberId ?? string.Empty,
                 FirstName = m.FirstName ?? string.Empty,
                 LastName = m.LastName ?? string.Empty,
             })

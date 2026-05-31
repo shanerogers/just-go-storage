@@ -24,6 +24,10 @@ public sealed class JustGoMemberDto
     [JsonPropertyName("emailAddress")]
     public string? EmailAddress { get; set; }
 
+    /// <summary>Returned by the list endpoint (FindByAttributes). The detail endpoint uses <c>memberId</c> instead.</summary>
+    [JsonPropertyName("memberNumber")]
+    public string? MemberNumber { get; set; }
+
     [JsonPropertyName("memberId")]
     public string? MemberId { get; set; }
 
