@@ -14,6 +14,7 @@ using JustGo.Api.Features.Organisations;
 using JustGo.Api.Features.Rewards;
 using JustGo.Api.Features.Shops;
 using JustGo.Api.Health;
+using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using TickerQ.Dashboard.DependencyInjection;
@@ -36,7 +37,12 @@ builder.AddNpgsqlDbContext<ApiDbContext>("itkd", configureDbContextOptions: opti
     .ConfigureWarnings(warningsHandler => warningsHandler.Throw())
     .UseNpgsql(npgsql => npgsql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
 
-builder.Services.AddHttpLogging(options => options.CombineLogs = true);
+builder.Services.AddHttpLogging(options =>
+{
+    options.CombineLogs = true;
+    options.LoggingFields = HttpLoggingFields.All;
+});
+
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<JustGoExceptionHandler>();
 builder.Services.AddAntiforgery();

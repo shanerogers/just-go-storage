@@ -1,12 +1,20 @@
 using JustGo.Grading.Components;
+using Microsoft.AspNetCore.HttpLogging;
 using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 
-builder.Services.AddRazorComponents()
+builder.Services
+    .AddRazorComponents()
     .AddInteractiveServerComponents();
+
+builder.Services.AddHttpLogging(options =>
+{
+    options.CombineLogs = true;
+    options.LoggingFields = HttpLoggingFields.All;
+});
 
 builder.Services.AddMudServices();
 

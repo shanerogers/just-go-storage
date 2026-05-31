@@ -54,18 +54,34 @@ public static class GradingEndpoints
             return Results.BadRequest("Either eventId or search must be provided.");
         }
 
+        // JustGo only supports LastName search — extract the last word as the surname
+        var searchTerm = search?.Trim();
+        var lastName = searchTerm;
+        if (!string.IsNullOrWhiteSpace(searchTerm) && searchTerm.Contains(' '))
+        {
+            var parts = searchTerm.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            lastName = parts[^1];
+        }
+
         var memberSearchRequest = new FindMembersRequest
         {
             PageNumber = page,
             PageSize = pageSize,
             EventId = eventId,
-            LastName = string.IsNullOrWhiteSpace(search) ? null : search.Trim(),
+            LastName = string.IsNullOrWhiteSpace(lastName) ? null : lastName,
         };
 
         var memberSearchResponse = await memberClient.FindMembersByAttributesAsync(memberSearchRequest, ct);
         var memberRows = memberSearchResponse.Data ?? [];
 
+        // If search had multiple words, filter by first name(s) locally since JustGo only searches by LastName
+        var firstName = !string.IsNullOrWhiteSpace(searchTerm) && searchTerm.Contains(' ')
+            ? string.Join(' ', searchTerm.Split(' ', StringSplitOptions.RemoveEmptyEntries)[..^1])
+            : null;
+
         var gradingMembers = memberRows
+            .Where(m => firstName is null ||
+                (m.FirstName is not null && m.FirstName.StartsWith(firstName, StringComparison.OrdinalIgnoreCase)))
             .Select(m => new GradingMemberDto
             {
                 JustGoMemberId = m.Id,
