@@ -1,10 +1,8 @@
-using JustGo.Api.Data;
 using JustGo.Api.Features.Credentials;
 using JustGo.Api.Features.Events;
 using JustGo.Api.Features.Members;
 using JustGo.Integrations.JustGo.Features.Credentials.Models;
 using JustGo.Integrations.JustGo.Features.Events.Models;
-using Microsoft.EntityFrameworkCore;
 
 namespace JustGo.Api.Features.Grading;
 
@@ -99,7 +97,6 @@ public static class GradingEndpoints
 
     private static async Task<IResult> GetGradingMembersAsync(
         IMemberClient memberClient,
-        ApiDbContext db,
         CancellationToken ct,
         Guid? eventId = null,
         string? search = null,
@@ -144,17 +141,16 @@ public static class GradingEndpoints
                 (m.FirstName is not null && m.FirstName.StartsWith(firstName, StringComparison.OrdinalIgnoreCase)))
             .ToList();
 
-        // Enrich with grade data from local sync DB (credentials aren't in the list endpoint)
-        var memberIds = filtered.Select(m => m.Id).ToHashSet();
-        var syncRecords = await db.Members
-            .Where(r => memberIds.Contains(r.JustGoMemberId))
-            .ToDictionaryAsync(r => r.JustGoMemberId, ct);
+        // Fetch full member details from JustGo API to get credentials/grades
+        var memberDetails = await LoadMemberDetailsAsync(
+            filtered.Select(m => m.Id), memberClient, ct);
+        var detailById = memberDetails.ToDictionary(d => d.Id);
 
         var gradingMembers = filtered
             .Select(m =>
             {
-                syncRecords.TryGetValue(m.Id, out var syncRecord);
-                var credentials = syncRecord?.MemberInformation?.Credentials;
+                detailById.TryGetValue(m.Id, out var detail);
+                var credentials = detail?.Credentials;
                 var currentGrade = GradeDefinitions.GetCurrentGrade(credentials);
                 var lastGradingDate = GradeDefinitions.GetLastGradingDate(credentials);
                 var nextGrade = currentGrade is not null
