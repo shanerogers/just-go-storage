@@ -1,4 +1,5 @@
 using HealthChecks.UI.Client;
+using Humanizer;
 using JustGo.Api;
 using JustGo.Api.Data;
 using JustGo.Api.Features.Auth;
@@ -41,6 +42,7 @@ builder.Services.AddHttpLogging(options =>
 {
     options.CombineLogs = true;
     options.LoggingFields = HttpLoggingFields.All;
+    options.ResponseBodyLogLimit = (int)10.Megabytes().Bytes;
 });
 
 builder.Services.AddProblemDetails();

@@ -1,6 +1,7 @@
 using JustGo.Grading.Components;
 using Microsoft.AspNetCore.HttpLogging;
 using MudBlazor.Services;
+using Humanizer;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +15,7 @@ builder.Services.AddHttpLogging(options =>
 {
     options.CombineLogs = true;
     options.LoggingFields = HttpLoggingFields.All;
+    options.ResponseBodyLogLimit = (int)10.Megabytes().Bytes;
 });
 
 builder.Services.AddMudServices();
