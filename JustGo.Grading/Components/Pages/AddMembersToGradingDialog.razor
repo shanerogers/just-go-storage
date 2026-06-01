@@ -14,7 +14,7 @@
                               Immediate="true"
                               OnKeyDown="OnSearchKeyDown" />
             </MudItem>
-            <MudItem xs="12" sm="4" Class="d-flex align-end mb-1">
+            <MudItem xs="12" sm="4" Class="d-flex align-end" Style="padding-bottom: 4px;">
                 <MudButton Variant="Variant.Filled" Color="Color.Primary"
                            OnClick="SearchMembers" Disabled="_searching"
                            StartIcon="@Icons.Material.Filled.Search">
@@ -109,9 +109,14 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && _searchField is not null)
+        if (firstRender)
         {
-            await _searchField.FocusAsync();
+            // MudDialog content renders slightly after firstRender; delay ensures the field is ready
+            await Task.Delay(100);
+            if (_searchField is not null)
+            {
+                await _searchField.FocusAsync();
+            }
         }
     }
 

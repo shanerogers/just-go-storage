@@ -25,7 +25,7 @@
                                   Immediate="true"
                                   OnKeyDown="OnEventSearchKeyDown" />
                 </MudItem>
-                <MudItem xs="12" sm="6" md="4" Class="d-flex align-end mb-1">
+                <MudItem xs="12" sm="6" md="4" Class="d-flex align-end" Style="padding-bottom: 4px;">
                     <MudButton Variant="Variant.Filled" Color="Color.Primary"
                                OnClick="SearchEvents" Disabled="_searching"
                                StartIcon="@Icons.Material.Filled.Search">
@@ -461,7 +461,7 @@
                 LastName = c.LastName,
                 LastGradingDate = c.LastGradingDate is { } d ? d.ToDateTime(TimeOnly.MinValue) : null,
                 CurrentGrade = c.CurrentGrade ?? (_loadingGrades ? null : "Ungraded"),
-                NextGrade = c.NextGrade ?? (_loadingGrades ? null : GradingEntry. "10th Gup"),
+                NextGrade = c.NextGrade ?? (_loadingGrades ? null : "10th Gup"),
                 NextGradeDefinitionId = c.NextGradeDefinitionId,
                 DoubleGrade = c.DoubleGrade,
                 DoubleGradeDefinitionId = c.DoubleGradeDefinitionId,
