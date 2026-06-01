@@ -104,16 +104,24 @@ public sealed class Grade : SmartEnum<Grade>
         if (credentials is null) return null;
 
         DateOnly? latestDate = null;
-        int highestRank = -1;
 
         foreach (var cred in credentials)
         {
             if (!string.Equals(cred.Status, "Active", StringComparison.OrdinalIgnoreCase)) continue;
             if (!TryFromName(cred.Name, ignoreCase: true, out var grade)) continue;
-            if (grade.Value > highestRank)
+            if (grade == UnGraded) continue;
+
+            // Prefer GrantedDate; fall back to LastModificationDate if GrantedDate is missing
+            DateOnly? effectiveDate = cred.GrantedDate is { } gd && gd != DateOnly.MinValue
+                ? gd
+                : cred.LastModificationDate.HasValue
+                    ? DateOnly.FromDateTime(cred.LastModificationDate.Value.DateTime)
+                    : null;
+
+            if (effectiveDate is not { } date) continue;
+            if (latestDate is null || date > latestDate)
             {
-                highestRank = grade.Value;
-                latestDate = cred.GrantedDate == DateOnly.MinValue ? null : cred.GrantedDate;
+                latestDate = date;
             }
         }
 

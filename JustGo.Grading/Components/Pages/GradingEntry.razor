@@ -2,11 +2,13 @@
 @page "/grading/{RouteEventId:guid}"
 @using JustGo.Grading.Models
 @using Humanizer
+@using Microsoft.Extensions.Options
 @inject IHttpClientFactory HttpClientFactory
 @inject ISnackbar Snackbar
 @inject NavigationManager Navigation
 @inject IDialogService DialogService
 @inject ILogger<GradingEntry> Logger
+@inject IOptions<GradingOptions> GradingOptionsAccessor
 
 <PageTitle>Grading Entry - ITKD</PageTitle>
 
@@ -135,7 +137,6 @@
                 <MudTable Items="ActiveGradingMembers" Hover="true" Striped="true" Dense="true" Class="mt-4"
                           T="GradingMember" FixedHeader="true" Height="500px">
                     <HeaderContent>
-                        <MudTh>MID</MudTh>
                         <MudTh>First Name</MudTh>
                         <MudTh>Last Name</MudTh>
                         <MudTh>Last Grading</MudTh>
@@ -146,25 +147,31 @@
                         <MudTh></MudTh>
                     </HeaderContent>
                     <RowTemplate>
-                        <MudTd>@context.MemberId</MudTd>
                         <MudTd>@context.FirstName</MudTd>
                         <MudTd>@context.LastName</MudTd>
                         <MudTd>
-                            <MudText Color="@(context.IsWithin90Days ? Color.Error : Color.Default)">
-                                @context.LastGradingDate?.ToString("dd-MM-yyyy")
-                                @if (context.IsWithin90Days)
-                                {
-                                    <MudIcon Icon="@Icons.Material.Filled.Warning" Size="Size.Small"
-                                             Color="Color.Error" Title="Within 90 days of last grading" />
-                                }
-                                else if (context.LastGradingDate.HasValue)
-                                {
-                                    <span>(@context.LastGradingDate.Value.Humanize())</span>
-                                }
-                            </MudText>
+                            @if (context.LoadingGrade)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
+                            }
+                            else
+                            {
+                                <MudText Color="@(context.IsWithin90Days ? Color.Warning : Color.Default)">
+                                    @context.LastGradingDate?.ToString("dd MMM yyyy")
+                                    @if (context.IsWithin90Days)
+                                    {
+                                        <MudTooltip Text="@($"Only {(context.GradingEventDate - context.LastGradingDate!.Value).Humanize(maxUnit: TimeUnit.Day)} since last grading")">
+                                            <MudIcon Icon="@Icons.Material.Filled.Warning"
+                                                Size="Size.Small"
+                                                Color="Color.Warning"
+                                                Class="ml-1" />
+                                        </MudTooltip>
+                                    }
+                                </MudText>
+                            }
                         </MudTd>
                         <MudTd>
-                            @if (_loadingGrades && string.IsNullOrEmpty(context.CurrentGrade))
+                            @if (context.LoadingGrade)
                             {
                                 <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
                             }
@@ -174,7 +181,7 @@
                             }
                         </MudTd>
                         <MudTd>
-                            @if (_loadingGrades && string.IsNullOrEmpty(context.NextGrade))
+                            @if (context.LoadingGrade)
                             {
                                 <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
                             }
@@ -220,7 +227,6 @@
                     <MudTable Items="_eventCandidates" Hover="true" Striped="true" Dense="true" Class="mt-4"
                               T="EventCandidateApiDto">
                         <HeaderContent>
-                            <MudTh>MID</MudTh>
                             <MudTh>First Name</MudTh>
                             <MudTh>Last Name</MudTh>
                             <MudTh>Grade</MudTh>
@@ -228,7 +234,6 @@
                             <MudTh>Credential</MudTh>
                         </HeaderContent>
                         <RowTemplate>
-                            <MudTd>@context.MemberNumber</MudTd>
                             <MudTd>@context.FirstName</MudTd>
                             <MudTd>@context.LastName</MudTd>
                             <MudTd>@context.GradeName</MudTd>
@@ -274,7 +279,6 @@
     private bool _searchCompleted;
     private bool _eventLoaded;
     private bool _loadingMembers;
-    private bool _loadingGrades;
     private bool _submitting;
     private int _totalMemberCount;
     private EventResult? _selectedEvent;
@@ -430,7 +434,6 @@
         _selectedEvent = eventResult;
         _eventLoaded = true;
         _loadingMembers = true;
-        _loadingGrades = true;
         Navigation.NavigateTo($"/grading/{eventResult.Id}", replace: true);
         StateHasChanged();
 
@@ -441,14 +444,13 @@
             _loadingMembers = false;
             StateHasChanged();
 
-            // Fire-and-forget grade enrichment — updates UI when done
-            _ = LoadMemberGradesAsync();
+            // Fire per-member grade enrichment — each row loads independently
+            _ = EnrichAllMemberGradesAsync();
         }
         catch (Exception ex)
         {
             ShowError("Failed to load event", ex);
             _loadingMembers = false;
-            _loadingGrades = false;
             StateHasChanged();
         }
     }
@@ -524,7 +526,6 @@
     {
         _eventLoaded = false;
         _loadingMembers = false;
-        _loadingGrades = false;
         _selectedEvent = null;
         _members.Clear();
         _searchResults.Clear();
@@ -625,63 +626,69 @@
         }
     }
 
-    private async Task LoadMemberGradesAsync()
+    private async Task EnrichAllMemberGradesAsync()
+    {
+        using var semaphore = new SemaphoreSlim(GradingOptionsAccessor.Value.MaxConcurrentEnrichments);
+        var tasks = _members
+            .Where(m => m.JustGoMemberId != Guid.Empty)
+            .Select(async member =>
+            {
+                await semaphore.WaitAsync();
+                try { await EnrichMemberGradeAsync(member); }
+                finally { semaphore.Release(); }
+            });
+
+        await Task.WhenAll(tasks);
+    }
+
+    private async Task EnrichMemberGradeAsync(GradingMember member)
     {
         try
         {
-            var memberIds = _members
-                .Select(m => m.JustGoMemberId)
-                .Where(id => id != Guid.Empty)
-                .Distinct()
-                .ToList();
-
-            if (memberIds.Count == 0)
-            {
-                _loadingGrades = false;
-                await InvokeAsync(StateHasChanged);
-                return;
-            }
-
-            var request = new { MemberIds = memberIds };
-            var response = await Api.PostAsJsonAsync("grading/members/details", request);
+            var response = await Api.GetAsync($"grading/members/{member.JustGoMemberId}/details");
 
             if (!response.IsSuccessStatusCode)
             {
-                Logger.LogWarning("Grade enrichment failed: {StatusCode}", (int)response.StatusCode);
-                _loadingGrades = false;
+                member.GradeLoadFailed = true;
+                member.LoadingGrade = false;
+                await InvokeAsync(() =>
+                {
+                    Snackbar.Add($"Failed to load grades for {member.FirstName} {member.LastName}", Severity.Warning);
+                    StateHasChanged();
+                });
+                return;
+            }
+
+            var detail = await response.Content.ReadFromJsonAsync<MemberDetailApiResult>();
+
+            if (detail is null)
+            {
+                member.GradeLoadFailed = true;
+                member.LoadingGrade = false;
                 await InvokeAsync(StateHasChanged);
                 return;
             }
 
-            var details = await response.Content
-                .ReadFromJsonAsync<List<MemberDetailApiResult>>() ?? [];
+            member.CurrentGrade = detail.CurrentGrade;
+            member.NextGrade = detail.NextGrade;
+            member.DoubleGrade = detail.DoubleGrade;
+            member.LastGradingDate = detail.LastGradingDate is { } d
+                ? d.ToDateTime(TimeOnly.MinValue)
+                : null;
+            member.LoadingGrade = false;
 
-            var detailById = details.ToDictionary(d => d.MemberId);
-            var eventDate = _selectedEvent?.Date ?? DateTime.Today;
-
-            foreach (var member in _members)
-            {
-                if (!detailById.TryGetValue(member.JustGoMemberId, out var detail))
-                {
-                    continue;
-                }
-
-                member.CurrentGrade = detail.CurrentGrade;
-                member.NextGrade = detail.NextGrade;
-                member.DoubleGrade = detail.DoubleGrade;
-                member.LastGradingDate = detail.LastGradingDate is { } d
-                    ? d.ToDateTime(TimeOnly.MinValue)
-                    : null;
-            }
-
-            _loadingGrades = false;
             await InvokeAsync(StateHasChanged);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Grade enrichment failed");
-            _loadingGrades = false;
-            await InvokeAsync(StateHasChanged);
+            Logger.LogError(ex, "Grade enrichment failed for member {MemberId}", member.JustGoMemberId);
+            member.GradeLoadFailed = true;
+            member.LoadingGrade = false;
+            await InvokeAsync(() =>
+            {
+                Snackbar.Add($"Failed to load grades for {member.FirstName} {member.LastName}", Severity.Warning);
+                StateHasChanged();
+            });
         }
     }
 
@@ -739,7 +746,7 @@
 
                 await LoadEventFastDataAsync();
                 RebuildMembersFromCandidates();
-                _ = LoadMemberGradesAsync();
+                _ = EnrichAllMemberGradesAsync();
             }
             else
             {

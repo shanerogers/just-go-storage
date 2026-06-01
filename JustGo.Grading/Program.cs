@@ -20,6 +20,12 @@ builder.Services.AddHttpLogging(options =>
 
 builder.Services.AddMudServices();
 
+builder.Services
+    .AddOptions<JustGo.Grading.GradingOptions>()
+    .BindConfiguration(JustGo.Grading.GradingOptions.SectionName)
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
 builder.Services.AddHttpClient("JustGoApi", client =>
 {
     client.BaseAddress = new Uri("https+http://api");

@@ -44,6 +44,10 @@ public static class GradingEndpoints
                 .WithName("GetGradingMemberDetails")
                 .WithSummary("Batch-fetch member credentials and resolve grades — slow, call separately");
 
+            group.MapGet("/members/{memberId:guid}/details", GetSingleMemberDetailsAsync)
+                .WithName("GetGradingSingleMemberDetails")
+                .WithSummary("Fetch a single member's credentials and resolve grades");
+
             group.MapGet("/events/{eventId:guid}/state", GetEventStateAsync)
                 .WithName("GetGradingEventState")
                 .WithSummary("Get current JustGo-backed grading state for an event (legacy monolithic)");
@@ -272,6 +276,57 @@ public static class GradingEndpoints
         }).ToList();
 
         return Results.Ok(result);
+    }
+
+    private static async Task<IResult> GetSingleMemberDetailsAsync(
+        Guid memberId,
+        IMemberClient memberClient,
+        ILoggerFactory loggerFactory,
+        CancellationToken ct)
+    {
+        var logger = loggerFactory.CreateLogger("Grading");
+        var detail = await memberClient.GetMemberAsync(memberId, ct);
+
+        // Diagnostic: log raw credential data from JustGo
+        if (detail.Credentials is { } creds)
+        {
+            foreach (var c in creds.Where(c => Grade.IsKnownGrade(c.Name)))
+            {
+                logger.LogInformation(
+                    "Member {MemberId} credential: Name={Name}, Status={Status}, GrantedDate={GrantedDate}, LastModificationDate={LastModDate}",
+                    memberId, c.Name, c.Status, c.GrantedDate, c.LastModificationDate);
+            }
+        }
+        else
+        {
+            logger.LogWarning("Member {MemberId} has NO credentials array", memberId);
+        }
+
+        var currentGrade = Grade.FromCredentials(detail.Credentials);
+        var lastGradingDate = Grade.GetLastGradingDate(detail.Credentials);
+        logger.LogInformation("Member {MemberId} resolved: Grade={Grade}, LastGradingDate={LastGradingDate}",
+            memberId, currentGrade.Name, lastGradingDate);
+        var nextGrade = currentGrade.Next;
+        var doubleGrade = currentGrade.Double;
+
+        var issuedGradeNames = (detail.Credentials ?? [])
+            .Where(c => string.Equals(c.Status, "Active", StringComparison.OrdinalIgnoreCase)
+                && Grade.IsKnownGrade(c.Name))
+            .Select(c => c.Name!)
+            .ToList();
+
+        return Results.Ok(new MemberDetailResult
+        {
+            MemberId = detail.Id,
+            MemberNumber = detail.MemberId ?? string.Empty,
+            FirstName = detail.FirstName ?? string.Empty,
+            LastName = detail.LastName ?? string.Empty,
+            CurrentGrade = currentGrade.Name,
+            LastGradingDate = lastGradingDate,
+            NextGrade = nextGrade?.Name ?? string.Empty,
+            DoubleGrade = doubleGrade?.Name ?? string.Empty,
+            IssuedGradeNames = issuedGradeNames,
+        });
     }
 
     private static async Task<IResult> GetEventStateAsync(

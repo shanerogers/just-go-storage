@@ -17,8 +17,11 @@ public class GradingMember
     public bool MatchesEventCredential { get; set; }
     public bool HasIssuedCredential { get; set; }
     public Guid? BookingId { get; set; }
+    public bool LoadingGrade { get; set; } = true;
+    public bool GradeLoadFailed { get; set; }
 
     public bool IsWithin90Days =>
         LastGradingDate.HasValue &&
-        (GradingEventDate - LastGradingDate.Value).TotalDays < 90;
+        GradingEventDate > LastGradingDate.Value &&
+        (GradingEventDate - LastGradingDate.Value).TotalDays > 90;
 }

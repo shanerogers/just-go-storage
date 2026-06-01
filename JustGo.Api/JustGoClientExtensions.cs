@@ -66,6 +66,7 @@ internal static class JustGoClientExtensions
             {
                 var opts = serviceProvider.GetRequiredService<IOptions<JustGoOptions>>().Value;
                 client.BaseAddress = new Uri(opts.BaseUrl);
+                client.Timeout = TimeSpan.FromSeconds(30);
             }
         }
     }

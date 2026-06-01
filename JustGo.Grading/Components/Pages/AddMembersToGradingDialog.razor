@@ -34,7 +34,6 @@
                       T="SearchResult" FixedHeader="true" Height="420px">
                 <HeaderContent>
                     <MudTh></MudTh>
-                    <MudTh>MID</MudTh>
                     <MudTh>First Name</MudTh>
                     <MudTh>Last Name</MudTh>
                     <MudTh>Current Grade</MudTh>
@@ -47,7 +46,6 @@
                                      ValueChanged="@(selected => ToggleSelected(context, selected))"
                                      Disabled="context.AlreadyAttached" />
                     </MudTd>
-                    <MudTd>@context.MemberId</MudTd>
                     <MudTd>@context.FirstName</MudTd>
                     <MudTd>@context.LastName</MudTd>
                     <MudTd>

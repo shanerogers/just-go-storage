@@ -279,7 +279,7 @@ public sealed class MemberCredentialDtoV2_2
     public string? Type { get; set; }
 
     [JsonPropertyName("grantedDate")]
-    public DateOnly GrantedDate { get; set; }
+    public DateOnly? GrantedDate { get; set; }
 
     [JsonPropertyName("expiryDate")]
     public DateOnly? ExpiryDate { get; set; }
