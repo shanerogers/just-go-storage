@@ -552,6 +552,8 @@
             FullWidth = true,
             CloseButton = true,
             CloseOnEscapeKey = true,
+            BackdropClick = false,
+            BackgroundClass = "mud-dialog-backdrop",
         };
 
         var dialog = await DialogService.ShowAsync<AddMembersToGradingDialog>("Add Members to Grading", parameters, options);
