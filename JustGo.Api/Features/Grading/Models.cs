@@ -28,7 +28,7 @@ public sealed class GradingResultItem
     public string FirstName { get; init; } = string.Empty;
     public string LastName { get; init; } = string.Empty;
     public string GradeName { get; init; } = string.Empty;
-    public int? TheoryMark { get; init; }
+
     public bool IsDoubleGrading { get; init; }
 }
 

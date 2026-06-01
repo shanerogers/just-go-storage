@@ -12,7 +12,7 @@ public class GradingMember
     public string? DoubleGrade { get; set; }
     public bool Grading { get; set; }
     public bool IsDoubleGrading { get; set; }
-    public int? TheoryMark { get; set; }
+
     public DateTime GradingEventDate { get; set; }
     public bool MatchesEventCredential { get; set; }
     public bool HasIssuedCredential { get; set; }
@@ -23,5 +23,5 @@ public class GradingMember
     public bool IsWithin90Days =>
         LastGradingDate.HasValue &&
         GradingEventDate > LastGradingDate.Value &&
-        (GradingEventDate - LastGradingDate.Value).TotalDays > 90;
+        (GradingEventDate - LastGradingDate.Value).TotalDays < 90;
 }

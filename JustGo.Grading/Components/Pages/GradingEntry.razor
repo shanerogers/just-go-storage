@@ -54,19 +54,19 @@
 
             @if (_searchResults.Count > 0)
             {
-                <MudTable Items="_searchResults" Hover="true" Striped="true" Class="mt-4"
-                          T="EventResult" OnRowClick="@(args => SelectEvent(args.Item!))">
-                    <HeaderContent>
-                        <MudTh>Event Name</MudTh>
-                        <MudTh>Date</MudTh>
-                        <MudTh>Club</MudTh>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd>@context.Name</MudTd>
-                        <MudTd>@context.Date?.ToString("dd MMM yyyy")</MudTd>
-                        <MudTd>@context.Club</MudTd>
-                    </RowTemplate>
-                </MudTable>
+                <div class="mt-4" style="max-height: 400px; overflow-y: auto;">
+                    @foreach (var evt in _searchResults)
+                    {
+                        <MudPaper @key="evt.Id" Class="pa-3 mb-2" Elevation="0" Outlined="true"
+                                  Style="cursor: pointer;" @onclick="@(() => SelectEvent(evt))">
+                            <MudText Typo="Typo.subtitle1"><b>@evt.Name</b></MudText>
+                            <div class="d-flex align-center gap-3 mt-1 flex-wrap">
+                                <MudText Typo="Typo.caption">@evt.Date?.ToString("dd MMM yyyy")</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@evt.Club</MudText>
+                            </div>
+                        </MudPaper>
+                    }
+                </div>
             }
             else if (_searchCompleted)
             {
@@ -76,25 +76,22 @@
     }
     else
     {
-        <MudPaper Class="pa-4 mb-4" Elevation="2">
-            <MudGrid>
-                <MudItem xs="12" sm="4">
-                    <MudText Typo="Typo.subtitle2" Color="Color.Primary">Event</MudText>
-                    <MudText Typo="Typo.body1">@_selectedEvent!.Name</MudText>
+        <MudPaper Class="pa-3 mb-4" Elevation="0" Outlined="true">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="8">
+                    <MudText Typo="Typo.subtitle1"><b>@_selectedEvent!.Name</b></MudText>
+                    <div class="d-flex align-center gap-3 mt-1">
+                        <MudText Typo="Typo.caption">@_selectedEvent!.Date?.ToString("dd MMM yyyy")</MudText>
+                        <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small">@_selectedEvent!.Club</MudChip>
+                    </div>
                 </MudItem>
-                <MudItem xs="12" sm="4">
-                    <MudText Typo="Typo.subtitle2" Color="Color.Primary">Grading Date</MudText>
-                    <MudText Typo="Typo.body1">@_selectedEvent!.Date?.ToString("dd MMM yyyy")</MudText>
-                </MudItem>
-                <MudItem xs="12" sm="4">
-                    <MudText Typo="Typo.subtitle2" Color="Color.Primary">Club</MudText>
-                    <MudText Typo="Typo.body1">@_selectedEvent!.Club</MudText>
+                <MudItem xs="12" sm="4" Class="d-flex align-center justify-end">
+                    <MudButton Variant="Variant.Text" Color="Color.Secondary" OnClick="ClearEvent"
+                               StartIcon="@Icons.Material.Filled.ArrowBack">
+                        Change Event
+                    </MudButton>
                 </MudItem>
             </MudGrid>
-            <MudButton Variant="Variant.Text" Color="Color.Secondary" OnClick="ClearEvent"
-                       StartIcon="@Icons.Material.Filled.ArrowBack" Class="mt-2">
-                Change Event
-            </MudButton>
         </MudPaper>
 
         @if (_loadingMembers)
@@ -122,92 +119,64 @@
                     <MudItem xs="12" sm="6">
                         <MudText Typo="Typo.h6">
                             Members in Grading
-                            <MudChip T="string" Color="Color.Primary" Size="Size.Small">
-                                @ActiveGradingMembers.Count() selected
+                            <MudChip T="string" Color="Color.Info" Size="Size.Small">
+                                @ActiveGradingMembers.Count()
                             </MudChip>
-                        </MudText>
-                    </MudItem>
-                    <MudItem xs="12" sm="6" Class="d-flex justify-end align-center">
-                        <MudText Typo="Typo.h6" Color="Color.Primary">
-                            Total Loaded: @_totalMemberCount
                         </MudText>
                     </MudItem>
                 </MudGrid>
 
-                <MudTable Items="ActiveGradingMembers" Hover="true" Striped="true" Dense="true" Class="mt-4"
-                          T="GradingMember" FixedHeader="true" Height="500px">
-                    <HeaderContent>
-                        <MudTh>First Name</MudTh>
-                        <MudTh>Last Name</MudTh>
-                        <MudTh>Last Grading</MudTh>
-                        <MudTh>Current Grade</MudTh>
-                        <MudTh>Next Grade</MudTh>
-                        <MudTh>Double</MudTh>
-                        <MudTh>Theory Mark</MudTh>
-                        <MudTh></MudTh>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd>@context.FirstName</MudTd>
-                        <MudTd>@context.LastName</MudTd>
-                        <MudTd>
-                            @if (context.LoadingGrade)
-                            {
-                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
-                            }
-                            else
-                            {
-                                <MudText Color="@(context.IsWithin90Days ? Color.Warning : Color.Default)">
-                                    @context.LastGradingDate?.ToString("dd MMM yyyy")
-                                    @if (context.IsWithin90Days)
+                <div style="max-height: 500px; overflow-y: auto;" class="mt-4">
+                    @foreach (var member in ActiveGradingMembers)
+                    {
+                        <MudPaper @key="member.JustGoMemberId" Class="pa-3 mb-2" Elevation="0" Outlined="true">
+                            <MudGrid Spacing="2">
+                                <MudItem xs="12" sm="7">
+                                    <div class="d-flex flex-column gap-1">
+                                        <MudText Typo="Typo.subtitle1"><b>@member.FirstName @member.LastName</b></MudText>
+                                        @if (member.LoadingGrade)
+                                        {
+                                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
+                                        }
+                                        else
+                                        {
+                                            <div class="d-flex align-center gap-1">
+                                                <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small">@member.CurrentGrade</MudChip>
+                                                <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" Color="Color.Primary" />
+                                                <MudChip T="string" Color="Color.Primary" Size="Size.Small">@member.NextGrade</MudChip>
+                                            </div>
+                                        }
+                                    </div>
+                                    @if (!member.LoadingGrade && member.LastGradingDate.HasValue)
                                     {
-                                        <MudTooltip Text="@($"Only {(context.GradingEventDate - context.LastGradingDate!.Value).Humanize(maxUnit: TimeUnit.Day)} since last grading")">
-                                            <MudIcon Icon="@Icons.Material.Filled.Warning"
-                                                Size="Size.Small"
-                                                Color="Color.Warning"
-                                                Class="ml-1" />
-                                        </MudTooltip>
+                                        <MudText Typo="Typo.caption" Color="@(member.IsWithin90Days ? Color.Warning : Color.Default)" Class="mt-1">
+                                            Last graded: @member.LastGradingDate.Value.ToString("dd MMM yyyy")
+                                            @if (member.IsWithin90Days)
+                                            {
+                                                <MudTooltip Text="@($"Only {(member.GradingEventDate - member.LastGradingDate!.Value).Humanize(maxUnit: TimeUnit.Day)} since last grading")">
+                                                    <MudIcon Icon="@Icons.Material.Filled.Warning" Size="Size.Small" Color="Color.Warning" Class="ml-1" />
+                                                </MudTooltip>
+                                            }
+                                        </MudText>
                                     }
-                                </MudText>
-                            }
-                        </MudTd>
-                        <MudTd>
-                            @if (context.LoadingGrade)
-                            {
-                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
-                            }
-                            else
-                            {
-                            @context.CurrentGrade
-                            }
-                        </MudTd>
-                        <MudTd>
-                            @if (context.LoadingGrade)
-                            {
-                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
-                            }
-                            else
-                            {
-                                @context.NextGrade
-                            }
-                        </MudTd>
-                        <MudTd>
-                            <MudCheckBox @bind-Value="context.IsDoubleGrading" Color="Color.Secondary"
-                                         Disabled="context.IsWithin90Days" />
-                        </MudTd>
-                        <MudTd>
-                            <MudNumericField @bind-Value="context.TheoryMark" Min="0" Max="100"
-                                             Variant="Variant.Outlined" Margin="Margin.Dense"
-                                             Style="max-width: 80px;" />
-                        </MudTd>
-                        <MudTd>
-                            <MudButton Variant="Variant.Text" Color="Color.Error"
-                                       OnClick="@(() => RemoveFromGrading(context))"
-                                       StartIcon="@Icons.Material.Filled.RemoveCircleOutline">
-                                Remove
-                            </MudButton>
-                        </MudTd>
-                    </RowTemplate>
-                </MudTable>
+                                </MudItem>
+                                <MudItem xs="12" sm="5" Class="d-flex align-center justify-end gap-4">
+                                    <MudTooltip Text="Double grading - skip a grade level">
+                                        <MudCheckBox @bind-Value="member.IsDoubleGrading" Color="Color.Secondary"
+                                                     Label="Double" Disabled="member.IsWithin90Days" Dense="true" />
+                                    </MudTooltip>
+                                    <MudTooltip Text="Remove from grading">
+                                        <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small"
+                                                   OnClick="@(() => RemoveFromGrading(member))"
+                                                   StartIcon="@Icons.Material.Filled.RemoveCircleOutline">
+                                            Remove
+                                        </MudButton>
+                                    </MudTooltip>
+                                </MudItem>
+                            </MudGrid>
+                        </MudPaper>
+                    }
+                </div>
             </MudPaper>
 
             @if (_eventCandidates.Count > 0)
@@ -224,32 +193,34 @@
                         </MudItem>
                     </MudGrid>
 
-                    <MudTable Items="_eventCandidates" Hover="true" Striped="true" Dense="true" Class="mt-4"
-                              T="EventCandidateApiDto">
-                        <HeaderContent>
-                            <MudTh>First Name</MudTh>
-                            <MudTh>Last Name</MudTh>
-                            <MudTh>Grade</MudTh>
-                            <MudTh>Booking Date</MudTh>
-                            <MudTh>Credential</MudTh>
-                        </HeaderContent>
-                        <RowTemplate>
-                            <MudTd>@context.FirstName</MudTd>
-                            <MudTd>@context.LastName</MudTd>
-                            <MudTd>@context.GradeName</MudTd>
-                            <MudTd>@context.BookingDate?.LocalDateTime.ToString("dd MMM yyyy")</MudTd>
-                            <MudTd>
-                                @if (context.HasIssuedCredential)
-                                {
-                                    <MudChip T="string" Color="Color.Success" Size="Size.Small">Issued</MudChip>
-                                }
-                                else
-                                {
-                                    <MudChip T="string" Color="Color.Warning" Size="Size.Small">Booked</MudChip>
-                                }
-                            </MudTd>
-                        </RowTemplate>
-                    </MudTable>
+                    <div style="max-height: 400px; overflow-y: auto;" class="mt-4">
+                        @foreach (var candidate in _eventCandidates)
+                        {
+                            <MudPaper @key="candidate.MemberId" Class="pa-3 mb-2" Elevation="0" Outlined="true">
+                                <MudGrid Spacing="2">
+                                    <MudItem xs="12" sm="8">
+                                        <div class="d-flex align-center gap-2 flex-wrap">
+                                            <MudText Typo="Typo.subtitle1"><b>@candidate.FirstName @candidate.LastName</b></MudText>
+                                            <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small">@candidate.GradeName</MudChip>
+                                        </div>
+                                        <MudText Typo="Typo.caption" Class="mt-1">
+                                            Booked: @candidate.BookingDate?.LocalDateTime.ToString("dd MMM yyyy")
+                                        </MudText>
+                                    </MudItem>
+                                    <MudItem xs="12" sm="4" Class="d-flex align-center justify-end">
+                                        @if (candidate.HasIssuedCredential)
+                                        {
+                                            <MudChip T="string" Color="Color.Success" Size="Size.Small">Issued</MudChip>
+                                        }
+                                        else
+                                        {
+                                            <MudChip T="string" Color="Color.Warning" Size="Size.Small">Booked</MudChip>
+                                        }
+                                    </MudItem>
+                                </MudGrid>
+                            </MudPaper>
+                        }
+                    </div>
                 </MudPaper>
             }
 
@@ -473,7 +444,6 @@
                 GradingEventDate = eventDate,
                 BookingId = c.BookingId,
                 Grading = true,
-                TheoryMark = 0,
                 HasIssuedCredential = c.HasIssuedCredential,
             })
             .ToList();
@@ -572,7 +542,6 @@
             }
 
             member.Grading = true;
-            member.TheoryMark ??= 0;
             _members.Add(member);
         }
 
@@ -583,7 +552,6 @@
     {
         member.Grading = false;
         member.IsDoubleGrading = false;
-        member.TheoryMark = null;
     }
 
     private async Task LoadEventFastDataAsync()
@@ -722,7 +690,6 @@
                         FirstName = m.FirstName,
                         LastName = m.LastName,
                         GradeName = targetGrade,
-                        TheoryMark = m.TheoryMark,
                         IsDoubleGrading = m.IsDoubleGrading,
                     };
                 }).ToList(),
