@@ -1,112 +1,118 @@
+using Ardalis.SmartEnum;
 using JustGo.Api.Features.Members;
 
 namespace JustGo.Api.Features.Grading;
 
 /// <summary>
-/// Static mapping of ITKD belt grade credential definitions from JustGo.
-/// Ordered from lowest (10th Gup) to highest (9th Dan).
+/// Smart enum representing ITKD belt grades, ordered from lowest (10th Gup) to highest (9th Dan).
+/// Value = rank for ordered navigation (Next/Previous/Double).
 /// </summary>
-public static class GradeDefinitions
+public sealed class Grade : SmartEnum<Grade>
 {
-    public static readonly IReadOnlyList<GradeDefinition> All =
-    [
-        new("10th Gup", Guid.Parse("ac90d95c-b09c-41ec-8514-b0b0146a8c4a"), "Gup Grades"),
-        new("9th Gup",  Guid.Parse("39a35051-b14c-444c-8d14-84a2fb394409"), "Gup Grades"),
-        new("8th Gup",  Guid.Parse("800951c3-1eb7-46b9-8d7e-d96742ec9897"), "Gup Grades"),
-        new("7th Gup",  Guid.Parse("e437bd88-7943-4ca4-b8e2-1c40121d4ac9"), "Gup Grades"),
-        new("6th Gup",  Guid.Parse("8f12eb81-46ec-4ead-aa07-7bd4e4b04ea8"), "Gup Grades"),
-        new("5th Gup",  Guid.Parse("80849763-39fe-4b90-8cb8-9332d129ada8"), "Gup Grades"),
-        new("4th Gup",  Guid.Parse("719876c3-2dbe-4120-a16b-02ba4c5fa8ea"), "Gup Grades"),
-        new("3rd Gup",  Guid.Parse("e13c7ae9-a9b7-4540-b54f-ea2c95ca5d6b"), "Gup Grades"),
-        new("2nd Gup",  Guid.Parse("b98e8647-ac82-48a2-9437-efdd545024ea"), "Gup Grades"),
-        new("1st Gup",  Guid.Parse("4e18d3c9-fc99-4f60-b1b0-d4e55813affe"), "Gup Grades"),
-        new("1st Dan",  Guid.Parse("ae6b12a1-d794-483b-993a-55ec562bc78c"), "Dan Grades"),
-        new("2nd Dan",  Guid.Parse("2da70e9d-4dbf-4f3f-944a-87b26bef2145"), "Dan Grades"),
-        new("3rd Dan",  Guid.Parse("fdd065bb-8d39-4522-8e18-cfef75c1bdac"), "Dan Grades"),
-        new("4th Dan",  Guid.Parse("efbf2886-69c5-4983-b05d-53b305186715"), "Dan Grades"),
-        new("5th Dan",  Guid.Parse("3f4e2451-d8d6-42dc-ba71-94c3920444a2"), "Dan Grades"),
-        new("6th Dan",  Guid.Parse("4cf7c686-05c5-42f2-b6ef-edd148d588e4"), "Dan Grades"),
-        new("7th Dan",  Guid.Parse("5e4c881d-836c-4d5f-9d5d-067f073b3eb0"), "Dan Grades"),
-        new("8th Dan",  Guid.Parse("eeabee08-a9f2-4d0e-b52a-a5cd06255987"), "Dan Grades"),
-        new("9th Dan",  Guid.Parse("b9cf1815-2f91-41b3-8f22-44c22949c6dd"), "Dan Grades"),
-    ];
+    // UnGraded — no credential yet. Rank -1 so .Next = TenthGup.
+    public static readonly Grade UnGraded   = new("UnGraded", -1);
 
-    private static readonly Dictionary<Guid, int> IndexByDefinitionId =
-        All.Select((g, i) => (g, i)).ToDictionary(x => x.g.DefinitionId, x => x.i);
+    // Gup grades (colour belts) — ranks 0–9
+    public static readonly Grade TenthGup   = new("10th Gup", 0);
+    public static readonly Grade NinthGup   = new("9th Gup", 1);
+    public static readonly Grade EighthGup  = new("8th Gup", 2);
+    public static readonly Grade SeventhGup = new("7th Gup", 3);
+    public static readonly Grade SixthGup   = new("6th Gup", 4);
+    public static readonly Grade FifthGup   = new("5th Gup", 5);
+    public static readonly Grade FourthGup  = new("4th Gup", 6);
+    public static readonly Grade ThirdGup   = new("3rd Gup", 7);
+    public static readonly Grade SecondGup  = new("2nd Gup", 8);
+    public static readonly Grade FirstGup   = new("1st Gup", 9);
 
-    private static readonly Dictionary<Guid, GradeDefinition> ByDefinitionId =
-        All.ToDictionary(g => g.DefinitionId);
+    // Dan grades (black belts) — ranks 10–18
+    public static readonly Grade FirstDan   = new("1st Dan", 10);
+    public static readonly Grade SecondDan  = new("2nd Dan", 11);
+    public static readonly Grade ThirdDan   = new("3rd Dan", 12);
+    public static readonly Grade FourthDan  = new("4th Dan", 13);
+    public static readonly Grade FifthDan   = new("5th Dan", 14);
+    public static readonly Grade SixthDan   = new("6th Dan", 15);
+    public static readonly Grade SeventhDan = new("7th Dan", 16);
+    public static readonly Grade EighthDan  = new("8th Dan", 17);
+    public static readonly Grade NinthDan   = new("9th Dan", 18);
 
-    private static readonly HashSet<Guid> KnownDefinitionIds =
-        [.. All.Select(g => g.DefinitionId)];
+    private Grade(string name, int value) : base(name, value) { }
 
-    /// <summary>Returns the grade name for a definition ID, or null if unknown.</summary>
-    public static string? GetGradeName(Guid definitionId) =>
-        ByDefinitionId.TryGetValue(definitionId, out var grade) ? grade.Name : null;
+    // --- Navigation (uses Value as rank) ---
 
-    /// <summary>Returns the next grade above the given one, or null if already at 9th Dan.</summary>
-    public static GradeDefinition? GetNextGrade(Guid currentDefinitionId)
-    {
-        if (!IndexByDefinitionId.TryGetValue(currentDefinitionId, out var index)) return null;
-        var nextIndex = index + 1;
-        return nextIndex < All.Count ? All[nextIndex] : null;
-    }
+    /// <summary>The next grade up, or null if already at highest.</summary>
+    public Grade? Next => TryFromValue(Value + 1, out var next) ? next : null;
+
+    /// <summary>The previous grade down, or null if already at lowest.</summary>
+    public Grade? Previous => TryFromValue(Value - 1, out var prev) ? prev : null;
+
+    /// <summary>Two grades up (for double-grading), or null if not possible.</summary>
+    public Grade? Double => TryFromValue(Value + 2, out var dbl) ? dbl : null;
+
+    // --- Convenience properties ---
+
+    /// <summary>The rank (same as Value, for readability).</summary>
+    public int Rank => Value;
+
+    /// <summary>True if this is a Gup (colour belt) grade.</summary>
+    public bool IsGup => Value >= 0 && Value <= 9;
+
+    /// <summary>True if this is a Dan (black belt) grade.</summary>
+    public bool IsDan => Value >= 10;
+
+    // --- Static helpers ---
+
+    /// <summary>All actual grades in rank order (excludes UnGraded).</summary>
+    public static IReadOnlyList<Grade> All { get; } = List.Where(g => g != UnGraded).OrderBy(g => g.Value).ToList();
+
+    /// <summary>Find a grade by its credential name (e.g. "5th Dan"). Case-insensitive. Returns null if not found.</summary>
+    public static Grade? FromName(string? name) =>
+        name is not null && TryFromName(name, ignoreCase: true, out var grade) ? grade : null;
+
+    /// <summary>Returns true if the name matches a known belt grade (excludes UnGraded).</summary>
+    public static bool IsKnownGrade(string? name) =>
+        name is not null && TryFromName(name, ignoreCase: true, out var grade) && grade != UnGraded;
 
     /// <summary>
-    /// Returns the grade two steps above (for double grading), or null if not possible.
+    /// Resolves the highest active grade from a member's credentials.
+    /// Returns <see cref="UnGraded"/> if no grade credential is found.
     /// </summary>
-    public static GradeDefinition? GetDoubleGrade(Guid currentDefinitionId)
+    public static Grade FromCredentials(IEnumerable<MemberCredentialDtoV2_2>? credentials)
     {
-        if (!IndexByDefinitionId.TryGetValue(currentDefinitionId, out var index)) return null;
-        var doubleIndex = index + 2;
-        return doubleIndex < All.Count ? All[doubleIndex] : null;
-    }
+        if (credentials is null) return UnGraded;
 
-    /// <summary>Returns true if the definition ID is a known Gup or Dan grade.</summary>
-    public static bool IsKnownGrade(Guid definitionId) => KnownDefinitionIds.Contains(definitionId);
-
-    /// <summary>
-    /// Finds the highest (most recent / most advanced) active grade credential for a member.
-    /// Returns null if the member has no active grade credentials.
-    /// </summary>
-    public static GradeDefinition? GetCurrentGrade(IEnumerable<MemberCredentialDtoV2_2>? credentials)
-    {
-        if (credentials is null) return null;
-
-        GradeDefinition? highest = null;
-        var highestIndex = -1;
+        Grade? highest = null;
 
         foreach (var cred in credentials)
         {
             if (!string.Equals(cred.Status, "Active", StringComparison.OrdinalIgnoreCase)) continue;
-            if (!IndexByDefinitionId.TryGetValue(cred.DefinitionId, out var index)) continue;
-            if (index > highestIndex)
+            if (!TryFromName(cred.Name, ignoreCase: true, out var grade)) continue;
+            if (grade == UnGraded) continue;
+            if (highest is null || grade.Value > highest.Value)
             {
-                highestIndex = index;
-                highest = ByDefinitionId[cred.DefinitionId];
+                highest = grade;
             }
         }
 
-        return highest;
+        return highest ?? UnGraded;
     }
 
     /// <summary>
-    /// Gets the granted date of the current (highest active) grade credential.
+    /// Gets the granted date of the highest active grade credential.
     /// </summary>
     public static DateOnly? GetLastGradingDate(IEnumerable<MemberCredentialDtoV2_2>? credentials)
     {
         if (credentials is null) return null;
 
         DateOnly? latestDate = null;
-        var highestIndex = -1;
+        int highestRank = -1;
 
         foreach (var cred in credentials)
         {
             if (!string.Equals(cred.Status, "Active", StringComparison.OrdinalIgnoreCase)) continue;
-            if (!IndexByDefinitionId.TryGetValue(cred.DefinitionId, out var index)) continue;
-            if (index > highestIndex)
+            if (!TryFromName(cred.Name, ignoreCase: true, out var grade)) continue;
+            if (grade.Value > highestRank)
             {
-                highestIndex = index;
+                highestRank = grade.Value;
                 latestDate = cred.GrantedDate == DateOnly.MinValue ? null : cred.GrantedDate;
             }
         }
@@ -114,6 +120,3 @@ public static class GradeDefinitions
         return latestDate;
     }
 }
-
-/// <summary>A belt grade credential definition.</summary>
-public sealed record GradeDefinition(string Name, Guid DefinitionId, string CredentialType);

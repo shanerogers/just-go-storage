@@ -7,16 +7,11 @@ public sealed class GradingMemberDto
     public string MemberId { get; init; } = string.Empty;
     public string FirstName { get; init; } = string.Empty;
     public string LastName { get; init; } = string.Empty;
-    public string? CurrentGrade { get; init; }
-    public Guid? CurrentGradeDefinitionId { get; init; }
+    public string CurrentGrade { get; init; } = string.Empty;
     public DateOnly? LastGradingDate { get; init; }
-    public string? NextGrade { get; init; }
-    public Guid? NextGradeDefinitionId { get; init; }
-    public string? DoubleGrade { get; init; }
-    public Guid? DoubleGradeDefinitionId { get; init; }
+    public string NextGrade { get; init; } = string.Empty;
+    public string DoubleGrade { get; init; } = string.Empty;
 }
-
-/// <summary>Paged response of grading members.</summary>
 public sealed class GradingMembersResponse
 {
     public List<GradingMemberDto> Members { get; init; } = [];
@@ -32,7 +27,6 @@ public sealed class GradingResultItem
     public string MemberNumber { get; init; } = string.Empty;
     public string FirstName { get; init; } = string.Empty;
     public string LastName { get; init; } = string.Empty;
-    public Guid CredentialDefinitionId { get; init; }
     public string GradeName { get; init; } = string.Empty;
     public int? TheoryMark { get; init; }
     public bool IsDoubleGrading { get; init; }
@@ -82,7 +76,6 @@ public sealed class GradingEventTicketDto
 {
     public Guid TicketId { get; init; }
     public string TicketName { get; init; } = string.Empty;
-    public Guid? CredentialDefinitionId { get; init; }
     public string? GradeName { get; init; }
     public decimal TotalBooked { get; init; }
     public decimal RemainingPlaces { get; init; }
@@ -99,19 +92,15 @@ public sealed class GradingEventCandidateDto
     public string MemberNumber { get; init; } = string.Empty;
     public string FirstName { get; init; } = string.Empty;
     public string LastName { get; init; } = string.Empty;
-    public Guid? CredentialDefinitionId { get; init; }
     public string? GradeName { get; init; }
     public DateTimeOffset? BookingDate { get; init; }
     public bool HasIssuedCredential { get; init; }
     public Guid? JustGoCredentialId { get; init; }
     public DateOnly? CredentialGrantedDate { get; init; }
-    public string? CurrentGrade { get; init; }
-    public Guid? CurrentGradeDefinitionId { get; init; }
+    public string CurrentGrade { get; init; } = string.Empty;
     public DateOnly? LastGradingDate { get; init; }
-    public string? NextGrade { get; init; }
-    public Guid? NextGradeDefinitionId { get; init; }
-    public string? DoubleGrade { get; init; }
-    public Guid? DoubleGradeDefinitionId { get; init; }
+    public string NextGrade { get; init; } = string.Empty;
+    public string DoubleGrade { get; init; } = string.Empty;
 }
 
 /// <summary>Request body for POST /grading/members/details — batch member credential lookup.</summary>
@@ -127,12 +116,9 @@ public sealed class MemberDetailResult
     public string MemberNumber { get; init; } = string.Empty;
     public string FirstName { get; init; } = string.Empty;
     public string LastName { get; init; } = string.Empty;
-    public string? CurrentGrade { get; init; }
-    public Guid? CurrentGradeDefinitionId { get; init; }
+    public string CurrentGrade { get; init; } = string.Empty;
     public DateOnly? LastGradingDate { get; init; }
-    public string? NextGrade { get; init; }
-    public Guid? NextGradeDefinitionId { get; init; }
-    public string? DoubleGrade { get; init; }
-    public Guid? DoubleGradeDefinitionId { get; init; }
-    public List<Guid> IssuedGradeDefinitionIds { get; init; } = [];
+    public string NextGrade { get; init; } = string.Empty;
+    public string DoubleGrade { get; init; } = string.Empty;
+    public List<string> IssuedGradeNames { get; init; } = [];
 }

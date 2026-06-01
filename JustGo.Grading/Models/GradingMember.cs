@@ -7,11 +7,9 @@ public class GradingMember
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public DateTime? LastGradingDate { get; set; }
-    public string? CurrentGrade { get; set; }
-    public string? NextGrade { get; set; }
-    public Guid? NextGradeDefinitionId { get; set; }
+    public string CurrentGrade { get; set; } = string.Empty;
+    public string NextGrade { get; set; } = string.Empty;
     public string? DoubleGrade { get; set; }
-    public Guid? DoubleGradeDefinitionId { get; set; }
     public bool Grading { get; set; }
     public bool IsDoubleGrading { get; set; }
     public int? TheoryMark { get; set; }

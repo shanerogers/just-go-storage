@@ -210,19 +210,12 @@
                 {
                     if (detailById.TryGetValue(result.JustGoMemberId, out var detail))
                     {
-                        result.CurrentGrade = detail.CurrentGrade ?? "Ungraded";
-                        result.NextGrade = detail.NextGrade ?? "10th Gup";
-                        result.NextGradeDefinitionId = detail.NextGradeDefinitionId;
+                        result.CurrentGrade = detail.CurrentGrade;
+                        result.NextGrade = detail.NextGrade;
                         result.DoubleGrade = detail.DoubleGrade;
-                        result.DoubleGradeDefinitionId = detail.DoubleGradeDefinitionId;
                         result.LastGradingDate = detail.LastGradingDate is { } d
                             ? d.ToDateTime(TimeOnly.MinValue)
                             : null;
-                    }
-                    else
-                    {
-                        result.CurrentGrade = "Ungraded";
-                        result.NextGrade = "10th Gup";
                     }
 
                     // Update any already-selected members with enriched data
@@ -230,19 +223,9 @@
                     {
                         selected.CurrentGrade = result.CurrentGrade;
                         selected.NextGrade = result.NextGrade;
-                        selected.NextGradeDefinitionId = result.NextGradeDefinitionId;
                         selected.DoubleGrade = result.DoubleGrade;
-                        selected.DoubleGradeDefinitionId = result.DoubleGradeDefinitionId;
                         selected.LastGradingDate = result.LastGradingDate;
                     }
-                }
-            }
-            else
-            {
-                foreach (var result in _searchResults.Where(r => r.CurrentGrade == "Loading..."))
-                {
-                    result.CurrentGrade = "Ungraded";
-                    result.NextGrade = "10th Gup";
                 }
             }
 
@@ -251,11 +234,6 @@
         catch (Exception ex)
         {
             Logger.LogError(ex, "Grade enrichment failed");
-            foreach (var result in _searchResults.Where(r => r.CurrentGrade == "Loading..."))
-            {
-                result.CurrentGrade = "Ungraded";
-                result.NextGrade = "10th Gup";
-            }
             await InvokeAsync(StateHasChanged);
         }
     }
@@ -280,9 +258,7 @@
                 LastGradingDate = result.LastGradingDate,
                 CurrentGrade = result.CurrentGrade,
                 NextGrade = result.NextGrade,
-                NextGradeDefinitionId = result.NextGradeDefinitionId,
                 DoubleGrade = result.DoubleGrade,
-                DoubleGradeDefinitionId = result.DoubleGradeDefinitionId,
                 GradingEventDate = EventDate,
             };
         }
@@ -314,12 +290,10 @@
         public string MemberId { get; set; } = string.Empty;
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
-        public string? CurrentGrade { get; set; }
+        public string CurrentGrade { get; set; } = string.Empty;
         public DateOnly? LastGradingDate { get; set; }
-        public string? NextGrade { get; set; }
-        public Guid? NextGradeDefinitionId { get; set; }
-        public string? DoubleGrade { get; set; }
-        public Guid? DoubleGradeDefinitionId { get; set; }
+        public string NextGrade { get; set; } = string.Empty;
+        public string DoubleGrade { get; set; } = string.Empty;
     }
 
     private sealed class SearchResult
@@ -330,9 +304,7 @@
         public string LastName { get; set; } = string.Empty;
         public string CurrentGrade { get; set; } = string.Empty;
         public string NextGrade { get; set; } = string.Empty;
-        public Guid? NextGradeDefinitionId { get; set; }
         public string? DoubleGrade { get; set; }
-        public Guid? DoubleGradeDefinitionId { get; set; }
         public DateTime? LastGradingDate { get; set; }
         public bool AlreadyAttached { get; set; }
     }
@@ -340,12 +312,9 @@
     private sealed class MemberDetailApiResult
     {
         public Guid MemberId { get; set; }
-        public string? CurrentGrade { get; set; }
-        public Guid? CurrentGradeDefinitionId { get; set; }
+        public string CurrentGrade { get; set; } = string.Empty;
         public DateOnly? LastGradingDate { get; set; }
-        public string? NextGrade { get; set; }
-        public Guid? NextGradeDefinitionId { get; set; }
-        public string? DoubleGrade { get; set; }
-        public Guid? DoubleGradeDefinitionId { get; set; }
+        public string NextGrade { get; set; } = string.Empty;
+        public string DoubleGrade { get; set; } = string.Empty;
     }
 }

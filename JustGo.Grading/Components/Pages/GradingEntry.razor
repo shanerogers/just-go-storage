@@ -1,6 +1,7 @@
 @page "/grading"
 @page "/grading/{RouteEventId:guid}"
 @using JustGo.Grading.Models
+@using Humanizer
 @inject IHttpClientFactory HttpClientFactory
 @inject ISnackbar Snackbar
 @inject NavigationManager Navigation
@@ -156,26 +157,30 @@
                                     <MudIcon Icon="@Icons.Material.Filled.Warning" Size="Size.Small"
                                              Color="Color.Error" Title="Within 90 days of last grading" />
                                 }
+                                else if (context.LastGradingDate.HasValue)
+                                {
+                                    <span>(@context.LastGradingDate.Value.Humanize())</span>
+                                }
                             </MudText>
                         </MudTd>
                         <MudTd>
-                            @if (_loadingGrades && context.CurrentGrade is null)
+                            @if (_loadingGrades && string.IsNullOrEmpty(context.CurrentGrade))
                             {
                                 <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
                             }
                             else
                             {
-                                @(context.CurrentGrade ?? "Ungraded")
+                            @context.CurrentGrade
                             }
                         </MudTd>
                         <MudTd>
-                            @if (_loadingGrades && context.NextGrade is null)
+                            @if (_loadingGrades && string.IsNullOrEmpty(context.NextGrade))
                             {
                                 <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
                             }
                             else
                             {
-                                @(context.NextGrade ?? "10th Gup")
+                                @context.NextGrade
                             }
                         </MudTd>
                         <MudTd>
@@ -460,11 +465,9 @@
                 FirstName = c.FirstName,
                 LastName = c.LastName,
                 LastGradingDate = c.LastGradingDate is { } d ? d.ToDateTime(TimeOnly.MinValue) : null,
-                CurrentGrade = c.CurrentGrade ?? (_loadingGrades ? null : "Ungraded"),
-                NextGrade = c.NextGrade ?? (_loadingGrades ? null : "10th Gup"),
-                NextGradeDefinitionId = c.NextGradeDefinitionId,
+                CurrentGrade = c.CurrentGrade,
+                NextGrade = c.NextGrade,
                 DoubleGrade = c.DoubleGrade,
-                DoubleGradeDefinitionId = c.DoubleGradeDefinitionId,
                 GradingEventDate = eventDate,
                 BookingId = c.BookingId,
                 Grading = true,
@@ -645,12 +648,6 @@
             if (!response.IsSuccessStatusCode)
             {
                 Logger.LogWarning("Grade enrichment failed: {StatusCode}", (int)response.StatusCode);
-                // Fall back gracefully — members still show with basic data
-                foreach (var m in _members.Where(m => m.CurrentGrade is null))
-                {
-                    m.CurrentGrade = "Ungraded";
-                    m.NextGrade = "10th Gup";
-                }
                 _loadingGrades = false;
                 await InvokeAsync(StateHasChanged);
                 return;
@@ -666,19 +663,12 @@
             {
                 if (!detailById.TryGetValue(member.JustGoMemberId, out var detail))
                 {
-                    if (member.CurrentGrade is null)
-                    {
-                        member.CurrentGrade = "Ungraded";
-                        member.NextGrade = "10th Gup";
-                    }
                     continue;
                 }
 
-                member.CurrentGrade = detail.CurrentGrade ?? "Ungraded";
-                member.NextGrade = detail.NextGrade ?? "10th Gup";
-                member.NextGradeDefinitionId = detail.NextGradeDefinitionId;
+                member.CurrentGrade = detail.CurrentGrade;
+                member.NextGrade = detail.NextGrade;
                 member.DoubleGrade = detail.DoubleGrade;
-                member.DoubleGradeDefinitionId = detail.DoubleGradeDefinitionId;
                 member.LastGradingDate = detail.LastGradingDate is { } d
                     ? d.ToDateTime(TimeOnly.MinValue)
                     : null;
@@ -690,11 +680,6 @@
         catch (Exception ex)
         {
             Logger.LogError(ex, "Grade enrichment failed");
-            foreach (var m in _members.Where(m => m.CurrentGrade is null))
-            {
-                m.CurrentGrade = "Ungraded";
-                m.NextGrade = "10th Gup";
-            }
             _loadingGrades = false;
             await InvokeAsync(StateHasChanged);
         }
@@ -717,10 +702,9 @@
                 EventDate = _selectedEvent?.Date?.ToString("yyyy-MM-dd") ?? DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd"),
                 Results = gradingMembers.Select(m =>
                 {
-                    var targetDefId = m.IsDoubleGrading && m.DoubleGradeDefinitionId.HasValue
-                        ? m.DoubleGradeDefinitionId.Value
-                        : m.NextGradeDefinitionId ?? Guid.Empty;
-                    var ticket = _eventTickets.FirstOrDefault(t => t.CredentialDefinitionId == targetDefId);
+                    var targetGrade = m.IsDoubleGrading ? m.DoubleGrade ?? m.NextGrade : m.NextGrade;
+                    var ticket = _eventTickets.FirstOrDefault(t =>
+                        string.Equals(t.GradeName, targetGrade, StringComparison.OrdinalIgnoreCase));
 
                     return new
                     {
@@ -730,8 +714,7 @@
                         MemberNumber = m.MemberId,
                         FirstName = m.FirstName,
                         LastName = m.LastName,
-                        CredentialDefinitionId = targetDefId,
-                        GradeName = m.IsDoubleGrading ? m.DoubleGrade ?? m.NextGrade : m.NextGrade,
+                        GradeName = targetGrade,
                         TheoryMark = m.TheoryMark,
                         IsDoubleGrading = m.IsDoubleGrading,
                     };
@@ -793,27 +776,21 @@
         public string? GradeName { get; set; }
         public bool HasIssuedCredential { get; set; }
         public DateTimeOffset? BookingDate { get; set; }
-        public string? CurrentGrade { get; set; }
-        public Guid? CurrentGradeDefinitionId { get; set; }
+        public string CurrentGrade { get; set; } = string.Empty;
         public DateOnly? LastGradingDate { get; set; }
-        public string? NextGrade { get; set; }
-        public Guid? NextGradeDefinitionId { get; set; }
-        public string? DoubleGrade { get; set; }
-        public Guid? DoubleGradeDefinitionId { get; set; }
+        public string NextGrade { get; set; } = string.Empty;
+        public string DoubleGrade { get; set; } = string.Empty;
     }
 
     private sealed class MemberDetailApiResult
     {
         public Guid MemberId { get; set; }
         public string MemberNumber { get; set; } = string.Empty;
-        public string? CurrentGrade { get; set; }
-        public Guid? CurrentGradeDefinitionId { get; set; }
+        public string CurrentGrade { get; set; } = string.Empty;
         public DateOnly? LastGradingDate { get; set; }
-        public string? NextGrade { get; set; }
-        public Guid? NextGradeDefinitionId { get; set; }
-        public string? DoubleGrade { get; set; }
-        public Guid? DoubleGradeDefinitionId { get; set; }
-        public List<Guid> IssuedGradeDefinitionIds { get; set; } = [];
+        public string NextGrade { get; set; } = string.Empty;
+        public string DoubleGrade { get; set; } = string.Empty;
+        public List<string> IssuedGradeNames { get; set; } = [];
     }
 
     public class EventResult

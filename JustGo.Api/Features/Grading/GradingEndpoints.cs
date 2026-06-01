@@ -20,7 +20,7 @@ public static class GradingEndpoints
         {
             var group = app.MapGroup("/grading").WithTags("Grading");
 
-            group.MapGet("/grades", () => Results.Ok(GradeDefinitions.All))
+            group.MapGet("/grades", () => Results.Ok(Grade.All.Select(g => new { g.Name, g.Rank, g.IsGup, g.IsDan })))
                 .WithName("GetGradeDefinitions")
                 .WithSummary("Get all Gup and Dan grade definitions in rank order");
 
@@ -199,6 +199,10 @@ public static class GradingEndpoints
                 ticketById.TryGetValue(c.TicketId, out var ticket);
                 var grade = ResolveGradeDefinition(c.CourseName) ?? ResolveGradeDefinition(ticket?.TicketName);
 
+                // Derive current/next/double from the ticket grade using the smart enum
+                var resolvedGrade = Grade.FromName(grade);
+                var currentGrade = resolvedGrade?.Previous ?? Grade.UnGraded;
+
                 return new GradingEventCandidateDto
                 {
                     BookingId = c.BookingId,
@@ -208,9 +212,11 @@ public static class GradingEndpoints
                     MemberNumber = c.MemberNumber ?? string.Empty,
                     FirstName = c.FirstName ?? string.Empty,
                     LastName = c.LastName ?? string.Empty,
-                    CredentialDefinitionId = grade?.DefinitionId,
-                    GradeName = grade?.Name,
+                    GradeName = grade,
                     BookingDate = c.BookingDate,
+                    CurrentGrade = currentGrade.Name,
+                    NextGrade = currentGrade.Next?.Name ?? string.Empty,
+                    DoubleGrade = currentGrade.Double?.Name ?? string.Empty,
                 };
             })
             .OrderBy(c => c.LastName)
@@ -239,20 +245,16 @@ public static class GradingEndpoints
 
         var result = memberDetails.Select(detail =>
         {
-            var currentGrade = GradeDefinitions.GetCurrentGrade(detail.Credentials);
-            var lastGradingDate = GradeDefinitions.GetLastGradingDate(detail.Credentials);
-            var nextGrade = currentGrade is not null
-                ? GradeDefinitions.GetNextGrade(currentGrade.DefinitionId)
-                : GradeDefinitions.All[0];
-            var doubleGrade = currentGrade is not null
-                ? GradeDefinitions.GetDoubleGrade(currentGrade.DefinitionId)
-                : GradeDefinitions.All.Count > 1 ? GradeDefinitions.All[1] : null;
+            var currentGrade = Grade.FromCredentials(detail.Credentials);
+            var lastGradingDate = Grade.GetLastGradingDate(detail.Credentials);
+            var nextGrade = currentGrade.Next;
+            var doubleGrade = currentGrade.Double;
 
-            // Collect all issued grade credentials so the UI can check "already graded"
-            var issuedCredentialIds = (detail.Credentials ?? [])
+            // Collect all issued grade credential names so the UI can check "already graded"
+            var issuedGradeNames = (detail.Credentials ?? [])
                 .Where(c => string.Equals(c.Status, "Active", StringComparison.OrdinalIgnoreCase)
-                    && GradeDefinitions.GetGradeName(c.DefinitionId) is not null)
-                .Select(c => c.DefinitionId)
+                    && Grade.IsKnownGrade(c.Name))
+                .Select(c => c.Name!)
                 .ToList();
 
             return new MemberDetailResult
@@ -261,14 +263,11 @@ public static class GradingEndpoints
                 MemberNumber = detail.MemberId ?? string.Empty,
                 FirstName = detail.FirstName ?? string.Empty,
                 LastName = detail.LastName ?? string.Empty,
-                CurrentGrade = currentGrade?.Name,
-                CurrentGradeDefinitionId = currentGrade?.DefinitionId,
+                CurrentGrade = currentGrade.Name,
                 LastGradingDate = lastGradingDate,
-                NextGrade = nextGrade?.Name,
-                NextGradeDefinitionId = nextGrade?.DefinitionId,
-                DoubleGrade = doubleGrade?.Name,
-                DoubleGradeDefinitionId = doubleGrade?.DefinitionId,
-                IssuedGradeDefinitionIds = issuedCredentialIds,
+                NextGrade = nextGrade?.Name ?? string.Empty,
+                DoubleGrade = doubleGrade?.Name ?? string.Empty,
+                IssuedGradeNames = issuedGradeNames,
             };
         }).ToList();
 
@@ -352,7 +351,7 @@ public static class GradingEndpoints
 
         foreach (var item in request.Results)
         {
-            var gradeName = GradeDefinitions.GetGradeName(item.CredentialDefinitionId) ?? item.GradeName;
+            var gradeName = item.GradeName;
             var bookingId = item.BookingId;
             var bookingCreated = false;
 
@@ -411,7 +410,7 @@ public static class GradingEndpoints
                 }
             }
 
-            var existingCredential = FindIssuedCredential(memberDetail.Credentials, item.CredentialDefinitionId);
+            var existingCredential = FindIssuedCredentialByName(memberDetail.Credentials, gradeName);
             if (existingCredential is not null)
             {
                 details.Add(new GradingResultStatus
@@ -569,14 +568,13 @@ public static class GradingEndpoints
 
     private static GradingEventTicketDto ToEventTicketState(EventTicketDto ticket)
     {
-        var grade = ResolveGradeDefinition(ticket.TicketName);
+        var gradeName = ResolveGradeDefinition(ticket.TicketName);
 
         return new GradingEventTicketDto
         {
             TicketId = ticket.Id,
             TicketName = ticket.TicketName ?? string.Empty,
-            CredentialDefinitionId = grade?.DefinitionId,
-            GradeName = grade?.Name,
+            GradeName = gradeName,
             TotalBooked = ticket.TotalBooked,
             RemainingPlaces = ticket.RemainingPlaces,
             TicketCode = ticket.TicketCode,
@@ -590,20 +588,14 @@ public static class GradingEndpoints
         IReadOnlyDictionary<Guid, MemberDetailDto> memberDetailById)
     {
         ticketById.TryGetValue(candidate.TicketId, out var ticket);
-        var grade = ResolveGradeDefinition(candidate.CourseName) ?? ResolveGradeDefinition(ticket?.TicketName);
+        var gradeName = ResolveGradeDefinition(candidate.CourseName) ?? ResolveGradeDefinition(ticket?.TicketName);
 
         memberDetailById.TryGetValue(candidate.CandidateId, out var memberDetail);
-        var issuedCredential = grade is null
+        var issuedCredential = gradeName is null
             ? null
-            : FindIssuedCredential(memberDetail?.Credentials, grade.DefinitionId);
-        var currentGrade = memberDetail is not null ? GradeDefinitions.GetCurrentGrade(memberDetail.Credentials) : null;
-        var lastGradingDate = memberDetail is not null ? GradeDefinitions.GetLastGradingDate(memberDetail.Credentials) : null;
-        var nextGrade = currentGrade is not null
-            ? GradeDefinitions.GetNextGrade(currentGrade.DefinitionId)
-            : GradeDefinitions.All[0];
-        var doubleGrade = currentGrade is not null
-            ? GradeDefinitions.GetDoubleGrade(currentGrade.DefinitionId)
-            : GradeDefinitions.All.Count > 1 ? GradeDefinitions.All[1] : null;
+            : FindIssuedCredentialByName(memberDetail?.Credentials, gradeName);
+        var currentGrade = Grade.FromCredentials(memberDetail?.Credentials);
+        var lastGradingDate = Grade.GetLastGradingDate(memberDetail?.Credentials);
 
         return new GradingEventCandidateDto
         {
@@ -614,40 +606,37 @@ public static class GradingEndpoints
             MemberNumber = candidate.MemberNumber ?? memberDetail?.MemberId ?? string.Empty,
             FirstName = candidate.FirstName ?? memberDetail?.FirstName ?? string.Empty,
             LastName = candidate.LastName ?? memberDetail?.LastName ?? string.Empty,
-            CredentialDefinitionId = grade?.DefinitionId,
-            GradeName = grade?.Name,
+            GradeName = gradeName,
             BookingDate = candidate.BookingDate,
             HasIssuedCredential = issuedCredential is not null,
             JustGoCredentialId = issuedCredential?.Id,
             CredentialGrantedDate = NormalizeDate(issuedCredential?.GrantedDate),
-            CurrentGrade = currentGrade?.Name,
-            CurrentGradeDefinitionId = currentGrade?.DefinitionId,
+            CurrentGrade = currentGrade.Name,
             LastGradingDate = lastGradingDate,
-            NextGrade = nextGrade?.Name,
-            NextGradeDefinitionId = nextGrade?.DefinitionId,
-            DoubleGrade = doubleGrade?.Name,
-            DoubleGradeDefinitionId = doubleGrade?.DefinitionId,
+            NextGrade = currentGrade.Next?.Name ?? string.Empty,
+            DoubleGrade = currentGrade.Double?.Name ?? string.Empty,
         };
     }
 
-    private static GradeDefinition? ResolveGradeDefinition(string? value)
+    private static string? ResolveGradeDefinition(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
             return null;
         }
 
-        return GradeDefinitions.All
-            .OrderByDescending(grade => grade.Name.Length)
-            .FirstOrDefault(grade => value.Contains(grade.Name, StringComparison.OrdinalIgnoreCase));
+        return Grade.All
+            .OrderByDescending(g => g.Name.Length)
+            .FirstOrDefault(g => value.Contains(g.Name, StringComparison.OrdinalIgnoreCase))
+            ?.Name;
     }
 
-    private static MemberCredentialDtoV2_2? FindIssuedCredential(
+    private static MemberCredentialDtoV2_2? FindIssuedCredentialByName(
         IEnumerable<MemberCredentialDtoV2_2>? credentials,
-        Guid definitionId)
+        string gradeName)
     {
         return credentials?.FirstOrDefault(credential =>
-            credential.DefinitionId == definitionId &&
+            string.Equals(credential.Name, gradeName, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(credential.Status, "Active", StringComparison.OrdinalIgnoreCase));
     }
 
