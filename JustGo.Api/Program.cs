@@ -40,6 +40,7 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler(_ => { });
 builder.Services.AddAntiforgery();
 builder.Services.AddTransient(_ => TimeProvider.System);
+builder.Services.AddOpenApi();
 
 builder.Services.AddTickerQ(options =>
 {
@@ -107,6 +108,9 @@ application.MapHealthChecksUI(options =>
 });
 
 application.UseTickerQ();
+
+application.MapOpenApi();
+application.MapScalarApiReference();
 
 application
     .MapAuthEndpoints()
