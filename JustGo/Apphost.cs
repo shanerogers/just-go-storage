@@ -23,7 +23,6 @@ var api = builder.AddProject<Projects.JustGo_Api>("api")
     .WithHttpHealthCheck("/health")
     .WithUrlForEndpoint("http", endpoint => new()
     {
-        DisplayOrder = 1,
         Url = "/tickerq/dashboard",
         Endpoint = endpoint,
         DisplayText = "TickerQ Dashboard"

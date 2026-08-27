@@ -1,7 +1,8 @@
-<Project Sdk="Aspire.AppHost.Sdk/13.3.5">
+<Project Sdk="Aspire.AppHost.Sdk/13.5.3">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <UserSecretsId>1e6b8c9d-4f2a-4b6e-8a1c-5d9e3f7a2b0c</UserSecretsId>
+    <AspireUseCliBundle>true</AspireUseCliBundle>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\JustGo.Api\JustGo.Api.csproj" IsAspireProjectResource="true" />
