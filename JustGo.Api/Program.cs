@@ -110,11 +110,26 @@ application.MapHealthChecksUI(options =>
 
 application.UseTickerQ();
 
-application.MapOpenApi();
-application.MapScalarApiReference(options =>
+// Development-only: inject API key into Scalar requests
+if (application.Environment.IsDevelopment())
 {
-    options.WithOpenApiRoutePattern("/openapi/v1.json");
-});
+    var apiKey = builder.Configuration["JustGo:ApiKey"];
+    if (!string.IsNullOrEmpty(apiKey))
+    {
+        application.Use(async (context, next) =>
+        {
+            if (context.Request.Path.StartsWithSegments("/scalar"))
+            {
+                // Scalar UI can use this via X-Api-Key header for direct requests
+                context.Response.Headers["X-Default-Api-Key"] = apiKey;
+            }
+            await next();
+        });
+    }
+}
+
+application.MapOpenApi();
+application.MapScalarApiReference(options => { options.WithOpenApiRoutePattern("/openapi/v1.json"); });
 
 application
     .MapAuthEndpoints()
@@ -137,3 +152,7 @@ if (application.Environment.IsDevelopment())
 }
 
 await application.RunAsync();
+
+
+
+
