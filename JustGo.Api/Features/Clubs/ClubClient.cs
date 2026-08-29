@@ -1,6 +1,5 @@
 using JustGo.Integrations.JustGo.Features.Clubs.Models;
 using JustGo.Integrations.JustGo.Services;
-using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Options;
 
 namespace JustGo.Api.Features.Clubs;
@@ -19,15 +18,14 @@ public sealed class ClubClient(HttpClient httpClient, IOptions<JustGoOptions> op
 
     public Task<object> FindClubsByAttributesAsync(FindClubsRequest request, CancellationToken ct)
     {
-        var query = new Dictionary<string, string?>
+        var body = new Dictionary<string, object?>
         {
-            [PageNumber] = request.PageNumber.ToString(),
-            [PageSize] = request.PageSize.ToString()
+            [PageNumber] = request.PageNumber,
+            [PageSize] = request.PageSize
         };
-        if (request.ClubName is not null) query["ClubName"] = request.ClubName;
+        if (request.ClubName is not null) body["ClubName"] = request.ClubName;
 
-        var uri = QueryHelpers.AddQueryString($"/api/{ApiVersion}/Clubs/FindByAttributes", query);
-        return GetAsync<object>(uri, ct);
+        return PostAsync<object>($"/api/{ApiVersion}/Clubs/FindByAttributes", body, ct);
     }
 
     public Task<ClubMemberAddedResponse> AddClubMemberAsync(
