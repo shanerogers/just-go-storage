@@ -24,6 +24,7 @@ using ZiggyCreatures.Caching.Fusion.Backplane;
 using ZiggyCreatures.Caching.Fusion.Backplane.StackExchangeRedis;
 using ZiggyCreatures.Caching.Fusion.Serialization;
 using ZiggyCreatures.Caching.Fusion.Serialization.SystemTextJson;
+using Scalar.AspNetCore;
 using JustGo.Api;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -110,7 +111,10 @@ application.MapHealthChecksUI(options =>
 application.UseTickerQ();
 
 application.MapOpenApi();
-application.MapScalarApiReference();
+application.MapScalarApiReference(options =>
+{
+    options.WithOpenApiRoutePattern("/openapi/v1.json");
+});
 
 application
     .MapAuthEndpoints()
