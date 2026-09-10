@@ -21,15 +21,14 @@ public sealed class ClubClient(HttpClient httpClient, IOptions<JustGoOptions> op
         var body = new Dictionary<string, object?>
         {
             [PageNumber] = request.PageNumber,
-            [PageSize] = request.PageSize
+            [PageSize] = request.PageSize,
+            ["ClubName"] = request.ClubName
         };
-        if (request.ClubName is not null) body["ClubName"] = request.ClubName;
 
         return PostAsync<object>($"/api/{ApiVersion}/Clubs/FindByAttributes", body, ct);
     }
 
-    public Task<ClubMemberAddedResponse> AddClubMemberAsync(
-        AddClubMemberRequest request, CancellationToken ct) =>
+    public Task<ClubMemberAddedResponse> AddClubMemberAsync(AddClubMemberRequest request, CancellationToken ct) =>
         PostAsync<ClubMemberAddedResponse>($"/api/{ApiVersion}/Clubs/AddClubMember",
             new { id = request.ClubId, member_Id = request.MemberId }, ct);
 }
