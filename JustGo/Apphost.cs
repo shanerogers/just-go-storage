@@ -23,7 +23,24 @@ var api = builder.AddProject<Projects.JustGo_Api>("api")
     .WithHttpHealthCheck("/health")
     .WithUrlForEndpoint("http", endpoint => new()
     {
-        DisplayOrder = 1,
+        Url = "/scalar/ui",
+        Endpoint = endpoint,
+        DisplayText = "Scalar API Reference"
+    })
+    .WithUrlForEndpoint("http", endpoint => new()
+    {
+        Url = "/scalar/justgo-upstream",
+        Endpoint = endpoint,
+        DisplayText = "Scalar (JustGo Upstream Spec)"
+    })
+    .WithUrlForEndpoint("http", endpoint => new()
+    {
+        Url = "/openapi/v1.json",
+        Endpoint = endpoint,
+        DisplayText = "OpenAPI Document"
+    })
+    .WithUrlForEndpoint("http", endpoint => new()
+    {
         Url = "/tickerq/dashboard",
         Endpoint = endpoint,
         DisplayText = "TickerQ Dashboard"

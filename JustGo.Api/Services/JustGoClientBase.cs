@@ -26,7 +26,7 @@ public abstract class JustGoClientBase(HttpClient httpClient, IOptions<JustGoOpt
     protected async Task<T> GetAsync<T>(string uri, CancellationToken ct)
     {
         var response = await httpClient.GetAsync(uri, ct).ConfigureAwait(false);
-        await EnsureSuccessAsync(response, ct);
+        await EnsureSuccessAsync(response, "GET", uri, ct);
         return await response.Content.ReadFromJsonAsync<T>(JsonOptions, ct).ConfigureAwait(false)
                ?? throw new InvalidOperationException($"Null response from GET {uri}.");
     }
@@ -34,7 +34,7 @@ public abstract class JustGoClientBase(HttpClient httpClient, IOptions<JustGoOpt
     protected async Task<T> PostAsync<T>(string uri, object body, CancellationToken ct)
     {
         var response = await httpClient.PostAsJsonAsync(uri, body, ct).ConfigureAwait(false);
-        await EnsureSuccessAsync(response, ct);
+        await EnsureSuccessAsync(response, "POST", uri, ct);
         return await response.Content.ReadFromJsonAsync<T>(JsonOptions, ct).ConfigureAwait(false)
                ?? throw new InvalidOperationException($"Null response from POST {uri}.");
     }
@@ -42,7 +42,7 @@ public abstract class JustGoClientBase(HttpClient httpClient, IOptions<JustGoOpt
     protected async Task<T> PutAsync<T>(string uri, object body, CancellationToken ct)
     {
         var response = await httpClient.PutAsJsonAsync(uri, body, ct).ConfigureAwait(false);
-        await EnsureSuccessAsync(response, ct);
+        await EnsureSuccessAsync(response, "PUT", uri, ct);
         return await response.Content.ReadFromJsonAsync<T>(JsonOptions, ct).ConfigureAwait(false)
                ?? throw new InvalidOperationException($"Null response from PUT {uri}.");
     }
@@ -50,25 +50,25 @@ public abstract class JustGoClientBase(HttpClient httpClient, IOptions<JustGoOpt
     protected async Task PutNoContentAsync(string uri, object body, CancellationToken ct)
     {
         var response = await httpClient.PutAsJsonAsync(uri, body, ct).ConfigureAwait(false);
-        await EnsureSuccessAsync(response, ct);
+        await EnsureSuccessAsync(response, "PUT", uri, ct);
     }
 
     protected async Task DeleteNoContentAsync(string uri, CancellationToken ct)
     {
         var response = await httpClient.DeleteAsync(uri, ct).ConfigureAwait(false);
-        await EnsureSuccessAsync(response, ct);
+        await EnsureSuccessAsync(response, "DELETE", uri, ct);
     }
 
     protected async Task PostNoContentAsync(string uri, object body, CancellationToken ct)
     {
         var response = await httpClient.PostAsJsonAsync(uri, body, ct).ConfigureAwait(false);
-        await EnsureSuccessAsync(response, ct);
+        await EnsureSuccessAsync(response, "POST", uri, ct);
     }
 
     protected async Task PostFormAsync(string uri, HttpContent content, CancellationToken ct)
     {
         var response = await httpClient.PostAsync(uri, content, ct).ConfigureAwait(false);
-        await EnsureSuccessAsync(response, ct);
+        await EnsureSuccessAsync(response, "POST", uri, ct);
     }
 
     protected async Task DeleteNoContentAsync(string uri, object body, CancellationToken ct)
@@ -78,13 +78,18 @@ public abstract class JustGoClientBase(HttpClient httpClient, IOptions<JustGoOpt
             Content = JsonContent.Create(body)
         };
         var response = await httpClient.SendAsync(request, ct).ConfigureAwait(false);
-        await EnsureSuccessAsync(response, ct);
+        await EnsureSuccessAsync(response, "DELETE", uri, ct);
     }
 
-    private static async Task EnsureSuccessAsync(HttpResponseMessage response, CancellationToken ct)
+    private static async Task EnsureSuccessAsync(HttpResponseMessage response, string method, string uri, CancellationToken ct)
     {
-        if (response.IsSuccessStatusCode) return;
+        if (response.IsSuccessStatusCode)
+        {
+            return;
+        }
+
         var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        throw new JustGoApiException((int)response.StatusCode, body);
+        var fullUri = response.RequestMessage?.RequestUri?.ToString() ?? uri;
+        throw new JustGoApiException((int)response.StatusCode, body, method, fullUri);
     }
 }

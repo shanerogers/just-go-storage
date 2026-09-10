@@ -10,6 +10,7 @@ using JustGo.Api.Features.Memberships;
 using JustGo.Api.Features.Organisations;
 using JustGo.Api.Features.Rewards;
 using JustGo.Api.Features.Shops;
+using JustGo.Api.Features.JustGoUpstream;
 using JustGo.Api.Health;
 using HealthChecks.UI.Client;
 using Microsoft.EntityFrameworkCore;
@@ -24,7 +25,9 @@ using ZiggyCreatures.Caching.Fusion.Backplane;
 using ZiggyCreatures.Caching.Fusion.Backplane.StackExchangeRedis;
 using ZiggyCreatures.Caching.Fusion.Serialization;
 using ZiggyCreatures.Caching.Fusion.Serialization.SystemTextJson;
+using Scalar.AspNetCore;
 using JustGo.Api;
+using JustGo.Integrations.JustGo.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -40,6 +43,7 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler(_ => { });
 builder.Services.AddAntiforgery();
 builder.Services.AddTransient(_ => TimeProvider.System);
+builder.Services.AddOpenApi();
 
 builder.Services.AddTickerQ(options =>
 {
@@ -108,6 +112,49 @@ application.MapHealthChecksUI(options =>
 
 application.UseTickerQ();
 
+// Development-only: inject API key into Scalar requests
+if (application.Environment.IsDevelopment())
+{
+    var apiKey = builder.Configuration["JustGo:ApiKey"];
+    if (!string.IsNullOrEmpty(apiKey))
+    {
+        application.Use(async (context, next) =>
+        {
+            if (context.Request.Path.StartsWithSegments("/scalar"))
+            {
+                // Scalar UI can use this via X-Api-Key header for direct requests
+                context.Response.Headers["X-Default-Api-Key"] = apiKey;
+            }
+            await next();
+        });
+    }
+}
+
+application.MapOpenApi();
+application.MapScalarApiReference(options =>
+{
+    options.WithOpenApiRoutePattern("/openapi/v1.json");
+    options.WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
+});
+
+if (application.Environment.IsDevelopment())
+{
+    application.MapJustGoUpstreamEndpoints();
+    application.MapScalarApiReference("/scalar/justgo-upstream", async (options, context) =>
+    {
+        var token = await context
+            .RequestServices.GetRequiredService<IJustGoTokenService>()
+            .GetTokenAsync(context.RequestAborted);
+
+        options.EnablePersistentAuthentication();
+        options.AddPreferredSecuritySchemes("Bearer");
+        options.WithTitle("JustGo API (Upstream Sandbox)");
+        options.WithOpenApiRoutePattern("/openapi/justgo-upstream.json");
+        options.WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
+        options.AddApiKeyAuthentication("Bearer", scheme => scheme.Value = $"Bearer {token}");
+    });
+}
+
 application
     .MapAuthEndpoints()
     .MapClubEndpoints()
@@ -129,3 +176,7 @@ if (application.Environment.IsDevelopment())
 }
 
 await application.RunAsync();
+
+
+
+

@@ -15,7 +15,10 @@ public sealed class ShopClient(HttpClient httpClient, IOptions<JustGoOptions> op
             ["PageNumber"] = request.PageNumber.ToString(),
             ["PageSize"] = request.PageSize.ToString()
         };
-        if (request.Name is not null) query["Name"] = request.Name;
+        if (request.Name is not null)
+        {
+            query["Name"] = request.Name;
+        }
 
         var uri = QueryHelpers.AddQueryString($"/api/{ApiVersion}/Shops/FindByAttributes", query);
         return GetAsync<object>(uri, ct);
@@ -34,7 +37,10 @@ public sealed class ShopClient(HttpClient httpClient, IOptions<JustGoOptions> op
             ["PageNumber"] = request.PageNumber.ToString(),
             ["PageSize"] = request.PageSize.ToString()
         };
-        if (request.MemberId is not null) query["memberId"] = request.MemberId.Value.ToString();
+        if (request.MemberId is not null)
+        {
+            query["memberId"] = request.MemberId.Value.ToString();
+        }
 
         var uri = QueryHelpers.AddQueryString($"/api/{ApiVersion}/Shops/Orders/FindByAttributes", query);
         return GetAsync<object>(uri, ct);
