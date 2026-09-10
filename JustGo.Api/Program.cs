@@ -137,29 +137,21 @@ application.MapScalarApiReference(options =>
     options.WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
 });
 
-// Development-only: second Scalar UI showing JustGo's own upstream spec, proxied
-// same-origin through this API (with its bearer token) to avoid browser CORS.
 if (application.Environment.IsDevelopment())
 {
     application.MapJustGoUpstreamEndpoints();
     application.MapScalarApiReference("/scalar/justgo-upstream", async (options, context) =>
     {
+        var token = await context
+            .RequestServices.GetRequiredService<IJustGoTokenService>()
+            .GetTokenAsync(context.RequestAborted);
+
+        options.EnablePersistentAuthentication();
+        options.AddPreferredSecuritySchemes("Bearer");
         options.WithTitle("JustGo API (Upstream Sandbox)");
         options.WithOpenApiRoutePattern("/openapi/justgo-upstream.json");
         options.WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
-
-        // Remember whatever auth value is in Scalar's UI across page reloads, and pre-fill it
-        // with a live token on every load so it's usually a no-op. JustGo's upstream spec
-        // declares its "Bearer" scheme as an apiKey-style header (not http-bearer), so Scalar
-        // sends this value verbatim as the Authorization header -- it needs the "Bearer "
-        // prefix included. Note the reverse proxy above already re-authenticates every
-        // forwarded request server-side regardless of what's sent here, so this is purely for
-        // convenience (e.g. copying a working C# snippet that already has a valid token).
-        options.EnablePersistentAuthentication();
-        var tokenService = context.RequestServices.GetRequiredService<IJustGoTokenService>();
-        var token = await tokenService.GetTokenAsync(context.RequestAborted);
         options.AddApiKeyAuthentication("Bearer", scheme => scheme.Value = $"Bearer {token}");
-        options.AddPreferredSecuritySchemes("Bearer");
     });
 }
 

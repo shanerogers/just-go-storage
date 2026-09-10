@@ -23,7 +23,7 @@ dotnet_diagnostic.CS8019.severity = error
 
 # ── Formatting & layout ──────────────────────────────────────────────────────
 csharp_style_namespace_declarations = file_scoped:warning
-csharp_prefer_braces = when_multiline:suggestion
+csharp_prefer_braces = true:warning
 csharp_style_expression_bodied_methods = when_on_single_line:suggestion
 csharp_style_expression_bodied_properties = true:suggestion
 csharp_style_expression_bodied_accessors = true:suggestion
