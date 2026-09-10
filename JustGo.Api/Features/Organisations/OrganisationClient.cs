@@ -21,7 +21,10 @@ public sealed class OrganisationClient(HttpClient httpClient, IOptions<JustGoOpt
             ["PageNumber"] = request.PageNumber.ToString(),
             ["PageSize"] = request.PageSize.ToString()
         };
-        if (request.Name is not null) query["Name"] = request.Name;
+        if (request.Name is not null)
+        {
+            query["Name"] = request.Name;
+        }
 
         var uri = QueryHelpers.AddQueryString($"/api/{ApiVersion}/Organisation/FindByAttributes", query);
         return GetAsync<object>(uri, ct);
