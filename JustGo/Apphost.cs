@@ -29,6 +29,12 @@ var api = builder.AddProject<Projects.JustGo_Api>("api")
     })
     .WithUrlForEndpoint("http", endpoint => new()
     {
+        Url = "/scalar/justgo-upstream",
+        Endpoint = endpoint,
+        DisplayText = "Scalar (JustGo Upstream Spec)"
+    })
+    .WithUrlForEndpoint("http", endpoint => new()
+    {
         Url = "/openapi/v1.json",
         Endpoint = endpoint,
         DisplayText = "OpenAPI Document"

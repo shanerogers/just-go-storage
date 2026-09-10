@@ -45,7 +45,8 @@ internal static class JustGoClientExtensions
             services.AddHttpClient<IMemberClient, MemberClient>(configureJustGoClient),
             services.AddHttpClient<IMembershipClient, MembershipClient>(configureJustGoClient),
             services.AddHttpClient<IOrganisationClient, OrganisationClient>(configureJustGoClient),
-            services.AddHttpClient<IRewardClient, RewardClient>(configureJustGoClient)
+            services.AddHttpClient<IRewardClient, RewardClient>(configureJustGoClient),
+            services.AddHttpClient("JustGoUpstreamProxy", configureJustGoClient)
         ];
 
         foreach (var builder in httpClientBuilders)

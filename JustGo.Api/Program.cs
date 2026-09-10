@@ -10,6 +10,7 @@ using JustGo.Api.Features.Memberships;
 using JustGo.Api.Features.Organisations;
 using JustGo.Api.Features.Rewards;
 using JustGo.Api.Features.Shops;
+using JustGo.Api.Features.JustGoUpstream;
 using JustGo.Api.Health;
 using HealthChecks.UI.Client;
 using Microsoft.EntityFrameworkCore;
@@ -130,6 +131,18 @@ if (application.Environment.IsDevelopment())
 
 application.MapOpenApi();
 application.MapScalarApiReference(options => { options.WithOpenApiRoutePattern("/openapi/v1.json"); });
+
+// Development-only: second Scalar UI showing JustGo's own upstream spec, proxied
+// same-origin through this API (with its bearer token) to avoid browser CORS.
+if (application.Environment.IsDevelopment())
+{
+    application.MapJustGoUpstreamEndpoints();
+    application.MapScalarApiReference("/scalar/justgo-upstream", options =>
+    {
+        options.WithTitle("JustGo API (Upstream Sandbox)");
+        options.WithOpenApiRoutePattern("/openapi/justgo-upstream.json");
+    });
+}
 
 application
     .MapAuthEndpoints()
