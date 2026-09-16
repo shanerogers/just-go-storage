@@ -36,7 +36,6 @@ internal static class ApiResource
             return api
                 .WithUrlForEndpoint("http", endpoint => new()
                 {
-                    DisplayOrder = 1,
                     Url = "/tickerq/dashboard",
                     Endpoint = endpoint,
                     DisplayText = "TickerQ Dashboard"

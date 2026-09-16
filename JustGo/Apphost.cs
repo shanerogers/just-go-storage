@@ -1,3 +1,5 @@
+using JustGo;
+
 var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions
 {
     Args = args,
