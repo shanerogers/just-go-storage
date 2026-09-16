@@ -367,7 +367,7 @@ public static class GradingEndpoints
         return Results.Ok(response);
     }
 
-    private static async Task<IResult> SubmitGradingAsync(
+    internal static async Task<IResult> SubmitGradingAsync(
         GradingSubmitRequest request,
         IEventClient eventClient,
         IMemberClient memberClient,
