@@ -7,6 +7,9 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/Dotnet.gitignore
 
+# Ad-hoc local build/log output
+build.log
+
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/

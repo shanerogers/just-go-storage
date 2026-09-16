@@ -35,7 +35,10 @@ public sealed class CredentialClient(HttpClient httpClient, IOptions<JustGoOptio
             [PageNumber] = request.PageNumber.ToString(),
             [PageSize] = request.PageSize.ToString()
         };
-        if (request.MemberId is not null) query["memberId"] = request.MemberId.Value.ToString();
+        if (request.MemberId is not null)
+        {
+            query["memberId"] = request.MemberId.Value.ToString();
+        }
 
         var uri = QueryHelpers.AddQueryString($"/api/{ApiVersion}/Credentials/Member/FindByAttributes", query);
         return GetAsync<object>(uri, ct);
@@ -59,7 +62,10 @@ public sealed class CredentialClient(HttpClient httpClient, IOptions<JustGoOptio
             [PageNumber] = request.PageNumber.ToString(),
             [PageSize] = request.PageSize.ToString()
         };
-        if (request.ClubId is not null) query["clubId"] = request.ClubId.Value.ToString();
+        if (request.ClubId is not null)
+        {
+            query["clubId"] = request.ClubId.Value.ToString();
+        }
 
         var uri = QueryHelpers.AddQueryString($"/api/{ApiVersion}/Credentials/Club/FindByAttributes", query);
         return GetAsync<object>(uri, ct);
