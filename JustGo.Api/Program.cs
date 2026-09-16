@@ -1,25 +1,22 @@
-using HealthChecks.UI.Client;
-using Humanizer;
-using JustGo.Api;
 using JustGo.Api.Data;
 using JustGo.Api.Features.Auth;
-using JustGo.Api.Features.Cache;
 using JustGo.Api.Features.Clubs;
+using JustGo.Api.Features.Cache;
 using JustGo.Api.Features.Competitions;
 using JustGo.Api.Features.Credentials;
 using JustGo.Api.Features.Events;
-using JustGo.Api.Features.Grading;
 using JustGo.Api.Features.Members;
 using JustGo.Api.Features.Memberships;
 using JustGo.Api.Features.Organisations;
 using JustGo.Api.Features.Rewards;
 using JustGo.Api.Features.Shops;
+using JustGo.Api.Features.JustGoUpstream;
 using JustGo.Api.Health;
-using Microsoft.AspNetCore.HttpLogging;
+using HealthChecks.UI.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using TickerQ.Dashboard.DependencyInjection;
 using TickerQ.DependencyInjection;
+using TickerQ.Dashboard.DependencyInjection;
 using TickerQ.EntityFrameworkCore.Customizer;
 using TickerQ.EntityFrameworkCore.DependencyInjection;
 using TickerQ.Instrumentation.OpenTelemetry;
@@ -28,6 +25,9 @@ using ZiggyCreatures.Caching.Fusion.Backplane;
 using ZiggyCreatures.Caching.Fusion.Backplane.StackExchangeRedis;
 using ZiggyCreatures.Caching.Fusion.Serialization;
 using ZiggyCreatures.Caching.Fusion.Serialization.SystemTextJson;
+using Scalar.AspNetCore;
+using JustGo.Api;
+using JustGo.Integrations.JustGo.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,17 +38,12 @@ builder.AddNpgsqlDbContext<ApiDbContext>("itkd", configureDbContextOptions: opti
     .ConfigureWarnings(warningsHandler => warningsHandler.Throw())
     .UseNpgsql(npgsql => npgsql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
 
-builder.Services.AddHttpLogging(options =>
-{
-    options.CombineLogs = true;
-    options.LoggingFields = HttpLoggingFields.All;
-    options.ResponseBodyLogLimit = (int)10.Megabytes().Bytes;
-});
-
+builder.Services.AddHttpLogging(options => options.CombineLogs = true);
 builder.Services.AddProblemDetails();
-builder.Services.AddExceptionHandler<JustGoExceptionHandler>();
+builder.Services.AddExceptionHandler(_ => { });
 builder.Services.AddAntiforgery();
 builder.Services.AddTransient(_ => TimeProvider.System);
+builder.Services.AddOpenApi();
 
 builder.Services.AddTickerQ(options =>
 {
@@ -57,7 +52,6 @@ builder.Services.AddTickerQ(options =>
     options.AddOperationalStore(ef => ef.UseApplicationDbContext<ApiDbContext>(ConfigurationType.UseModelCustomizer));
 });
 
-builder.Services.AddTransient<SyncMembersJob>();
 builder.Services.MapTicker<SyncMembersJob>()
     .WithCron(Cronos.CronExpression.Hourly.ToString())
     .WithMaxConcurrency(1);
@@ -93,6 +87,8 @@ builder.Services
     .AddPostgreSqlStorage(
         builder.Configuration.GetConnectionString("itkd")!,
         dbOptions => dbOptions.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
+
+
 var application = builder.Build();
 
 await using (var scope = application.Services.CreateAsyncScope())
@@ -116,6 +112,49 @@ application.MapHealthChecksUI(options =>
 
 application.UseTickerQ();
 
+// Development-only: inject API key into Scalar requests
+if (application.Environment.IsDevelopment())
+{
+    var apiKey = builder.Configuration["JustGo:ApiKey"];
+    if (!string.IsNullOrEmpty(apiKey))
+    {
+        application.Use(async (context, next) =>
+        {
+            if (context.Request.Path.StartsWithSegments("/scalar"))
+            {
+                // Scalar UI can use this via X-Api-Key header for direct requests
+                context.Response.Headers["X-Default-Api-Key"] = apiKey;
+            }
+            await next();
+        });
+    }
+}
+
+application.MapOpenApi();
+application.MapScalarApiReference(options =>
+{
+    options.WithOpenApiRoutePattern("/openapi/v1.json");
+    options.WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
+});
+
+if (application.Environment.IsDevelopment())
+{
+    application.MapJustGoUpstreamEndpoints();
+    application.MapScalarApiReference("/scalar/justgo-upstream", async (options, context) =>
+    {
+        var token = await context
+            .RequestServices.GetRequiredService<IJustGoTokenService>()
+            .GetTokenAsync(context.RequestAborted);
+
+        options.EnablePersistentAuthentication();
+        options.AddPreferredSecuritySchemes("Bearer");
+        options.WithTitle("JustGo API (Upstream Sandbox)");
+        options.WithOpenApiRoutePattern("/openapi/justgo-upstream.json");
+        options.WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
+        options.AddApiKeyAuthentication("Bearer", scheme => scheme.Value = $"Bearer {token}");
+    });
+}
+
 application
     .MapAuthEndpoints()
     .MapClubEndpoints()
@@ -129,13 +168,15 @@ application
     .MapMembershipEndpoints()
     .MapOrganisationEndpoints()
     .MapShopEndpoints()
-    .MapRewardEndpoints()
-    .MapGradingEndpoints();
+    .MapRewardEndpoints();
 
 if (application.Environment.IsDevelopment())
 {
     application.MapCacheAdminEndpoints();
-    application.MapSyncAdminEndpoints();
 }
 
 await application.RunAsync();
+
+
+
+

@@ -4,6 +4,12 @@ public sealed class FindClubsRequest
 {
     public int PageNumber { get; set; } = 1;
     public int PageSize { get; set; } = 20;
+
+    /// <summary>
+    /// Not sent upstream: JustGo's v2.2 Organisations/FindByAttributes endpoint dropped
+    /// name-based search entirely. Kept on the request contract for backward compatibility
+    /// with existing callers, but currently has no effect.
+    /// </summary>
     public string? ClubName { get; set; }
 }
 

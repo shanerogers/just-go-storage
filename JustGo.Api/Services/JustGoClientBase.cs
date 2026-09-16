@@ -83,7 +83,11 @@ public abstract class JustGoClientBase(HttpClient httpClient, IOptions<JustGoOpt
 
     private static async Task EnsureSuccessAsync(HttpResponseMessage response, string method, string uri, CancellationToken ct)
     {
-        if (response.IsSuccessStatusCode) return;
+        if (response.IsSuccessStatusCode)
+        {
+            return;
+        }
+
         var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         var fullUri = response.RequestMessage?.RequestUri?.ToString() ?? uri;
         throw new JustGoApiException((int)response.StatusCode, body, method, fullUri);
