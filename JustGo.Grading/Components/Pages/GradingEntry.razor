@@ -131,7 +131,7 @@
                     {
                         <MudPaper @key="member.JustGoMemberId" Class="pa-3 mb-2" Elevation="0" Outlined="true">
                             <MudGrid Spacing="2">
-                                <MudItem xs="12" sm="7">
+                                <MudItem xs="12" sm="5">
                                     <div class="d-flex flex-column gap-1">
                                         <MudText Typo="Typo.subtitle1"><b>@member.FirstName @member.LastName</b></MudText>
                                         @if (member.LoadingGrade)
@@ -160,7 +160,18 @@
                                         </MudText>
                                     }
                                 </MudItem>
-                                <MudItem xs="12" sm="5" Class="d-flex align-center justify-end gap-4">
+                                <MudItem xs="12" sm="7" Class="d-flex align-center justify-end gap-2 flex-wrap">
+                                    <MudSelect T="string" @bind-Value="member.Outcome" Label="Outcome"
+                                               Variant="Variant.Outlined" Margin="Margin.Dense"
+                                               Style="width: 100px;" Required="true">
+                                        @foreach (var outcome in OutcomeOptions)
+                                        {
+                                            <MudSelectItem T="string" Value="@outcome">@outcome</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                    <MudNumericField @bind-Value="member.TheoryMark" Label="Theory"
+                                                     Min="0" Max="100" Variant="Variant.Outlined"
+                                                     Margin="Margin.Dense" Style="width: 110px;" />
                                     <MudTooltip Text="Double grading - skip a grade level">
                                         <MudCheckBox @bind-Value="member.IsDoubleGrading" Color="Color.Secondary"
                                                      Label="Double" Disabled="member.IsWithin90Days" Dense="true" />
@@ -178,6 +189,36 @@
                     }
                 </div>
             </MudPaper>
+
+            @if (_submissionResults.Count > 0)
+            {
+                <MudPaper Class="pa-4 mb-4" Elevation="2">
+                    <MudText Typo="Typo.h6" GutterBottom="true">Last Submission</MudText>
+                    @foreach (var result in _submissionResults)
+                    {
+                        <MudPaper @key="result.MemberId" Class="pa-3 mb-2" Elevation="0" Outlined="true">
+                            <div class="d-flex align-center gap-2 flex-wrap">
+                                <MudText Typo="Typo.subtitle2"><b>@result.MemberNumber</b></MudText>
+                                <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small">@result.GradeName</MudChip>
+                                <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small">@result.Outcome</MudChip>
+                                @if (result.TheoryMark.HasValue)
+                                {
+                                    <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small">
+                                        Theory: @result.TheoryMark
+                                    </MudChip>
+                                }
+                                <MudChip T="string" Color="@(result.Success ? Color.Success : Color.Error)" Size="Size.Small">
+                                    @(result.Success ? "Succeeded" : "Failed")
+                                </MudChip>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(result.Error))
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Error" Class="mt-1">@result.Error</MudText>
+                            }
+                        </MudPaper>
+                    }
+                </MudPaper>
+            }
 
             @if (_eventCandidates.Count > 0)
             {
@@ -235,7 +276,7 @@
                         {
                             <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
                         }
-                        Issue Credentials
+                        Submit Grading Results
                     </MudButton>
                 </MudItem>
             </MudGrid>
@@ -257,8 +298,10 @@
     private List<GradingMember> _members = [];
     private List<EventTicketApiDto> _eventTickets = [];
     private List<EventCandidateApiDto> _eventCandidates = [];
+    private List<GradingResultStatusApiDto> _submissionResults = [];
 
     private IEnumerable<GradingMember> ActiveGradingMembers => _members.Where(m => m.Grading);
+    private static IReadOnlyList<string> OutcomeOptions { get; } = ["A", "P", "P-"];
 
     private HttpClient Api => HttpClientFactory.CreateClient("JustGoApi");
 
@@ -503,6 +546,7 @@
         _totalMemberCount = 0;
         _eventTickets.Clear();
         _eventCandidates.Clear();
+        _submissionResults.Clear();
         Navigation.NavigateTo("/grading", replace: true);
     }
 
@@ -664,8 +708,10 @@
     {
         var gradingMembers = _members.Where(m => m.Grading).ToList();
         if (gradingMembers.Count == 0) return;
+        if (!ValidateResultCapture(gradingMembers)) return;
 
         _submitting = true;
+        _submissionResults.Clear();
         StateHasChanged();
 
         try
@@ -690,6 +736,8 @@
                         FirstName = m.FirstName,
                         LastName = m.LastName,
                         GradeName = targetGrade,
+                        Outcome = m.Outcome,
+                        TheoryMark = m.TheoryMark,
                         IsDoubleGrading = m.IsDoubleGrading,
                     };
                 }).ToList(),
@@ -698,9 +746,11 @@
             var response = await Api.PostAsJsonAsync("grading/submit", request);
             if (response.IsSuccessStatusCode)
             {
-                var result = await response.Content.ReadFromJsonAsync<JsonElement>();
-                var succeeded = result.TryGetProperty("succeeded", out var s) ? s.GetInt32() : 0;
-                var failed = result.TryGetProperty("failed", out var f) ? f.GetInt32() : 0;
+                var result = await response.Content.ReadFromJsonAsync<GradingSubmitApiResponse>()
+                    ?? throw new InvalidOperationException("The grading API returned an empty response.");
+                var succeeded = result.Succeeded;
+                var failed = result.Failed;
+                _submissionResults = result.Details;
 
                 if (failed == 0)
                 {
@@ -729,6 +779,23 @@
             _submitting = false;
             StateHasChanged();
         }
+    }
+
+    private bool ValidateResultCapture(IEnumerable<GradingMember> gradingMembers)
+    {
+        var invalidMember = gradingMembers.FirstOrDefault(member =>
+            !OutcomeOptions.Contains(member.Outcome, StringComparer.Ordinal) ||
+            member.TheoryMark is < 0 or > 100);
+
+        if (invalidMember is null)
+        {
+            return true;
+        }
+
+        Snackbar.Add(
+            $"Enter an outcome of A, P, or P- and an optional theory mark from 0 to 100 for {invalidMember.FirstName} {invalidMember.LastName}.",
+            Severity.Error);
+        return false;
     }
 
     private sealed class EventStateApiResponse
@@ -765,6 +832,24 @@
         public string NextGrade { get; set; } = string.Empty;
         public string DoubleGrade { get; set; } = string.Empty;
         public List<string> IssuedGradeNames { get; set; } = [];
+    }
+
+    private sealed class GradingSubmitApiResponse
+    {
+        public int Succeeded { get; set; }
+        public int Failed { get; set; }
+        public List<GradingResultStatusApiDto> Details { get; set; } = [];
+    }
+
+    private sealed class GradingResultStatusApiDto
+    {
+        public Guid MemberId { get; set; }
+        public string MemberNumber { get; set; } = string.Empty;
+        public string GradeName { get; set; } = string.Empty;
+        public string Outcome { get; set; } = string.Empty;
+        public int? TheoryMark { get; set; }
+        public bool Success { get; set; }
+        public string? Error { get; set; }
     }
 
     public class EventResult

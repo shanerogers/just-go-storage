@@ -153,6 +153,7 @@ public sealed class GradingSubmissionTests
             BookingId = bookingId,
             MemberNumber = "MID-123",
             GradeName = "5th Gup",
+            Outcome = GradingOutcomes.P,
         };
 
     private static async Task<GradingSubmitResponse> SubmitAsync(

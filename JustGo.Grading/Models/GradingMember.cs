@@ -12,6 +12,8 @@ public class GradingMember
     public string? DoubleGrade { get; set; }
     public bool Grading { get; set; }
     public bool IsDoubleGrading { get; set; }
+    public string Outcome { get; set; } = "P";
+    public int? TheoryMark { get; set; }
 
     public DateTime GradingEventDate { get; set; }
     public bool MatchesEventCredential { get; set; }

@@ -54,7 +54,7 @@ public static class GradingEndpoints
 
             group.MapPost("/submit", SubmitGradingAsync)
                 .WithName("SubmitGrading")
-                .WithSummary("Create missing JustGo event bookings and issue credentials for graded members");
+                .WithSummary("Capture grading outcomes, create missing JustGo event bookings, and issue credentials");
 
             return app;
         }
@@ -424,6 +424,25 @@ public static class GradingEndpoints
             var bookingId = item.BookingId;
             var bookingCreated = false;
 
+            var validationError = ValidateGradingResult(item);
+            if (validationError is not null)
+            {
+                details.Add(new GradingResultStatus
+                {
+                    MemberId = item.MemberId,
+                    BookingId = bookingId,
+                    TicketId = item.TicketId,
+                    MemberNumber = item.MemberNumber,
+                    GradeName = gradeName,
+                    Outcome = item.Outcome,
+                    TheoryMark = item.TheoryMark,
+                    Success = false,
+                    Error = validationError,
+                });
+                failed++;
+                continue;
+            }
+
             if (item.TicketId == Guid.Empty || !ticketById.ContainsKey(item.TicketId))
             {
                 details.Add(new GradingResultStatus
@@ -432,6 +451,8 @@ public static class GradingEndpoints
                     TicketId = item.TicketId,
                     MemberNumber = item.MemberNumber,
                     GradeName = gradeName,
+                    Outcome = item.Outcome,
+                    TheoryMark = item.TheoryMark,
                     Success = false,
                     Error = "The selected grade ticket was not found for this event.",
                 });
@@ -447,6 +468,8 @@ public static class GradingEndpoints
                     TicketId = item.TicketId,
                     MemberNumber = item.MemberNumber,
                     GradeName = gradeName,
+                    Outcome = item.Outcome,
+                    TheoryMark = item.TheoryMark,
                     Success = false,
                     Error = "Failed to load member details from JustGo before issuing the credential.",
                 });
@@ -489,6 +512,8 @@ public static class GradingEndpoints
                     TicketId = item.TicketId,
                     MemberNumber = item.MemberNumber,
                     GradeName = gradeName,
+                    Outcome = item.Outcome,
+                    TheoryMark = item.TheoryMark,
                     Success = false,
                     BookingCreated = bookingCreated,
                     SkippedDuplicate = true,
@@ -517,6 +542,8 @@ public static class GradingEndpoints
                     TicketId = item.TicketId,
                     MemberNumber = item.MemberNumber,
                     GradeName = gradeName,
+                    Outcome = item.Outcome,
+                    TheoryMark = item.TheoryMark,
                     Success = true,
                     BookingCreated = bookingCreated,
                     JustGoCredentialId = createdCredential.CredentialId,
@@ -541,6 +568,8 @@ public static class GradingEndpoints
                     TicketId = item.TicketId,
                     MemberNumber = item.MemberNumber,
                     GradeName = gradeName,
+                    Outcome = item.Outcome,
+                    TheoryMark = item.TheoryMark,
                     Success = false,
                     BookingCreated = bookingCreated,
                     Error = ex.Message.Length > 500 ? ex.Message[..500] : ex.Message,
@@ -563,6 +592,21 @@ public static class GradingEndpoints
             Failed = failed,
             Details = details,
         });
+    }
+
+    private static string? ValidateGradingResult(GradingResultItem item)
+    {
+        if (!GradingOutcomes.IsValid(item.Outcome))
+        {
+            return "Outcome must be one of: A, P, or P-.";
+        }
+
+        if (item.TheoryMark is < 0 or > 100)
+        {
+            return "Theory mark must be between 0 and 100 when supplied.";
+        }
+
+        return null;
     }
 
     private static async Task<MemberDetailDto[]> LoadMemberDetailsAsync(
