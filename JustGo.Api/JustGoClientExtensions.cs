@@ -16,58 +16,53 @@ namespace JustGo.Api;
 
 internal static class JustGoClientExtensions
 {
-    extension(IServiceCollection services)
-
+    public static IServiceCollection AddJustGoClient(this IServiceCollection services)
     {
+        services.AddHttpClient("JustGoAuth", (sp, client) =>
+       {
+           var opts = sp.GetRequiredService<IOptions<JustGoOptions>>().Value;
+           client.BaseAddress = new Uri(opts.BaseUrl);
+       });
 
-        public IServiceCollection AddJustGoClient()
+       services
+            .AddOptions<JustGoOptions>()
+            .BindConfiguration(JustGoOptions.SectionName)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services
+            .AddTransient<JustGoAuthHandler>()
+            .AddTransient<JustGoResponseLoggingHandler>()
+            .AddTransient<IJustGoTokenService, JustGoTokenService>();
+
+        IHttpClientBuilder[] httpClientBuilders =
+        [
+            services.AddHttpClient<IAuthClient, AuthClient>(configureJustGoClient),
+            services.AddHttpClient<ICompetitionClient, CompetitionClient>(configureJustGoClient),
+            services.AddHttpClient<ICredentialClient, CredentialClient>(configureJustGoClient),
+            services.AddHttpClient<IEventClient, EventClient>(configureJustGoClient),
+            services.AddHttpClient<IClubClient, ClubClient>(configureJustGoClient),
+            services.AddHttpClient<IShopClient, ShopClient>(configureJustGoClient),
+            services.AddHttpClient<IMemberClient, MemberClient>(configureJustGoClient),
+            services.AddHttpClient<IMembershipClient, MembershipClient>(configureJustGoClient),
+            services.AddHttpClient<IOrganisationClient, OrganisationClient>(configureJustGoClient),
+            services.AddHttpClient<IRewardClient, RewardClient>(configureJustGoClient),
+            services.AddHttpClient("JustGoUpstreamProxy", configureJustGoClient)
+        ];
+
+        foreach (var builder in httpClientBuilders)
         {
-            services.AddHttpClient("JustGoAuth", (sp, client) =>
-           {
-               var opts = sp.GetRequiredService<IOptions<JustGoOptions>>().Value;
-               client.BaseAddress = new Uri(opts.BaseUrl);
-           });
+            builder
+                .AddHttpMessageHandler<JustGoAuthHandler>()
+                .AddHttpMessageHandler<JustGoResponseLoggingHandler>();
+        }
 
-            services
-                 .AddOptions<JustGoOptions>()
-                 .BindConfiguration(JustGoOptions.SectionName)
-                 .ValidateDataAnnotations()
-                 .ValidateOnStart();
+        return services;
 
-            services
-                .AddTransient<JustGoAuthHandler>()
-                .AddTransient<JustGoResponseLoggingHandler>()
-                .AddTransient<IJustGoTokenService, JustGoTokenService>();
-
-            IHttpClientBuilder[] httpClientBuilders =
-            [
-                services.AddHttpClient<IAuthClient, AuthClient>(configureJustGoClient),
-                services.AddHttpClient<ICompetitionClient, CompetitionClient>(configureJustGoClient),
-                services.AddHttpClient<ICredentialClient, CredentialClient>(configureJustGoClient),
-                services.AddHttpClient<IEventClient, EventClient>(configureJustGoClient),
-                services.AddHttpClient<IClubClient, ClubClient>(configureJustGoClient),
-                services.AddHttpClient<IShopClient, ShopClient>(configureJustGoClient),
-                services.AddHttpClient<IMemberClient, MemberClient>(configureJustGoClient),
-                services.AddHttpClient<IMembershipClient, MembershipClient>(configureJustGoClient),
-                services.AddHttpClient<IOrganisationClient, OrganisationClient>(configureJustGoClient),
-                services.AddHttpClient<IRewardClient, RewardClient>(configureJustGoClient)
-            ];
-
-            foreach (var builder in httpClientBuilders)
-            {
-                builder
-                    .AddHttpMessageHandler<JustGoAuthHandler>()
-                    .AddHttpMessageHandler<JustGoResponseLoggingHandler>();
-            }
-
-            return services;
-
-            static void configureJustGoClient(IServiceProvider serviceProvider, HttpClient client)
-            {
-                var opts = serviceProvider.GetRequiredService<IOptions<JustGoOptions>>().Value;
-                client.BaseAddress = new Uri(opts.BaseUrl);
-                client.Timeout = TimeSpan.FromSeconds(30);
-            }
+        static void configureJustGoClient(IServiceProvider serviceProvider, HttpClient client)
+        {
+            var opts = serviceProvider.GetRequiredService<IOptions<JustGoOptions>>().Value;
+            client.BaseAddress = new Uri(opts.BaseUrl);
         }
     }
 }

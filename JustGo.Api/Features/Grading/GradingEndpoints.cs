@@ -91,8 +91,15 @@ public static class GradingEndpoints
 
     private static object FilterEventsByName(object result, string search)
     {
-        if (result is not System.Text.Json.JsonElement json) return result;
-        if (!json.TryGetProperty("data", out var data)) return result;
+        if (result is not System.Text.Json.JsonElement json)
+        {
+            return result;
+        }
+
+        if (!json.TryGetProperty("data", out var data))
+        {
+            return result;
+        }
 
         var filtered = data.EnumerateArray()
             .Where(e => e.TryGetProperty("eventName", out var name) &&
@@ -119,8 +126,15 @@ public static class GradingEndpoints
         int page = 1,
         int pageSize = 50)
     {
-        if (pageSize is < 1 or > 200) pageSize = 50;
-        if (page < 1) page = 1;
+        if (pageSize is < 1 or > 200)
+        {
+            pageSize = 50;
+        }
+
+        if (page < 1)
+        {
+            page = 1;
+        }
 
         if (eventId is null && string.IsNullOrWhiteSpace(search))
         {
@@ -367,7 +381,7 @@ public static class GradingEndpoints
         return Results.Ok(response);
     }
 
-    private static async Task<IResult> SubmitGradingAsync(
+    internal static async Task<IResult> SubmitGradingAsync(
         GradingSubmitRequest request,
         IEventClient eventClient,
         IMemberClient memberClient,

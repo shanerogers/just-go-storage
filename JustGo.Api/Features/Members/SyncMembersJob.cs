@@ -52,7 +52,11 @@ public sealed class SyncMembersJob(
                         errors[0].Description);
                 });
 
-            if (result.IsError) throw CreateSyncException(result.FirstError, pageNo);
+            if (result.IsError)
+            {
+                throw CreateSyncException(result.FirstError, pageNo);
+            }
+
             pageNo++;
         }
 
@@ -139,7 +143,10 @@ public sealed class SyncMembersJob(
                         errors[0].Description);
                 });
 
-            if (memberResult.IsError) return memberResult.Errors;
+            if (memberResult.IsError)
+            {
+                return memberResult.Errors;
+            }
         }
 
         LogPageCompleted(pageNumber, syncedCount, attemptedCount, failedCount);

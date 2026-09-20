@@ -1,0 +1,7 @@
+{
+  "keySet": "Admin",
+  "clubs": {
+    "error": "Response status code does not indicate success: 500 (Internal Server Error)."
+  },
+  "samples": []
+}

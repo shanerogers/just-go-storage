@@ -20,9 +20,18 @@ public sealed class EventClient(HttpClient httpClient, IOptions<JustGoOptions> o
             [PageNumber] = request.PageNumber.ToString(),
             [PageSize] = request.PageSize.ToString()
         };
-        if (request.Name is not null) query["EventName"] = request.Name;
-        if (request.EventNumber is not null) query["EventNumber"] = request.EventNumber;
-        if (request.Category is not null) query["EventCategory"] = ToJustGoCategory(request.Category.Value);
+        if (request.Name is not null)
+        {
+            query["EventName"] = request.Name;
+        }
+        if (request.EventNumber is not null)
+        {
+            query["EventNumber"] = request.EventNumber;
+        }
+        if (request.Category is not null)
+        {
+            query["EventCategory"] = ToJustGoCategory(request.Category.Value);
+        }
 
         var uri = QueryHelpers.AddQueryString($"/api/{ApiVersion}/Events/FindByAttributes", query);
         return GetAsync<object>(uri, ct);
@@ -78,7 +87,10 @@ public sealed class EventClient(HttpClient httpClient, IOptions<JustGoOptions> o
             [PageNumber] = request.PageNumber.ToString(),
             [PageSize] = request.PageSize.ToString()
         };
-        if (request.EventId is not null) query["EventId"] = request.EventId.Value.ToString();
+        if (request.EventId is not null)
+        {
+            query["Id"] = request.EventId.Value.ToString();
+        }
 
         var uri = QueryHelpers.AddQueryString($"/api/{ApiVersion}/Events/Candidate/FindByAttributes", query);
         return GetAsync<EventCollectionResponse<EventCandidateDto>>(uri, ct);
