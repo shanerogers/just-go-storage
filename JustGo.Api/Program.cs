@@ -5,6 +5,7 @@ using JustGo.Api.Features.Cache;
 using JustGo.Api.Features.Competitions;
 using JustGo.Api.Features.Credentials;
 using JustGo.Api.Features.Events;
+using JustGo.Api.Features.Grading;
 using JustGo.Api.Features.Members;
 using JustGo.Api.Features.Memberships;
 using JustGo.Api.Features.Organisations;
@@ -168,7 +169,8 @@ application
     .MapMembershipEndpoints()
     .MapOrganisationEndpoints()
     .MapShopEndpoints()
-    .MapRewardEndpoints();
+    .MapRewardEndpoints()
+    .MapGradingEndpoints();
 
 if (application.Environment.IsDevelopment())
 {
@@ -176,7 +178,5 @@ if (application.Environment.IsDevelopment())
 }
 
 await application.RunAsync();
-
-
 
 

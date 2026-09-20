@@ -4,7 +4,10 @@ using JustGo.Api.Features.Grading;
 using JustGo.Api.Features.Members;
 using JustGo.Integrations.JustGo.Features.Credentials.Models;
 using JustGo.Integrations.JustGo.Features.Events.Models;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
@@ -12,6 +15,25 @@ namespace JustGo.Api.Tests.Features.Grading;
 
 public sealed class GradingSubmissionTests
 {
+    [Fact]
+    public void MapGradingEndpoints_RegistersEventSearchRoute()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddSingleton(Substitute.For<IEventClient>());
+        builder.Services.AddSingleton(Substitute.For<IMemberClient>());
+        builder.Services.AddSingleton(Substitute.For<ICredentialClient>());
+        var application = builder.Build();
+
+        application.MapGradingEndpoints();
+
+        var routePatterns = ((IEndpointRouteBuilder)application).DataSources
+            .SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Select(endpoint => endpoint.RoutePattern.RawText);
+
+        Assert.Contains("/grading/events", routePatterns);
+    }
+
     [Fact]
     public async Task SubmitGradingAsync_WhenCredentialAlreadyExists_SkipsDuplicateWithoutCreatingCredential()
     {
