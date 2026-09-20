@@ -12,8 +12,8 @@
 
 <PageTitle>Grading Entry - ITKD</PageTitle>
 
-<MudContainer MaxWidth="MaxWidth.ExtraLarge">
-    <MudText Typo="Typo.h4" GutterBottom="true">Grading Entry</MudText>
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-4">
+    <MudText Typo="Typo.h4" Class="mb-4">Grading Entry</MudText>
 
     @if (!_eventLoaded)
     {
@@ -590,6 +590,7 @@
         }
 
         _totalMemberCount = _members.Count;
+        _ = EnrichAllMemberGradesAsync();
     }
 
     private void RemoveFromGrading(GradingMember member)
