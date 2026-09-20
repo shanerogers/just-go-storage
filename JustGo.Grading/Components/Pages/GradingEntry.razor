@@ -106,7 +106,7 @@
                     <MudItem xs="12" Class="d-flex justify-start align-center">
                         <MudButton Variant="Variant.Outlined" Color="Color.Primary"
                                    OnClick="OpenAddMembersDialog"
-                                   Disabled="@(_loadingMembers || _submitting)"
+                                   Disabled="@_loadingMembers"
                                    StartIcon="@Icons.Material.Filled.PersonAdd">
                             Add Members to Grading
                         </MudButton>
@@ -115,74 +115,114 @@
             </MudPaper>
 
             <MudPaper Class="pa-4 mb-4" Elevation="2">
-                <MudGrid>
-                    <MudItem xs="12" sm="6">
-                        <MudText Typo="Typo.h6">
-                            Members in Grading
-                            <MudChip T="string" Color="Color.Info" Size="Size.Small">
-                                @ActiveGradingMembers.Count()
-                            </MudChip>
-                        </MudText>
-                    </MudItem>
-                </MudGrid>
+                <div class="d-flex align-center justify-space-between gap-2 flex-wrap">
+                    <MudText Typo="Typo.h6">
+                        Grading Roster
+                        <MudChip T="string" Color="Color.Info" Size="Size.Small">@_members.Count</MudChip>
+                    </MudText>
+                </div>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                    Record each result after confirming the grade, outcome, and optional theory mark. Issued credentials remain visible but cannot be changed.
+                </MudText>
 
-                <div style="max-height: 500px; overflow-y: auto;" class="mt-4">
-                    @foreach (var member in ActiveGradingMembers)
+                <div class="grading-record-list mt-4">
+                    @foreach (var member in _members)
                     {
-                        <MudPaper @key="member.JustGoMemberId" Class="pa-3 mb-2" Elevation="0" Outlined="true">
+                        <MudPaper @key="member.JustGoMemberId" Class="grading-record-card pa-3" Elevation="0" Outlined="true">
                             <MudGrid Spacing="2">
-                                <MudItem xs="12" sm="5">
-                                    <div class="d-flex flex-column gap-1">
-                                        <MudText Typo="Typo.subtitle1"><b>@member.FirstName @member.LastName</b></MudText>
-                                        @if (member.LoadingGrade)
-                                        {
-                                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
-                                        }
-                                        else
-                                        {
-                                            <div class="d-flex align-center gap-1">
-                                                <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small">@member.CurrentGrade</MudChip>
-                                                <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" Color="Color.Primary" />
-                                                <MudChip T="string" Color="Color.Primary" Size="Size.Small">@member.NextGrade</MudChip>
-                                            </div>
-                                        }
+                                <MudItem xs="12" md="4">
+                                    <div class="d-flex align-center justify-space-between gap-2 flex-wrap">
+                                        <div>
+                                            <MudText Typo="Typo.subtitle1">@member.FirstName @member.LastName</MudText>
+                                            <MudText Typo="Typo.caption">@member.MemberId</MudText>
+                                        </div>
+                                        <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small">
+                                            @(member.IsManuallyAdded ? "Added manually" : "Event booking")
+                                        </MudChip>
                                     </div>
                                     @if (!member.LoadingGrade && member.LastGradingDate.HasValue)
                                     {
                                         <MudText Typo="Typo.caption" Color="@(member.IsWithin90Days ? Color.Warning : Color.Default)" Class="mt-1">
                                             Last graded: @member.LastGradingDate.Value.ToString("dd MMM yyyy")
-                                            @if (member.IsWithin90Days)
-                                            {
-                                                <MudTooltip Text="@($"Only {(member.GradingEventDate - member.LastGradingDate!.Value).Humanize(maxUnit: TimeUnit.Day)} since last grading")">
-                                                    <MudIcon Icon="@Icons.Material.Filled.Warning" Size="Size.Small" Color="Color.Warning" Class="ml-1" />
-                                                </MudTooltip>
-                                            }
                                         </MudText>
                                     }
                                 </MudItem>
-                                <MudItem xs="12" sm="7" Class="d-flex align-center justify-end gap-2 flex-wrap">
-                                    <MudSelect T="string" @bind-Value="member.Outcome" Label="Outcome"
-                                               Variant="Variant.Outlined" Margin="Margin.Dense"
-                                               Style="width: 100px;" Required="true">
-                                        @foreach (var outcome in OutcomeOptions)
-                                        {
-                                            <MudSelectItem T="string" Value="@outcome">@outcome</MudSelectItem>
-                                        }
-                                    </MudSelect>
-                                    <MudNumericField @bind-Value="member.TheoryMark" Label="Theory"
-                                                     Min="0" Max="100" Variant="Variant.Outlined"
-                                                     Margin="Margin.Dense" Style="width: 110px;" />
-                                    <MudTooltip Text="Double grading - skip a grade level">
-                                        <MudCheckBox @bind-Value="member.IsDoubleGrading" Color="Color.Secondary"
-                                                     Label="Double" Disabled="member.IsWithin90Days" Dense="true" />
-                                    </MudTooltip>
-                                    <MudTooltip Text="Remove from grading">
-                                        <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small"
-                                                   OnClick="@(() => RemoveFromGrading(member))"
-                                                   StartIcon="@Icons.Material.Filled.RemoveCircleOutline">
-                                            Remove
+                                <MudItem xs="12" sm="6" md="3">
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Grade</MudText>
+                                    @if (member.LoadingGrade)
+                                    {
+                                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
+                                    }
+                                    else
+                                    {
+                                        <div class="d-flex align-center gap-1">
+                                            <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small">@member.CurrentGrade</MudChip>
+                                            <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" Color="Color.Primary" />
+                                            <MudChip T="string" Color="Color.Primary" Size="Size.Small">
+                                                @(member.IsDoubleGrading ? member.DoubleGrade ?? member.NextGrade : member.NextGrade)
+                                            </MudChip>
+                                        </div>
+                                    }
+                                    <MudCheckBox @bind-Value="member.IsDoubleGrading" Color="Color.Secondary"
+                                                 Label="Double" Disabled="@(member.HasIssuedCredential || member.IsWithin90Days || member.IsSubmittingResult)" Dense="true" />
+                                </MudItem>
+                                <MudItem xs="12" sm="6" md="3">
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Result</MudText>
+                                    <div class="grading-record-controls">
+                                        <MudSelect T="string" @bind-Value="member.Outcome" Label="Outcome"
+                                                   Variant="Variant.Outlined" Margin="Margin.Dense"
+                                                   Disabled="@(member.HasIssuedCredential || member.IsSubmittingResult)" Required="true">
+                                            @foreach (var outcome in OutcomeOptions)
+                                            {
+                                                <MudSelectItem T="string" Value="@outcome">@outcome</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                        <MudNumericField @bind-Value="member.TheoryMark" Label="Theory"
+                                                         Min="0" Max="100" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                                         Disabled="@(member.HasIssuedCredential || member.IsSubmittingResult)" />
+                                    </div>
+                                </MudItem>
+                                <MudItem xs="12" md="2" Class="d-flex flex-column align-stretch justify-center">
+                                    @if (member.HasIssuedCredential)
+                                    {
+                                        <MudChip T="string" Color="Color.Success" Size="Size.Small">Issued</MudChip>
+                                    }
+                                    else if (member.GradeLoadFailed)
+                                    {
+                                        <MudTooltip Text="@GetGradeLoadError(member)">
+                                            <MudChip T="string" Color="Color.Warning" Size="Size.Small">JustGo details unavailable</MudChip>
+                                        </MudTooltip>
+                                    }
+                                    else if (member.IsSubmittingResult)
+                                    {
+                                        <MudChip T="string" Color="Color.Primary" Size="Size.Small">Recording</MudChip>
+                                    }
+                                    else if (!string.IsNullOrWhiteSpace(member.SubmissionError))
+                                    {
+                                        <MudChip T="string" Color="Color.Error" Size="Size.Small">Failed</MudChip>
+                                    }
+                                    else
+                                    {
+                                        <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small">Ready</MudChip>
+                                    }
+
+                                    @if (!member.HasIssuedCredential)
+                                    {
+                                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Class="mt-2"
+                                                   Disabled="@(member.IsSubmittingResult || member.LoadingGrade || member.GradeLoadFailed)"
+                                                   OnClick="@(() => RecordResultAsync(member))"
+                                                   StartIcon="@Icons.Material.Filled.CheckCircle">
+                                            @if (member.IsSubmittingResult)
+                                            {
+                                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-1" />
+                                            }
+                                            Record result
                                         </MudButton>
-                                    </MudTooltip>
+                                        @if (!string.IsNullOrWhiteSpace(member.SubmissionError))
+                                        {
+                                            <MudText Typo="Typo.caption" Color="Color.Error" Class="mt-1">@member.SubmissionError</MudText>
+                                        }
+                                    }
                                 </MudItem>
                             </MudGrid>
                         </MudPaper>
@@ -190,96 +230,6 @@
                 </div>
             </MudPaper>
 
-            @if (_submissionResults.Count > 0)
-            {
-                <MudPaper Class="pa-4 mb-4" Elevation="2">
-                    <MudText Typo="Typo.h6" GutterBottom="true">Last Submission</MudText>
-                    @foreach (var result in _submissionResults)
-                    {
-                        <MudPaper @key="result.MemberId" Class="pa-3 mb-2" Elevation="0" Outlined="true">
-                            <div class="d-flex align-center gap-2 flex-wrap">
-                                <MudText Typo="Typo.subtitle2"><b>@result.MemberNumber</b></MudText>
-                                <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small">@result.GradeName</MudChip>
-                                <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small">@result.Outcome</MudChip>
-                                @if (result.TheoryMark.HasValue)
-                                {
-                                    <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small">
-                                        Theory: @result.TheoryMark
-                                    </MudChip>
-                                }
-                                <MudChip T="string" Color="@(result.Success ? Color.Success : Color.Error)" Size="Size.Small">
-                                    @(result.Success ? "Succeeded" : "Failed")
-                                </MudChip>
-                            </div>
-                            @if (!string.IsNullOrWhiteSpace(result.Error))
-                            {
-                                <MudText Typo="Typo.caption" Color="Color.Error" Class="mt-1">@result.Error</MudText>
-                            }
-                        </MudPaper>
-                    }
-                </MudPaper>
-            }
-
-            @if (_eventCandidates.Count > 0)
-            {
-                <MudPaper Class="pa-4 mb-4" Elevation="2">
-                    <MudGrid>
-                        <MudItem xs="12" sm="6">
-                            <MudText Typo="Typo.h6">
-                                Event Bookings
-                                <MudChip T="string" Color="Color.Info" Size="Size.Small">
-                                    @_eventCandidates.Count
-                                </MudChip>
-                            </MudText>
-                        </MudItem>
-                    </MudGrid>
-
-                    <div style="max-height: 400px; overflow-y: auto;" class="mt-4">
-                        @foreach (var candidate in _eventCandidates)
-                        {
-                            <MudPaper @key="candidate.MemberId" Class="pa-3 mb-2" Elevation="0" Outlined="true">
-                                <MudGrid Spacing="2">
-                                    <MudItem xs="12" sm="8">
-                                        <div class="d-flex align-center gap-2 flex-wrap">
-                                            <MudText Typo="Typo.subtitle1"><b>@candidate.FirstName @candidate.LastName</b></MudText>
-                                            <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small">@candidate.GradeName</MudChip>
-                                        </div>
-                                        <MudText Typo="Typo.caption" Class="mt-1">
-                                            Booked: @candidate.BookingDate?.LocalDateTime.ToString("dd MMM yyyy")
-                                        </MudText>
-                                    </MudItem>
-                                    <MudItem xs="12" sm="4" Class="d-flex align-center justify-end">
-                                        @if (candidate.HasIssuedCredential)
-                                        {
-                                            <MudChip T="string" Color="Color.Success" Size="Size.Small">Issued</MudChip>
-                                        }
-                                        else
-                                        {
-                                            <MudChip T="string" Color="Color.Warning" Size="Size.Small">Booked</MudChip>
-                                        }
-                                    </MudItem>
-                                </MudGrid>
-                            </MudPaper>
-                        }
-                    </div>
-                </MudPaper>
-            }
-
-            <MudGrid>
-                <MudItem xs="12" Class="d-flex justify-end gap-4">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                               Disabled="@(!ActiveGradingMembers.Any() || _submitting)"
-                               OnClick="SubmitGrading"
-                               StartIcon="@Icons.Material.Filled.CheckCircle"
-                               Size="Size.Large">
-                        @if (_submitting)
-                        {
-                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                        }
-                        Submit Grading Results
-                    </MudButton>
-                </MudItem>
-            </MudGrid>
         }
     }
 </MudContainer>
@@ -291,16 +241,12 @@
     private bool _searchCompleted;
     private bool _eventLoaded;
     private bool _loadingMembers;
-    private bool _submitting;
     private int _totalMemberCount;
     private EventResult? _selectedEvent;
     private List<EventResult> _searchResults = [];
     private List<GradingMember> _members = [];
     private List<EventTicketApiDto> _eventTickets = [];
     private List<EventCandidateApiDto> _eventCandidates = [];
-    private List<GradingResultStatusApiDto> _submissionResults = [];
-
-    private IEnumerable<GradingMember> ActiveGradingMembers => _members.Where(m => m.Grading);
     private static IReadOnlyList<string> OutcomeOptions { get; } = ["A", "P", "P-"];
 
     private HttpClient Api => HttpClientFactory.CreateClient("JustGoApi");
@@ -473,7 +419,8 @@
     {
         var eventDate = _selectedEvent?.Date ?? DateTime.Today;
         _members = _eventCandidates
-            .Where(c => !c.HasIssuedCredential)
+            .GroupBy(candidate => candidate.MemberId)
+            .Select(candidates => candidates.First())
             .Select(c => new GradingMember
             {
                 JustGoMemberId = c.MemberId,
@@ -486,7 +433,7 @@
                 DoubleGrade = c.DoubleGrade,
                 GradingEventDate = eventDate,
                 BookingId = c.BookingId,
-                Grading = true,
+                Grading = false,
                 HasIssuedCredential = c.HasIssuedCredential,
             })
             .ToList();
@@ -546,7 +493,6 @@
         _totalMemberCount = 0;
         _eventTickets.Clear();
         _eventCandidates.Clear();
-        _submissionResults.Clear();
         Navigation.NavigateTo("/grading", replace: true);
     }
 
@@ -585,18 +531,12 @@
                 continue;
             }
 
-            member.Grading = true;
+            member.IsManuallyAdded = true;
             _members.Add(member);
         }
 
         _totalMemberCount = _members.Count;
         _ = EnrichAllMemberGradesAsync();
-    }
-
-    private void RemoveFromGrading(GradingMember member)
-    {
-        member.Grading = false;
-        member.IsDoubleGrading = false;
     }
 
     private async Task LoadEventFastDataAsync()
@@ -663,6 +603,7 @@
             if (!response.IsSuccessStatusCode)
             {
                 member.GradeLoadFailed = true;
+                member.GradeLoadError = $"JustGo returned HTTP {(int)response.StatusCode} while loading member details.";
                 member.LoadingGrade = false;
                 await InvokeAsync(() =>
                 {
@@ -677,6 +618,7 @@
             if (detail is null)
             {
                 member.GradeLoadFailed = true;
+                member.GradeLoadError = "JustGo returned no member details.";
                 member.LoadingGrade = false;
                 await InvokeAsync(StateHasChanged);
                 return;
@@ -696,6 +638,7 @@
         {
             Logger.LogError(ex, "Grade enrichment failed for member {MemberId}", member.JustGoMemberId);
             member.GradeLoadFailed = true;
+            member.GradeLoadError = ex.Message;
             member.LoadingGrade = false;
             await InvokeAsync(() =>
             {
@@ -705,43 +648,43 @@
         }
     }
 
-    private async Task SubmitGrading()
+    private async Task RecordResultAsync(GradingMember member)
     {
-        var gradingMembers = _members.Where(m => m.Grading).ToList();
-        if (gradingMembers.Count == 0) return;
-        if (!ValidateResultCapture(gradingMembers)) return;
+        if (_selectedEvent is null || !ValidateResultCapture(member))
+        {
+            return;
+        }
 
-        _submitting = true;
-        _submissionResults.Clear();
+        member.IsSubmittingResult = true;
+        member.SubmissionError = null;
         StateHasChanged();
 
         try
         {
+            var targetGrade = member.IsDoubleGrading ? member.DoubleGrade ?? member.NextGrade : member.NextGrade;
+            var ticket = _eventTickets.FirstOrDefault(t =>
+                string.Equals(t.GradeName, targetGrade, StringComparison.OrdinalIgnoreCase));
             var request = new
             {
-                EventId = _selectedEvent?.Id ?? Guid.Empty,
-                EventName = _selectedEvent?.Name ?? "",
-                EventDate = _selectedEvent?.Date?.ToString("yyyy-MM-dd") ?? DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd"),
-                Results = gradingMembers.Select(m =>
+                EventId = _selectedEvent.Id,
+                EventName = _selectedEvent.Name,
+                EventDate = _selectedEvent.Date?.ToString("yyyy-MM-dd") ?? DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd"),
+                Results = new[]
                 {
-                    var targetGrade = m.IsDoubleGrading ? m.DoubleGrade ?? m.NextGrade : m.NextGrade;
-                    var ticket = _eventTickets.FirstOrDefault(t =>
-                        string.Equals(t.GradeName, targetGrade, StringComparison.OrdinalIgnoreCase));
-
-                    return new
+                    new
                     {
-                        MemberId = m.JustGoMemberId,
-                        BookingId = m.BookingId,
+                        MemberId = member.JustGoMemberId,
+                        BookingId = member.BookingId,
                         TicketId = ticket?.TicketId ?? Guid.Empty,
-                        MemberNumber = m.MemberId,
-                        FirstName = m.FirstName,
-                        LastName = m.LastName,
+                        MemberNumber = member.MemberId,
+                        FirstName = member.FirstName,
+                        LastName = member.LastName,
                         GradeName = targetGrade,
-                        Outcome = m.Outcome,
-                        TheoryMark = m.TheoryMark,
-                        IsDoubleGrading = m.IsDoubleGrading,
-                    };
-                }).ToList(),
+                        Outcome = member.Outcome,
+                        TheoryMark = member.TheoryMark,
+                        IsDoubleGrading = member.IsDoubleGrading,
+                    },
+                },
             };
 
             var response = await Api.PostAsJsonAsync("grading/submit", request);
@@ -749,52 +692,50 @@
             {
                 var result = await response.Content.ReadFromJsonAsync<GradingSubmitApiResponse>()
                     ?? throw new InvalidOperationException("The grading API returned an empty response.");
-                var succeeded = result.Succeeded;
-                var failed = result.Failed;
-                _submissionResults = result.Details;
-
-                if (failed == 0)
+                var detail = result.Details.SingleOrDefault();
+                if (detail?.Success == true)
                 {
-                    Snackbar.Add($"Successfully issued {succeeded} credential(s)!", Severity.Success);
+                    member.HasIssuedCredential = true;
+                    member.BookingId = detail.BookingId ?? member.BookingId;
+                    Snackbar.Add($"Recorded result for {member.FirstName} {member.LastName}.", Severity.Success);
                 }
                 else
                 {
-                    Snackbar.Add($"{succeeded} succeeded, {failed} failed. Check details.", Severity.Warning);
+                    member.SubmissionError = detail?.Error ?? "The grading API did not return a result for this candidate.";
                 }
-
-                await LoadEventFastDataAsync();
-                RebuildMembersFromCandidates();
-                _ = EnrichAllMemberGradesAsync();
             }
             else
             {
-                await ShowApiErrorAsync(response, "Submit failed");
+                member.SubmissionError = $"Unable to record result (HTTP {(int)response.StatusCode}).";
             }
         }
         catch (Exception ex)
         {
-            ShowError("Submit error", ex);
+            Logger.LogError(ex, "Failed to record grading result for member {MemberId}", member.JustGoMemberId);
+            member.SubmissionError = ex.Message;
         }
         finally
         {
-            _submitting = false;
+            member.IsSubmittingResult = false;
             StateHasChanged();
         }
     }
 
-    private bool ValidateResultCapture(IEnumerable<GradingMember> gradingMembers)
-    {
-        var invalidMember = gradingMembers.FirstOrDefault(member =>
-            !OutcomeOptions.Contains(member.Outcome, StringComparer.Ordinal) ||
-            member.TheoryMark is < 0 or > 100);
+    private static string GetGradeLoadError(GradingMember member) =>
+        string.IsNullOrWhiteSpace(member.GradeLoadError)
+            ? "JustGo member details could not be loaded, so the grade cannot be calculated."
+            : member.GradeLoadError;
 
-        if (invalidMember is null)
+    private bool ValidateResultCapture(GradingMember member)
+    {
+        if (OutcomeOptions.Contains(member.Outcome, StringComparer.Ordinal) &&
+            (!member.TheoryMark.HasValue || member.TheoryMark.Value is >= 0 and <= 100))
         {
             return true;
         }
 
         Snackbar.Add(
-            $"Enter an outcome of A, P, or P- and an optional theory mark from 0 to 100 for {invalidMember.FirstName} {invalidMember.LastName}.",
+            $"Enter an outcome of A, P, or P- and an optional theory mark from 0 to 100 for {member.FirstName} {member.LastName}.",
             Severity.Error);
         return false;
     }
@@ -845,6 +786,7 @@
     private sealed class GradingResultStatusApiDto
     {
         public Guid MemberId { get; set; }
+        public Guid? BookingId { get; set; }
         public string MemberNumber { get; set; } = string.Empty;
         public string GradeName { get; set; } = string.Empty;
         public string Outcome { get; set; } = string.Empty;
