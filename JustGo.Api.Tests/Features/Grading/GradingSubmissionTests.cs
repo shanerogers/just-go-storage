@@ -119,6 +119,45 @@ public sealed class GradingSubmissionTests
             });
     }
 
+    [Fact]
+    public async Task SubmitGradingAsync_WhenMemberDetailsCannotBeLoaded_ReturnsCandidateFailureAndContinues()
+    {
+        var accessibleMemberId = Guid.NewGuid();
+        var inaccessibleMemberId = Guid.NewGuid();
+        var ticketId = Guid.NewGuid();
+        var eventClient = CreateEventClient(ticketId);
+        var memberClient = Substitute.For<IMemberClient>();
+        memberClient.GetMemberAsync(accessibleMemberId, Arg.Any<CancellationToken>())
+            .Returns(new MemberDetailDto { Id = accessibleMemberId, Credentials = [] });
+        memberClient.GetMemberAsync(inaccessibleMemberId, Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<MemberDetailDto>(
+                new InvalidOperationException("You are not authorised to use this resource.")));
+        var credentialClient = Substitute.For<ICredentialClient>();
+        credentialClient.CreateMemberCredentialAsync(accessibleMemberId, Arg.Any<MemberCredentialCreateRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new MemberCredentialCreatedResponse { CredentialId = Guid.NewGuid() });
+
+        var request = CreateRequest(accessibleMemberId, ticketId, Guid.NewGuid());
+        request.Results.Add(CreateResult(inaccessibleMemberId, ticketId, Guid.NewGuid()));
+
+        var response = await SubmitAsync(request, eventClient, memberClient, credentialClient);
+
+        Assert.Equal(1, response.Succeeded);
+        Assert.Equal(1, response.Failed);
+        Assert.Collection(
+            response.Details,
+            succeeded => Assert.True(succeeded.Success),
+            failed =>
+            {
+                Assert.False(failed.Success);
+                Assert.Equal(inaccessibleMemberId, failed.MemberId);
+                Assert.Contains("not authorised", failed.Error, StringComparison.OrdinalIgnoreCase);
+            });
+        await credentialClient.DidNotReceive().CreateMemberCredentialAsync(
+            inaccessibleMemberId,
+            Arg.Any<MemberCredentialCreateRequest>(),
+            Arg.Any<CancellationToken>());
+    }
+
     private static IEventClient CreateEventClient(Guid ticketId)
     {
         var eventClient = Substitute.For<IEventClient>();
@@ -175,6 +214,7 @@ public sealed class GradingSubmissionTests
             BookingId = bookingId,
             MemberNumber = "MID-123",
             GradeName = "5th Gup",
+            Outcome = GradingOutcomes.P,
         };
 
     private static async Task<GradingSubmitResponse> SubmitAsync(

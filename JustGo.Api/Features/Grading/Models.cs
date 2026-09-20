@@ -1,5 +1,15 @@
 namespace JustGo.Api.Features.Grading;
 
+public static class GradingOutcomes
+{
+    public const string A = "A";
+    public const string P = "P";
+    public const string PMinus = "P-";
+
+    public static bool IsValid(string? outcome) =>
+        outcome is A or P or PMinus;
+}
+
 /// <summary>Response DTO for a member in the grading context.</summary>
 public sealed class GradingMemberDto
 {
@@ -28,7 +38,8 @@ public sealed class GradingResultItem
     public string FirstName { get; init; } = string.Empty;
     public string LastName { get; init; } = string.Empty;
     public string GradeName { get; init; } = string.Empty;
-
+    public string Outcome { get; init; } = string.Empty;
+    public int? TheoryMark { get; init; }
     public bool IsDoubleGrading { get; init; }
 }
 
@@ -49,6 +60,8 @@ public sealed class GradingResultStatus
     public Guid TicketId { get; init; }
     public string MemberNumber { get; init; } = string.Empty;
     public string GradeName { get; init; } = string.Empty;
+    public string Outcome { get; init; } = string.Empty;
+    public int? TheoryMark { get; init; }
     public bool Success { get; init; }
     public bool BookingCreated { get; init; }
     public bool SkippedDuplicate { get; init; }

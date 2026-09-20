@@ -89,7 +89,7 @@ public sealed class EventClient(HttpClient httpClient, IOptions<JustGoOptions> o
         };
         if (request.EventId is not null)
         {
-            query["Id"] = request.EventId.Value.ToString();
+            query["EventId"] = request.EventId.Value.ToString();
         }
 
         var uri = QueryHelpers.AddQueryString($"/api/{ApiVersion}/Events/Candidate/FindByAttributes", query);
