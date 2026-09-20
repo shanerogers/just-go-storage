@@ -407,13 +407,6 @@ public static class GradingEndpoints
             .GroupBy(candidate => (candidate.CandidateId, candidate.TicketId))
             .ToDictionary(group => group.Key, group => group.First());
 
-        var memberDetails = await LoadMemberDetailsAsync(
-            request.Results.Select(result => result.MemberId).Distinct(),
-            memberClient,
-            ct);
-
-        var memberDetailById = memberDetails.ToDictionary(member => member.Id);
-
         var details = new List<GradingResultStatus>();
         var succeeded = 0;
         var failed = 0;
@@ -460,18 +453,24 @@ public static class GradingEndpoints
                 continue;
             }
 
-            if (!memberDetailById.TryGetValue(item.MemberId, out var memberDetail))
+            MemberDetailDto memberDetail;
+            try
+            {
+                memberDetail = await memberClient.GetMemberAsync(item.MemberId, ct);
+            }
+            catch (Exception ex)
             {
                 details.Add(new GradingResultStatus
                 {
                     MemberId = item.MemberId,
+                    BookingId = bookingId,
                     TicketId = item.TicketId,
                     MemberNumber = item.MemberNumber,
                     GradeName = gradeName,
                     Outcome = item.Outcome,
                     TheoryMark = item.TheoryMark,
                     Success = false,
-                    Error = "Failed to load member details from JustGo before issuing the credential.",
+                    Error = $"Failed to load member details from JustGo before issuing the credential: {GetErrorMessage(ex)}",
                 });
                 failed++;
                 continue;
@@ -608,6 +607,9 @@ public static class GradingEndpoints
 
         return null;
     }
+
+    private static string GetErrorMessage(Exception exception) =>
+        exception.Message.Length > 500 ? exception.Message[..500] : exception.Message;
 
     private static async Task<MemberDetailDto[]> LoadMemberDetailsAsync(
         IEnumerable<Guid> memberIds,

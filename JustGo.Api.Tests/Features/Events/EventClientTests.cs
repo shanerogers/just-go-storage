@@ -21,7 +21,7 @@ public sealed class EventClientTests
             {
                 Content = new StringContent("""{"data":[]}""", Encoding.UTF8, "application/json"),
             };
-        })
+        }))
         {
             BaseAddress = new Uri("https://api.justgo.test"),
         };
@@ -41,7 +41,8 @@ public sealed class EventClientTests
 
         Assert.NotNull(requestedUri);
         Assert.Contains($"EventId={eventId}", requestedUri.Query, StringComparison.Ordinal);
-        Assert.DoesNotContain("Id=", requestedUri.Query, StringComparison.Ordinal);
+        Assert.DoesNotContain("?Id=", requestedUri.Query, StringComparison.Ordinal);
+        Assert.DoesNotContain("&Id=", requestedUri.Query, StringComparison.Ordinal);
     }
 
     private sealed class StubHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> send) : HttpMessageHandler
