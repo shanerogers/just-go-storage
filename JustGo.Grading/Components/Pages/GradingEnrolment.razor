@@ -1,0 +1,531 @@
+@page "/grading/enrol"
+@page "/grading/enrol/{RouteEventId:guid}"
+@using JustGo.Grading.Models
+@inject IHttpClientFactory HttpClientFactory
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject ILogger<GradingEnrolment> Logger
+
+<PageTitle>Enrol Members - ITKD</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-4">
+    <MudText Typo="Typo.h4" Class="mb-2">Enrol Members</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+        Book club members onto a grading event in JustGo. Bookings are saved immediately and appear on the
+        Grading Entry roster as event bookings. To add someone just for today's result capture, use
+        "Add Members to Grading" on the Grading Entry page instead.
+    </MudText>
+    <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-4">
+        Intended for club admins. Access control is not yet enforced — the required role is still to be decided.
+    </MudAlert>
+
+    <MudPaper Class="pa-4 mb-4" Elevation="2">
+        <MudText Typo="Typo.h6" GutterBottom="true">Grading Event</MudText>
+        <MudGrid>
+            <MudItem xs="12" md="8">
+                <MudSelect T="Guid" Value="_selectedEventId" ValueChanged="SelectEventAsync" Label="Event"
+                           Variant="Variant.Outlined" Disabled="@(_loadingEvents || _enrolling)"
+                           AnchorOrigin="Origin.BottomCenter">
+                    @foreach (var evt in _events)
+                    {
+                        <MudSelectItem T="Guid" Value="@evt.Id">@evt.Name (@evt.Date?.ToString("dd MMM yyyy"))</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="4" Class="d-flex align-center justify-end">
+                @if (_selectedEventId != Guid.Empty)
+                {
+                    <MudButton Variant="Variant.Text" Color="Color.Primary" Href="@($"/grading/{_selectedEventId}")"
+                               StartIcon="@Icons.Material.Filled.EmojiEvents">
+                        Open in Grading Entry
+                    </MudButton>
+                }
+            </MudItem>
+        </MudGrid>
+        @if (_loadingEvents || _loadingEvent)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mt-4" />
+        }
+        else if (_selectedEventId != Guid.Empty)
+        {
+            <MudText Typo="Typo.caption" Class="mt-2">
+                Currently booked: <b>@_bookedMemberIds.Count</b> member(s) across @_tickets.Count grade ticket(s).
+            </MudText>
+        }
+    </MudPaper>
+
+    @if (_selectedEventId != Guid.Empty && !_loadingEvent)
+    {
+        <MudPaper Class="pa-4 mb-4" Elevation="2">
+            <MudText Typo="Typo.h6" GutterBottom="true">Find Members</MudText>
+            <MudGrid>
+                <MudItem xs="12" sm="8">
+                    <MudTextField @bind-Value="_searchTerm" Label="Search by name" Placeholder="Last name..."
+                                  Variant="Variant.Outlined" Immediate="true" OnKeyDown="OnSearchKeyDown"
+                                  Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Search" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="d-flex align-end" Style="padding-bottom: 4px;">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SearchMembersAsync"
+                               Disabled="@(_searching || _enrolling)" StartIcon="@Icons.Material.Filled.Search">
+                        Search
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+
+            @if (_searching)
+            {
+                <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mt-4" />
+            }
+
+            @if (_rows.Count > 0)
+            {
+                <MudTable Items="_rows" T="EnrolmentRow" Hover="true" Dense="true" Class="mt-4">
+                    <HeaderContent>
+                        <MudTh></MudTh>
+                        <MudTh>Member</MudTh>
+                        <MudTh>Current Grade</MudTh>
+                        <MudTh>Grade Ticket</MudTh>
+                        <MudTh>Status</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>
+                            <MudCheckBox T="bool" Value="context.IsSelected"
+                                         ValueChanged="@(selected => context.IsSelected = selected)"
+                                         Disabled="@(!context.CanSelect || _enrolling)" />
+                        </MudTd>
+                        <MudTd>
+                            <MudText Typo="Typo.body2">@context.FirstName @context.LastName</MudText>
+                            <MudText Typo="Typo.caption">@context.MemberNumber</MudText>
+                        </MudTd>
+                        <MudTd>
+                            @if (context.CurrentGrade is null)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
+                            }
+                            else
+                            {
+                                @context.CurrentGrade
+                            }
+                        </MudTd>
+                        <MudTd>
+                            <MudSelect T="Guid" @bind-Value="context.TicketId" Dense="true" Margin="Margin.Dense"
+                                       Variant="Variant.Outlined" Disabled="@(!context.CanSelect || _enrolling)">
+                                <MudSelectItem T="Guid" Value="Guid.Empty">Auto (next grade)</MudSelectItem>
+                                @foreach (var ticket in _tickets)
+                                {
+                                    <MudSelectItem T="Guid" Value="@ticket.TicketId">@(ticket.GradeName ?? ticket.TicketName)</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudTd>
+                        <MudTd>
+                            @switch (context.Status)
+                            {
+                                case RowStatus.AlreadyBooked:
+                                    <MudChip T="string" Color="Color.Info" Size="Size.Small">Already booked</MudChip>
+                                    break;
+                                case RowStatus.Enrolled:
+                                    <MudChip T="string" Color="Color.Success" Size="Size.Small">Booked @context.BookedGrade</MudChip>
+                                    break;
+                                case RowStatus.Failed:
+                                    <MudChip T="string" Color="Color.Error" Size="Size.Small">Failed</MudChip>
+                                    <MudText Typo="Typo.caption" Color="Color.Error">@context.Error</MudText>
+                                    break;
+                                default:
+                                    <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small">Not booked</MudChip>
+                                    break;
+                            }
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                <div class="d-flex align-center justify-end gap-2 mt-4">
+                    <MudText Typo="Typo.caption" Class="mr-auto">Selected: @SelectedRows.Count</MudText>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="EnrolSelectedAsync"
+                               Disabled="@(SelectedRows.Count == 0 || _enrolling)"
+                               StartIcon="@Icons.Material.Filled.PersonAdd">
+                        @if (_enrolling)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        }
+                        Book selected onto grading
+                    </MudButton>
+                </div>
+            }
+            else if (_searchCompleted)
+            {
+                <MudAlert Severity="Severity.Info" Class="mt-4">No members found. Try a different search term.</MudAlert>
+            }
+        </MudPaper>
+    }
+</MudContainer>
+
+@code {
+    [Parameter] public Guid? RouteEventId { get; set; }
+
+    private bool _loadingEvents;
+    private bool _loadingEvent;
+    private bool _searching;
+    private bool _searchCompleted;
+    private bool _enrolling;
+    private string _searchTerm = string.Empty;
+    private Guid _selectedEventId;
+    private List<EventOption> _events = [];
+    private List<EventTicketApiDto> _tickets = [];
+    private HashSet<Guid> _bookedMemberIds = [];
+    private List<EnrolmentRow> _rows = [];
+
+    private HttpClient Api => HttpClientFactory.CreateClient("JustGoApi");
+
+    private List<EnrolmentRow> SelectedRows => _rows.Where(row => row.IsSelected && row.CanSelect).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEventsAsync();
+
+        if (RouteEventId is { } eventId && _events.Any(evt => evt.Id == eventId))
+        {
+            await SelectEventAsync(eventId);
+        }
+    }
+
+    private async Task LoadEventsAsync()
+    {
+        _loadingEvents = true;
+        try
+        {
+            var response = await Api.GetAsync("grading/events?pageNumber=1&pageSize=200");
+            if (!response.IsSuccessStatusCode)
+            {
+                Snackbar.Add($"Failed to load grading events (HTTP {(int)response.StatusCode}).", Severity.Error);
+                return;
+            }
+
+            var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+            _events = ParseEventOptions(json);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load grading events");
+            Snackbar.Add($"Failed to load grading events: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loadingEvents = false;
+        }
+    }
+
+    private static List<EventOption> ParseEventOptions(JsonElement json)
+    {
+        if (!json.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        return data.EnumerateArray()
+            .Select(item => new EventOption
+            {
+                Id = item.TryGetProperty("id", out var id) && id.TryGetGuid(out var guid) ? guid : Guid.Empty,
+                Name = item.TryGetProperty("eventName", out var name) ? name.GetString() ?? string.Empty : string.Empty,
+                Date = item.TryGetProperty("startDate", out var date) && date.TryGetDateTime(out var parsed) ? parsed : null,
+            })
+            .Where(evt => evt.Id != Guid.Empty)
+            .OrderByDescending(evt => evt.Date)
+            .ToList();
+    }
+
+    private async Task SelectEventAsync(Guid eventId)
+    {
+        _selectedEventId = eventId;
+        _rows.Clear();
+        _searchCompleted = false;
+        Navigation.NavigateTo($"/grading/enrol/{eventId}", replace: true);
+        await LoadEventBookingsAsync();
+    }
+
+    private async Task LoadEventBookingsAsync()
+    {
+        _loadingEvent = true;
+        StateHasChanged();
+        try
+        {
+            var ticketsTask = Api.GetFromJsonAsync<List<EventTicketApiDto>>($"grading/events/{_selectedEventId}/tickets");
+            var candidatesTask = Api.GetFromJsonAsync<List<BookedCandidateApiDto>>($"grading/events/{_selectedEventId}/candidates");
+            await Task.WhenAll(ticketsTask, candidatesTask);
+
+            _tickets = ticketsTask.Result ?? [];
+            _bookedMemberIds = (candidatesTask.Result ?? []).Select(candidate => candidate.MemberId).ToHashSet();
+            MarkAlreadyBookedRows();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load bookings for event {EventId}", _selectedEventId);
+            Snackbar.Add($"Failed to load event bookings: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loadingEvent = false;
+        }
+    }
+
+    private void MarkAlreadyBookedRows()
+    {
+        foreach (var row in _rows.Where(row => row.Status is RowStatus.NotBooked && _bookedMemberIds.Contains(row.MemberId)))
+        {
+            row.Status = RowStatus.AlreadyBooked;
+            row.IsSelected = false;
+        }
+    }
+
+    private async Task OnSearchKeyDown(KeyboardEventArgs args)
+    {
+        if (!_searching && args.Key is "Enter" or "NumpadEnter")
+        {
+            await SearchMembersAsync();
+        }
+    }
+
+    private async Task SearchMembersAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            return;
+        }
+
+        _searching = true;
+        _searchCompleted = false;
+        _rows.Clear();
+        StateHasChanged();
+
+        try
+        {
+            var response = await Api.GetAsync(
+                $"grading/members?search={Uri.EscapeDataString(_searchTerm.Trim())}&page=1&pageSize=50");
+            if (!response.IsSuccessStatusCode)
+            {
+                Snackbar.Add($"Member search failed (HTTP {(int)response.StatusCode}).", Severity.Error);
+                return;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<MemberSearchApiResponse>();
+            _rows = (result?.Members ?? []).Select(CreateRow).ToList();
+            _ = LoadCurrentGradesAsync(_rows);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Member search failed");
+            Snackbar.Add($"Member search failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _searching = false;
+            _searchCompleted = true;
+        }
+    }
+
+    private EnrolmentRow CreateRow(MemberSearchApiDto member) => new()
+    {
+        MemberId = member.JustGoMemberId,
+        MemberNumber = member.MemberId,
+        FirstName = member.FirstName,
+        LastName = member.LastName,
+        Status = _bookedMemberIds.Contains(member.JustGoMemberId) ? RowStatus.AlreadyBooked : RowStatus.NotBooked,
+    };
+
+    private async Task LoadCurrentGradesAsync(IReadOnlyList<EnrolmentRow> rows)
+    {
+        try
+        {
+            var memberIds = rows.Select(row => row.MemberId).Where(id => id != Guid.Empty).Distinct().ToList();
+            if (memberIds.Count == 0)
+            {
+                return;
+            }
+
+            var response = await Api.PostAsJsonAsync("grading/members/details", new { MemberIds = memberIds });
+            var details = response.IsSuccessStatusCode
+                ? await response.Content.ReadFromJsonAsync<List<MemberGradeApiDto>>() ?? []
+                : [];
+            var detailById = details.ToDictionary(detail => detail.MemberId);
+
+            foreach (var row in rows)
+            {
+                row.CurrentGrade = detailById.TryGetValue(row.MemberId, out var detail) ? detail.CurrentGrade : "Unknown";
+                row.TicketId = row.TicketId == Guid.Empty && detail is not null
+                    ? FindTicketIdForGrade(detail.NextGrade)
+                    : row.TicketId;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load current grades for member search results");
+            foreach (var row in rows.Where(row => row.CurrentGrade is null))
+            {
+                row.CurrentGrade = "Unknown";
+            }
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private Guid FindTicketIdForGrade(string? gradeName) =>
+        _tickets.FirstOrDefault(ticket => string.Equals(ticket.GradeName, gradeName, StringComparison.OrdinalIgnoreCase))?.TicketId
+        ?? Guid.Empty;
+
+    private async Task EnrolSelectedAsync()
+    {
+        var selected = SelectedRows;
+        if (selected.Count == 0)
+        {
+            return;
+        }
+
+        _enrolling = true;
+        StateHasChanged();
+
+        try
+        {
+            var request = new
+            {
+                Members = selected.Select(row => new
+                {
+                    MemberId = row.MemberId,
+                    TicketId = row.TicketId == Guid.Empty ? (Guid?)null : row.TicketId,
+                }),
+            };
+
+            var response = await Api.PostAsJsonAsync($"grading/events/{_selectedEventId}/enrolments", request);
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Booking failed (HTTP {(int)response.StatusCode}). {body}", Severity.Error);
+                return;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<EnrolmentApiResponse>()
+                ?? throw new InvalidOperationException("The grading API returned an empty response.");
+            ApplyEnrolmentResults(result);
+            ShowEnrolmentSummary(result);
+            await LoadEventBookingsAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to enrol members onto event {EventId}", _selectedEventId);
+            Snackbar.Add($"Booking failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _enrolling = false;
+        }
+    }
+
+    private void ApplyEnrolmentResults(EnrolmentApiResponse result)
+    {
+        var rowById = _rows.ToDictionary(row => row.MemberId);
+        foreach (var detail in result.Details)
+        {
+            if (!rowById.TryGetValue(detail.MemberId, out var row))
+            {
+                continue;
+            }
+
+            row.IsSelected = false;
+            row.Error = detail.Error;
+            row.BookedGrade = detail.GradeName;
+            row.Status = detail.Outcome switch
+            {
+                "Enrolled" => RowStatus.Enrolled,
+                "AlreadyEnrolled" => RowStatus.AlreadyBooked,
+                _ => RowStatus.Failed,
+            };
+        }
+    }
+
+    private void ShowEnrolmentSummary(EnrolmentApiResponse result)
+    {
+        if (result.Enrolled > 0)
+        {
+            Snackbar.Add($"Booked {result.Enrolled} member(s) onto the grading.", Severity.Success);
+        }
+
+        if (result.AlreadyEnrolled > 0)
+        {
+            Snackbar.Add($"{result.AlreadyEnrolled} member(s) were already booked and were skipped.", Severity.Info);
+        }
+
+        if (result.Failed > 0)
+        {
+            Snackbar.Add($"{result.Failed} member(s) could not be booked. See the status column for details.", Severity.Error);
+        }
+    }
+
+    private enum RowStatus
+    {
+        NotBooked,
+        AlreadyBooked,
+        Enrolled,
+        Failed,
+    }
+
+    private sealed class EnrolmentRow
+    {
+        public Guid MemberId { get; init; }
+        public string MemberNumber { get; init; } = string.Empty;
+        public string FirstName { get; init; } = string.Empty;
+        public string LastName { get; init; } = string.Empty;
+        public string? CurrentGrade { get; set; }
+        public Guid TicketId { get; set; }
+        public bool IsSelected { get; set; }
+        public RowStatus Status { get; set; }
+        public string? BookedGrade { get; set; }
+        public string? Error { get; set; }
+        public bool CanSelect => Status is RowStatus.NotBooked or RowStatus.Failed;
+    }
+
+    private sealed class EventOption
+    {
+        public Guid Id { get; init; }
+        public string Name { get; init; } = string.Empty;
+        public DateTime? Date { get; init; }
+    }
+
+    private sealed class BookedCandidateApiDto
+    {
+        public Guid MemberId { get; set; }
+    }
+
+    private sealed class MemberSearchApiResponse
+    {
+        public List<MemberSearchApiDto> Members { get; set; } = [];
+    }
+
+    private sealed class MemberSearchApiDto
+    {
+        public Guid JustGoMemberId { get; set; }
+        public string MemberId { get; set; } = string.Empty;
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+    }
+
+    private sealed class MemberGradeApiDto
+    {
+        public Guid MemberId { get; set; }
+        public string CurrentGrade { get; set; } = string.Empty;
+        public string NextGrade { get; set; } = string.Empty;
+    }
+
+    private sealed class EnrolmentApiResponse
+    {
+        public int Enrolled { get; set; }
+        public int AlreadyEnrolled { get; set; }
+        public int Failed { get; set; }
+        public List<EnrolmentStatusApiDto> Details { get; set; } = [];
+    }
+
+    private sealed class EnrolmentStatusApiDto
+    {
+        public Guid MemberId { get; set; }
+        public string? GradeName { get; set; }
+        public string Outcome { get; set; } = string.Empty;
+        public string? Error { get; set; }
+    }
+}
