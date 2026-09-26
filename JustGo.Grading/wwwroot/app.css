@@ -82,6 +82,39 @@ h1:focus {
     min-width: 0;
 }
 
+.enrolment-roster {
+    height: 60vh;
+    min-height: 320px;
+    overflow-y: auto;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--mud-default-borderradius);
+}
+
+.enrolment-roster-header,
+.enrolment-roster-row {
+    display: grid;
+    grid-template-columns: 48px minmax(10rem, 2fr) minmax(6rem, 1fr) minmax(10rem, 1.5fr) minmax(8rem, 1fr);
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0 0.75rem;
+}
+
+.enrolment-roster-header {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--mud-palette-text-secondary);
+    padding-bottom: 0.25rem;
+}
+
+.enrolment-roster-row {
+    height: 64px;
+    border-bottom: 1px solid var(--mud-palette-lines-default);
+}
+
+.enrolment-roster-row .mud-input-control {
+    margin-top: 0;
+}
+
 @media (max-width: 599px) {
     .grading-record-controls {
         flex-direction: column;
