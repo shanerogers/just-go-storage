@@ -1,6 +1,9 @@
+using System.Text.Json;
+using JustGo.Api.Features.Clubs;
 using JustGo.Api.Features.Credentials;
 using JustGo.Api.Features.Events;
 using JustGo.Api.Features.Members;
+using JustGo.Integrations.JustGo.Features.Clubs.Models;
 using JustGo.Integrations.JustGo.Features.Credentials.Models;
 using JustGo.Integrations.JustGo.Features.Events.Models;
 
@@ -30,7 +33,11 @@ public static class GradingEndpoints
 
             group.MapGet("/members", GetGradingMembersAsync)
                 .WithName("GetGradingMembers")
-                .WithSummary("Search members by name — fast, returns basic info only (no grades)");
+                .WithSummary("Search members by name, event or club (paged) — fast, returns basic info only (no grades)");
+
+            group.MapGet("/clubs", GetGradingClubsAsync)
+                .WithName("GetGradingClubs")
+                .WithSummary("List active clubs, sorted by name, for choosing whose members to enrol");
 
             group.MapGet("/events/{eventId:guid}/tickets", GetEventTicketsAsync)
                 .WithName("GetGradingEventTickets")
@@ -123,10 +130,11 @@ public static class GradingEndpoints
         };
     }
 
-    private static async Task<IResult> GetGradingMembersAsync(
+    internal static async Task<IResult> GetGradingMembersAsync(
         IMemberClient memberClient,
         CancellationToken ct,
         Guid? eventId = null,
+        Guid? clubId = null,
         string? search = null,
         int page = 1,
         int pageSize = 50)
@@ -141,9 +149,9 @@ public static class GradingEndpoints
             page = 1;
         }
 
-        if (eventId is null && string.IsNullOrWhiteSpace(search))
+        if (eventId is null && clubId is null && string.IsNullOrWhiteSpace(search))
         {
-            return Results.BadRequest("Either eventId or search must be provided.");
+            return Results.BadRequest("Either eventId, clubId or search must be provided.");
         }
 
         // JustGo only supports LastName search — extract the last word as the surname
@@ -160,6 +168,7 @@ public static class GradingEndpoints
             PageNumber = page,
             PageSize = pageSize,
             EventId = eventId,
+            ClubId = clubId,
             LastName = string.IsNullOrWhiteSpace(lastName) ? null : lastName,
         };
 
@@ -191,6 +200,67 @@ public static class GradingEndpoints
             TotalCount = memberSearchResponse.TotalRecords,
         });
     }
+
+    private const int ClubPageSize = 100;
+    private const int MaxClubPages = 50;
+
+    internal static async Task<IResult> GetGradingClubsAsync(IClubClient clubClient, CancellationToken ct)
+    {
+        var clubs = new List<GradingClubDto>();
+
+        for (var pageNumber = 1; pageNumber <= MaxClubPages; pageNumber++)
+        {
+            var response = await clubClient.FindClubsByAttributesAsync(
+                new FindClubsRequest { PageNumber = pageNumber, PageSize = ClubPageSize },
+                ct);
+            var (pageClubs, rowCount) = ParseActiveClubs(response);
+            clubs.AddRange(pageClubs);
+
+            if (rowCount < ClubPageSize)
+            {
+                break;
+            }
+        }
+
+        var result = clubs
+            .DistinctBy(club => club.Id)
+            .OrderBy(club => club.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return Results.Ok(result);
+    }
+
+    private static (List<GradingClubDto> Clubs, int RowCount) ParseActiveClubs(object response)
+    {
+        if (response is not JsonElement json ||
+            !json.TryGetProperty("data", out var data) ||
+            data.ValueKind != JsonValueKind.Array)
+        {
+            return ([], 0);
+        }
+
+        var clubs = data.EnumerateArray()
+            .Where(IsActiveClub)
+            .Select(item => new GradingClubDto
+            {
+                Id = item.TryGetProperty("id", out var id) && id.TryGetGuid(out var clubId) ? clubId : Guid.Empty,
+                Name = GetJsonString(item, "organisationName"),
+                Town = GetJsonString(item, "organisationTown"),
+            })
+            .Where(club => club.Id != Guid.Empty && !string.IsNullOrWhiteSpace(club.Name))
+            .ToList();
+
+        return (clubs, data.GetArrayLength());
+    }
+
+    private static bool IsActiveClub(JsonElement item) =>
+        string.Equals(GetJsonString(item, "organisationType"), "Club", StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(GetJsonString(item, "organisationStatus"), "Active", StringComparison.OrdinalIgnoreCase);
+
+    private static string GetJsonString(JsonElement item, string propertyName) =>
+        item.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString() ?? string.Empty
+            : string.Empty;
 
     private static async Task<IResult> GetEventTicketsAsync(
         Guid eventId,

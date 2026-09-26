@@ -116,6 +116,14 @@ public sealed class GradingEventCandidateDto
     public string DoubleGrade { get; init; } = string.Empty;
 }
 
+/// <summary>An active club that members can be listed from when enrolling.</summary>
+public sealed class GradingClubDto
+{
+    public Guid Id { get; init; }
+    public string Name { get; init; } = string.Empty;
+    public string Town { get; init; } = string.Empty;
+}
+
 /// <summary>A member to enrol (book) into a grading event.</summary>
 public sealed class GradingEnrolmentItem
 {

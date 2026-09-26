@@ -26,6 +26,7 @@ public sealed class GradingEnrolmentTests
         builder.Services.AddSingleton(Substitute.For<IEventClient>());
         builder.Services.AddSingleton(Substitute.For<IMemberClient>());
         builder.Services.AddSingleton(Substitute.For<ICredentialClient>());
+        builder.Services.AddSingleton(Substitute.For<JustGo.Api.Features.Clubs.IClubClient>());
         var application = builder.Build();
 
         application.MapGradingEndpoints();
