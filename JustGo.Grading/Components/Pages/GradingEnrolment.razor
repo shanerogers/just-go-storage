@@ -24,7 +24,7 @@
     </MudAlert>
 
     <MudPaper Class="pa-4 mb-4" Elevation="2">
-        <MudText Typo="Typo.h6" GutterBottom="true">Grading Event</MudText>
+        <MudText Typo="Typo.h6" GutterBottom="true">1. Choose a grading</MudText>
         <MudGrid>
             <MudItem xs="12" md="8">
                 <MudSelect T="Guid" Value="_selectedEventId" ValueChanged="SelectEventAsync" Label="Event"
@@ -61,7 +61,7 @@
     @if (_selectedEventId != Guid.Empty && !_loadingEvent)
     {
         <MudPaper Class="pa-4 mb-4" Elevation="2">
-            <MudText Typo="Typo.h6" GutterBottom="true">Members</MudText>
+            <MudText Typo="Typo.h6" GutterBottom="true">2. Choose your club</MudText>
             <MudGrid>
                 <MudItem xs="12" md="5">
                     <MudAutocomplete T="ClubOption" Value="_selectedClub" ValueChanged="SelectClubAsync"
@@ -72,15 +72,16 @@
                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Groups" />
                 </MudItem>
                 <MudItem xs="12" sm="8" md="5">
-                    <MudTextField @bind-Value="_searchTerm" Label="@(_selectedClub is null ? "Search by name" : "Filter club by last name (optional)")"
+                    <MudTextField @bind-Value="_searchTerm" Label="Filter by last name (optional)"
                                   Placeholder="Last name..." Variant="Variant.Outlined" Immediate="true"
                                   OnKeyDown="OnSearchKeyDown" Clearable="true" OnClearButtonClick="ClearSearch"
+                                  Disabled="@(_selectedClub is null)"
                                   Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Search" />
                 </MudItem>
                 <MudItem xs="12" sm="4" md="2" Class="d-flex align-end" Style="padding-bottom: 4px;">
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ApplyFilters"
-                               Disabled="_enrolling" StartIcon="@Icons.Material.Filled.Search" FullWidth="true">
-                        @(_selectedClub is null ? "Search" : "Filter")
+                               Disabled="@(_enrolling || _selectedClub is null)" StartIcon="@Icons.Material.Filled.Search" FullWidth="true">
+                        Filter
                     </MudButton>
                 </MudItem>
             </MudGrid>
@@ -88,7 +89,7 @@
             @if (_rosterCache is null)
             {
                 <MudAlert Severity="Severity.Info" Class="mt-4">
-                    Choose a club to scroll through all its members, or search by last name.
+                    Choose your club to list its members. More members load as you scroll.
                 </MudAlert>
             }
             else
@@ -110,7 +111,7 @@
                 </div>
                 <div class="enrolment-roster" tabindex="-1">
                     <Virtualize @key="_rosterCache" TItem="EnrolmentRow" ItemsProvider="LoadRosterAsync"
-                                ItemSize="64" OverscanCount="10" Context="row">
+                                ItemSize="64" OverscanCount="2" Context="row">
                         <ItemContent>
                             <div @key="row.MemberId" class="enrolment-roster-row">
                                 <MudCheckBox T="bool" Value="row.IsSelected"
@@ -200,7 +201,7 @@
 </MudContainer>
 
 @code {
-    private const int RosterPageSize = 50;
+    private const int RosterPageSize = 10;
     private const string RememberedClubKey = "grading.enrol.clubId";
 
     [Parameter] public Guid? RouteEventId { get; set; }
@@ -225,12 +226,9 @@
 
     private HttpClient Api => HttpClientFactory.CreateClient("JustGoApi");
 
-    private string RosterHeading => (_selectedClub, _appliedSearchTerm) switch
-    {
-        ({ } club, "") => $"{club.Name} members",
-        ({ } club, var search) => $"{club.Name} members matching \"{search}\"",
-        (null, var search) => $"Members matching \"{search}\"",
-    };
+    private string RosterHeading => string.IsNullOrEmpty(_appliedSearchTerm)
+        ? $"{_selectedClub?.Name} members"
+        : $"{_selectedClub?.Name} members matching \"{_appliedSearchTerm}\"";
 
     private IEnumerable<EnrolmentRow> KnownRows =>
         (_rosterCache?.LoadedItems ?? Enumerable.Empty<EnrolmentRow>()).Concat(_selectedRows.Values).Distinct();
@@ -366,10 +364,7 @@
         await LoadEventBookingsAsync();
         ClearSelection();
 
-        if (_selectedClub is not null || !string.IsNullOrWhiteSpace(_appliedSearchTerm))
-        {
-            ResetRoster();
-        }
+        ResetRoster();
     }
 
     private async Task LoadEventBookingsAsync()
@@ -450,12 +445,12 @@
     {
         _appliedSearchTerm = _searchTerm.Trim();
         _rosterError = null;
-        _rosterCache = _selectedClub is null && string.IsNullOrWhiteSpace(_appliedSearchTerm)
+        _rosterCache = _selectedClub is null
             ? null
-            : CreateRosterCache(_selectedClub?.Id, _appliedSearchTerm);
+            : CreateRosterCache(_selectedClub.Id, _appliedSearchTerm);
     }
 
-    private PagedItemCache<EnrolmentRow> CreateRosterCache(Guid? clubId, string search)
+    private PagedItemCache<EnrolmentRow> CreateRosterCache(Guid clubId, string search)
     {
         var cache = new PagedItemCache<EnrolmentRow>(
             RosterPageSize,
@@ -465,16 +460,12 @@
     }
 
     private async Task<PageResult<EnrolmentRow>> FetchRosterPageAsync(
-        Guid? clubId,
+        Guid clubId,
         string search,
         int pageNumber,
         CancellationToken ct)
     {
-        var query = new List<string> { $"page={pageNumber}", $"pageSize={RosterPageSize}" };
-        if (clubId is { } id)
-        {
-            query.Add($"clubId={id}");
-        }
+        var query = new List<string> { $"page={pageNumber}", $"pageSize={RosterPageSize}", $"clubId={clubId}" };
 
         if (!string.IsNullOrWhiteSpace(search))
         {

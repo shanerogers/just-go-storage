@@ -89,6 +89,20 @@ public sealed class PagedItemCacheTests
     }
 
     [Fact]
+    public async Task GetRangeAsync_ScrollingDown_FetchesTheNextPageOnlyWhenReached()
+    {
+        var source = new FakePagedSource(totalItems: 35);
+        var cache = new PagedItemCache<int>(PageSize, source.FetchAsync);
+
+        await cache.GetRangeAsync(0, 9, CancellationToken.None);
+        await cache.GetRangeAsync(2, 8, CancellationToken.None);
+        Assert.Equal([1], source.RequestedPages);
+
+        await cache.GetRangeAsync(5, 9, CancellationToken.None);
+        Assert.Equal([1, 2], source.RequestedPages);
+    }
+
+    [Fact]
     public async Task GetRangeAsync_WithEmptySource_ReturnsNoItems()
     {
         var source = new FakePagedSource(totalItems: 0);

@@ -83,8 +83,8 @@ h1:focus {
 }
 
 .enrolment-roster {
-    height: 60vh;
-    min-height: 320px;
+    /* Shorter than one 10-member page (640px) so scrolling fetches the next page. */
+    height: 480px;
     overflow-y: auto;
     border: 1px solid var(--mud-palette-lines-default);
     border-radius: var(--mud-default-borderradius);
