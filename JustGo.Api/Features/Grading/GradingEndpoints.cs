@@ -6,6 +6,7 @@ using JustGo.Api.Features.Members;
 using JustGo.Integrations.JustGo.Features.Clubs.Models;
 using JustGo.Integrations.JustGo.Features.Credentials.Models;
 using JustGo.Integrations.JustGo.Features.Events.Models;
+using Microsoft.Extensions.Caching.Distributed;
 
 namespace JustGo.Api.Features.Grading;
 
@@ -37,7 +38,7 @@ public static class GradingEndpoints
 
             group.MapGet("/clubs", GetGradingClubsAsync)
                 .WithName("GetGradingClubs")
-                .WithSummary("List active clubs, sorted by name, for choosing whose members to enrol");
+                .WithSummary("List active clubs, sorted by name, for choosing whose members to enrol (cached 12h)");
 
             group.MapGet("/events/{eventId:guid}/tickets", GetEventTicketsAsync)
                 .WithName("GetGradingEventTickets")
@@ -203,8 +204,34 @@ public static class GradingEndpoints
 
     private const int ClubPageSize = 100;
     private const int MaxClubPages = 50;
+    internal const string ClubListCacheKey = "grading:clubs:active:v1";
+    private static readonly DistributedCacheEntryOptions ClubListCacheOptions = new()
+    {
+        AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(12),
+    };
 
-    internal static async Task<IResult> GetGradingClubsAsync(IClubClient clubClient, CancellationToken ct)
+    // JustGo's organisation search is slow and flaky, and the club list rarely changes, so it's cached.
+    internal static async Task<IResult> GetGradingClubsAsync(
+        IClubClient clubClient,
+        IDistributedCache cache,
+        CancellationToken ct)
+    {
+        var cached = await cache.GetStringAsync(ClubListCacheKey, ct);
+        if (cached is not null && JsonSerializer.Deserialize<List<GradingClubDto>>(cached) is { Count: > 0 } cachedClubs)
+        {
+            return Results.Ok(cachedClubs);
+        }
+
+        var clubs = await FetchActiveClubsAsync(clubClient, ct);
+        if (clubs.Count > 0)
+        {
+            await cache.SetStringAsync(ClubListCacheKey, JsonSerializer.Serialize(clubs), ClubListCacheOptions, ct);
+        }
+
+        return Results.Ok(clubs);
+    }
+
+    private static async Task<List<GradingClubDto>> FetchActiveClubsAsync(IClubClient clubClient, CancellationToken ct)
     {
         var clubs = new List<GradingClubDto>();
 
@@ -222,12 +249,10 @@ public static class GradingEndpoints
             }
         }
 
-        var result = clubs
+        return clubs
             .DistinctBy(club => club.Id)
             .OrderBy(club => club.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
-
-        return Results.Ok(result);
     }
 
     private static (List<GradingClubDto> Clubs, int RowCount) ParseActiveClubs(object response)

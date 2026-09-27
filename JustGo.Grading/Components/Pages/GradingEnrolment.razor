@@ -290,7 +290,7 @@
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to load clubs");
-            Snackbar.Add($"Failed to load clubs: {ex.Message}", Severity.Error);
+            Snackbar.Add("Couldn't load the club list from JustGo. Start typing in Club to try again.", Severity.Error);
         }
         finally
         {
@@ -401,12 +401,16 @@
         }
     }
 
-    private Task<IEnumerable<ClubOption>> SearchClubsAsync(string? text, CancellationToken ct)
+    private async Task<IEnumerable<ClubOption>> SearchClubsAsync(string? text, CancellationToken ct)
     {
-        IEnumerable<ClubOption> matches = string.IsNullOrWhiteSpace(text)
+        if (_clubs.Count == 0 && !_loadingClubs)
+        {
+            await LoadClubsAsync();
+        }
+
+        return string.IsNullOrWhiteSpace(text)
             ? _clubs
             : _clubs.Where(club => club.DisplayName.Contains(text.Trim(), StringComparison.OrdinalIgnoreCase));
-        return Task.FromResult(matches);
     }
 
     private async Task SelectClubAsync(ClubOption? club)
