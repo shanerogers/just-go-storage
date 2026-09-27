@@ -221,7 +221,7 @@
     private List<EventTicketApiDto> _tickets = [];
     private HashSet<Guid> _bookedMemberIds = [];
     private readonly Dictionary<Guid, EnrolmentRow> _selectedRows = [];
-    private Task _initialLoad = Task.CompletedTask;
+    private Task _clubsLoad = Task.CompletedTask;
     private PagedItemCache<EnrolmentRow>? _rosterCache;
 
     private HttpClient Api => HttpClientFactory.CreateClient("JustGoApi");
@@ -235,8 +235,9 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _initialLoad = Task.WhenAll(LoadEventsAsync(), LoadClubsAsync());
-        await _initialLoad;
+        // Clubs come from a slow JustGo call, so the grading list must not wait for them.
+        _clubsLoad = LoadClubsInBackgroundAsync();
+        await LoadEventsAsync();
 
         if (RouteEventId is { } eventId && _events.Any(evt => evt.Id == eventId))
         {
@@ -253,6 +254,15 @@
     }
 
     public void Dispose() => _disposed = true;
+
+    private async Task LoadClubsInBackgroundAsync()
+    {
+        await LoadClubsAsync();
+        if (!_disposed)
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
 
     private async Task LoadEventsAsync()
     {
@@ -302,7 +312,7 @@
     {
         try
         {
-            await _initialLoad;
+            await _clubsLoad;
             var remembered = await BrowserStorage.GetAsync<Guid>(RememberedClubKey);
             var club = remembered.Success ? _clubs.FirstOrDefault(c => c.Id == remembered.Value) : null;
             if (club is not null && _selectedClub is null)

@@ -26,10 +26,16 @@ builder.Services
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
+// Replace the 10s service-default timeouts for this client only; JustGo calls behind our API are slow.
+#pragma warning disable EXTEXP0001
 builder.Services.AddHttpClient("JustGoApi", client =>
 {
     client.BaseAddress = new Uri("https+http://api");
-}).AddServiceDiscovery();
+})
+.AddServiceDiscovery()
+.RemoveAllResilienceHandlers()
+.AddStandardResilienceHandler(JustGo.Grading.JustGoApiResilience.Configure);
+#pragma warning restore EXTEXP0001
 
 var app = builder.Build();
 
