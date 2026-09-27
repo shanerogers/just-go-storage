@@ -1,5 +1,6 @@
 @page "/grading/enrol"
 @page "/grading/enrol/{RouteEventId:guid}"
+@using JustGo.Grading.Enrolment
 @using JustGo.Grading.Models
 @using JustGo.Grading.Paging
 @using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
@@ -24,39 +25,37 @@
     </MudAlert>
 
     <MudPaper Class="pa-4 mb-4" Elevation="2">
-        <MudText Typo="Typo.h6" GutterBottom="true">1. Choose a grading</MudText>
-        <MudGrid>
-            <MudItem xs="12" md="8">
-                <MudSelect T="Guid" Value="_selectedEventId" ValueChanged="SelectEventAsync" Label="Event"
-                           Variant="Variant.Outlined" Disabled="@(_loadingEvents || _enrolling)"
-                           AnchorOrigin="Origin.BottomCenter">
-                    @foreach (var evt in _events)
-                    {
-                        <MudSelectItem T="Guid" Value="@evt.Id">@evt.Name (@evt.Date?.ToString("dd MMM yyyy"))</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-            <MudItem xs="12" md="4" Class="d-flex align-center justify-end">
-                @if (_selectedEventId != Guid.Empty)
+        <div class="enrolment-step-heading">
+            <MudText Typo="Typo.h6">1. Choose a grading</MudText>
+            <MudSwitch T="bool" @bind-Value="_showPastGradings" Color="Color.Tertiary" Size="Size.Small"
+                       Disabled="@(_loadingEvents || _enrolling)" Label="Show past gradings" />
+        </div>
+        <div class="enrolment-event-picker">
+            <MudSelect T="Guid" Value="_selectedEventId" ValueChanged="SelectEventAsync" Label="Event"
+                       Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="@(_loadingEvents || _enrolling)"
+                       Placeholder="@EnrolmentGuidance.EventPlaceholder(_loadingEvents, VisibleEvents.Count, HiddenPastCount)"
+                       ToStringFunc="@(id => EnrolmentGuidance.DescribeSelectedEvent(id, _eventLabels))"
+                       AdornmentIcon="@Icons.Material.Filled.EmojiEvents" Adornment="Adornment.Start"
+                       AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
+                @foreach (var evt in VisibleEvents)
                 {
-                    <MudButton Variant="Variant.Text" Color="Color.Primary" Href="@($"/grading/{_selectedEventId}")"
-                               StartIcon="@Icons.Material.Filled.EmojiEvents">
-                        Open in Grading Entry
-                    </MudButton>
+                    <MudSelectItem T="Guid" Value="@evt.Id">@EnrolmentGuidance.FormatEventLabel(evt.Name, evt.Date)</MudSelectItem>
                 }
-            </MudItem>
-        </MudGrid>
+            </MudSelect>
+        </div>
         @if (_loadingEvents || _loadingEvent)
         {
-            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mt-4" />
-        }
-        else if (_selectedEventId != Guid.Empty)
-        {
-            <MudText Typo="Typo.caption" Class="mt-2">
-                Currently booked: <b>@_bookedMemberIds.Count</b> member(s) across @_tickets.Count grade ticket(s).
-            </MudText>
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mt-3" />
         }
     </MudPaper>
+
+    @if (_selectedEventId == Guid.Empty)
+    {
+        <MudPaper Class="pa-4 mb-4 enrolment-step-locked" Elevation="0">
+            <MudText Typo="Typo.h6">2. Choose your club</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">Choose a grading above to unlock this step.</MudText>
+        </MudPaper>
+    }
 
     @if (_selectedEventId != Guid.Empty && !_loadingEvent)
     {
@@ -70,19 +69,6 @@
                                      Variant="Variant.Outlined" Clearable="true" ResetValueOnEmptyText="true"
                                      MaxItems="null" Disabled="@(_loadingClubs || _enrolling)"
                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Groups" />
-                </MudItem>
-                <MudItem xs="12" sm="8" md="5">
-                    <MudTextField @bind-Value="_searchTerm" Label="Filter by last name (optional)"
-                                  Placeholder="Last name..." Variant="Variant.Outlined" Immediate="true"
-                                  OnKeyDown="OnSearchKeyDown" Clearable="true" OnClearButtonClick="ClearSearch"
-                                  Disabled="@(_selectedClub is null)"
-                                  Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Search" />
-                </MudItem>
-                <MudItem xs="12" sm="4" md="2" Class="d-flex align-end" Style="padding-bottom: 4px;">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ApplyFilters"
-                               Disabled="@(_enrolling || _selectedClub is null)" StartIcon="@Icons.Material.Filled.Search" FullWidth="true">
-                        Filter
-                    </MudButton>
                 </MudItem>
             </MudGrid>
 
@@ -102,44 +88,55 @@
                     }
                 </div>
 
-                <div class="enrolment-roster-header">
-                    <span></span>
-                    <span>Member</span>
-                    <span>Current grade</span>
-                    <span>Grade ticket</span>
-                    <span>Status</span>
-                </div>
                 <div class="enrolment-roster" tabindex="-1">
                     <Virtualize @key="_rosterCache" TItem="EnrolmentRow" ItemsProvider="LoadRosterAsync"
-                                ItemSize="64" OverscanCount="2" Context="row">
+                                ItemSize="84" OverscanCount="2" Context="row">
                         <ItemContent>
-                            <div @key="row.MemberId" class="enrolment-roster-row">
-                                <MudCheckBox T="bool" Value="row.IsSelected"
-                                             ValueChanged="@(selected => ToggleSelected(row, selected))"
-                                             Disabled="@(!row.CanSelect || _enrolling)" />
-                                <div>
-                                    <MudText Typo="Typo.body2">@row.FirstName @row.LastName</MudText>
-                                    <MudText Typo="Typo.caption">@row.MemberNumber</MudText>
-                                </div>
-                                <div>
-                                    @if (row.CurrentGrade is null)
+                            <div @key="row.MemberId" class="@MemberCardClass(row)"
+                                 role="checkbox" aria-checked="@(row.IsSelected ? "true" : "false")"
+                                 aria-disabled="@(!row.CanSelect || _enrolling ? "true" : "false")"
+                                 tabindex="@(row.CanSelect ? 0 : -1)"
+                                 @onclick="() => ToggleSelected(row, !row.IsSelected)"
+                                 @onkeydown="args => OnMemberCardKeyDown(row, args)">
+                                <div class="member-card-avatar" aria-hidden="true">
+                                    @if (row.IsSelected)
                                     {
-                                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
+                                        <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" />
                                     }
                                     else
                                     {
-                                        @row.CurrentGrade
+                                        @MemberCardText.Initials(row.FirstName, row.LastName)
                                     }
                                 </div>
-                                <MudSelect T="Guid" @bind-Value="row.TicketId" Dense="true" Margin="Margin.Dense"
-                                           Variant="Variant.Outlined" Disabled="@(!row.CanSelect || _enrolling)">
-                                    <MudSelectItem T="Guid" Value="Guid.Empty">Auto (next grade)</MudSelectItem>
-                                    @foreach (var ticket in _tickets)
-                                    {
-                                        <MudSelectItem T="Guid" Value="@ticket.TicketId">@(ticket.GradeName ?? ticket.TicketName)</MudSelectItem>
-                                    }
-                                </MudSelect>
-                                <div>
+                                <div class="member-card-body">
+                                    <div class="member-card-name">@MemberCardText.FullName(row.FirstName, row.LastName)</div>
+                                    <div class="member-card-meta">
+                                        <span>#@row.MemberNumber</span>
+                                        <span aria-hidden="true">·</span>
+                                        @if (MemberCardText.GradeProgression(row.CurrentGrade, row.NextGrade) is { } grades)
+                                        {
+                                            <span>@grades</span>
+                                        }
+                                        else
+                                        {
+                                            <MudSkeleton Width="8rem" />
+                                        }
+                                    </div>
+                                </div>
+                                @if (row.IsSelected)
+                                {
+                                    <div class="member-card-ticket" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true">
+                                        <MudSelect T="Guid" @bind-Value="row.TicketId" Dense="true" Margin="Margin.Dense"
+                                                   Label="Grade ticket" Variant="Variant.Outlined" Disabled="_enrolling">
+                                            <MudSelectItem T="Guid" Value="Guid.Empty">Auto (next grade)</MudSelectItem>
+                                            @foreach (var ticket in _tickets)
+                                            {
+                                                <MudSelectItem T="Guid" Value="@ticket.TicketId">@(ticket.GradeName ?? ticket.TicketName)</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                    </div>
+                                }
+                                <div class="member-card-status">
                                     @switch (row.Status)
                                     {
                                         case RowStatus.AlreadyBooked:
@@ -161,17 +158,17 @@
                             </div>
                         </ItemContent>
                         <Placeholder>
-                            <div class="enrolment-roster-row">
-                                <span></span>
-                                <MudSkeleton Width="70%" />
-                                <MudSkeleton Width="50%" />
-                                <MudSkeleton Width="80%" />
-                                <MudSkeleton Width="40%" />
+                            <div class="member-card">
+                                <MudSkeleton SkeletonType="SkeletonType.Circle" Width="40px" Height="40px" />
+                                <div class="member-card-body">
+                                    <MudSkeleton Width="60%" />
+                                    <MudSkeleton Width="40%" />
+                                </div>
                             </div>
                         </Placeholder>
                         <EmptyContent>
                             <MudAlert Severity="Severity.Info" Class="ma-2">
-                                @(_rosterError ?? "No members found. Try a different club or name.")
+                                @(_rosterError ?? "No members found. Try a different club.")
                             </MudAlert>
                         </EmptyContent>
                     </Virtualize>
@@ -211,12 +208,17 @@
     private bool _loadingClubs;
     private bool _enrolling;
     private bool _disposed;
-    private string _searchTerm = string.Empty;
-    private string _appliedSearchTerm = string.Empty;
     private string? _rosterError;
     private Guid _selectedEventId;
     private ClubOption? _selectedClub;
-    private List<EventOption> _events = [];
+    private List<GradingEventOption> _allEvents = [];
+    private Dictionary<Guid, string> _eventLabels = [];
+    private bool _showPastGradings;
+
+    private IReadOnlyList<GradingEventOption> VisibleEvents =>
+        GradingEventFilter.SelectVisible(_allEvents, _showPastGradings, DateTime.Today, _selectedEventId);
+
+    private int HiddenPastCount => _showPastGradings ? 0 : GradingEventFilter.CountPast(_allEvents, DateTime.Today);
     private List<ClubOption> _clubs = [];
     private List<EventTicketApiDto> _tickets = [];
     private HashSet<Guid> _bookedMemberIds = [];
@@ -226,9 +228,7 @@
 
     private HttpClient Api => HttpClientFactory.CreateClient("JustGoApi");
 
-    private string RosterHeading => string.IsNullOrEmpty(_appliedSearchTerm)
-        ? $"{_selectedClub?.Name} members"
-        : $"{_selectedClub?.Name} members matching \"{_appliedSearchTerm}\"";
+    private string RosterHeading => $"{_selectedClub?.Name} members";
 
     private IEnumerable<EnrolmentRow> KnownRows =>
         (_rosterCache?.LoadedItems ?? Enumerable.Empty<EnrolmentRow>()).Concat(_selectedRows.Values).Distinct();
@@ -239,8 +239,9 @@
         _clubsLoad = LoadClubsInBackgroundAsync();
         await LoadEventsAsync();
 
-        if (RouteEventId is { } eventId && _events.Any(evt => evt.Id == eventId))
+        if (RouteEventId is { } eventId && _allEvents.FirstOrDefault(evt => evt.Id == eventId) is { } linkedEvent)
         {
+            _showPastGradings = GradingEventFilter.IsPast(linkedEvent, DateTime.Today);
             await SelectEventAsync(eventId);
         }
     }
@@ -277,7 +278,8 @@
             }
 
             var json = await response.Content.ReadFromJsonAsync<JsonElement>();
-            _events = ParseEventOptions(json);
+            _allEvents = ParseEventOptions(json);
+            _eventLabels = _allEvents.ToDictionary(evt => evt.Id, evt => EnrolmentGuidance.FormatEventLabel(evt.Name, evt.Date));
         }
         catch (Exception ex)
         {
@@ -348,7 +350,7 @@
         }
     }
 
-    private static List<EventOption> ParseEventOptions(JsonElement json)
+    private static List<GradingEventOption> ParseEventOptions(JsonElement json)
     {
         if (!json.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
         {
@@ -356,21 +358,22 @@
         }
 
         return data.EnumerateArray()
-            .Select(item => new EventOption
-            {
-                Id = item.TryGetProperty("id", out var id) && id.TryGetGuid(out var guid) ? guid : Guid.Empty,
-                Name = item.TryGetProperty("eventName", out var name) ? name.GetString() ?? string.Empty : string.Empty,
-                Date = item.TryGetProperty("startDate", out var date) && date.TryGetDateTime(out var parsed) ? parsed : null,
-            })
+            .Select(item => new GradingEventOption(
+                Id: item.TryGetProperty("id", out var id) && id.TryGetGuid(out var guid) ? guid : Guid.Empty,
+                Name: item.TryGetProperty("eventName", out var name) ? name.GetString() ?? string.Empty : string.Empty,
+                Date: item.TryGetProperty("startDate", out var date) && date.TryGetDateTime(out var parsed) ? parsed : null,
+                Status: item.TryGetProperty("status", out var status) ? status.GetString() : null))
             .Where(evt => evt.Id != Guid.Empty)
-            .OrderByDescending(evt => evt.Date)
             .ToList();
     }
 
     private async Task SelectEventAsync(Guid eventId)
     {
         _selectedEventId = eventId;
-        Navigation.NavigateTo($"/grading/enrol/{eventId}", replace: true);
+        if (EnrolmentGuidance.NeedsNavigationToEvent(new Uri(Navigation.Uri), eventId))
+        {
+            Navigation.NavigateTo(EnrolmentGuidance.EventPath(eventId), replace: true);
+        }
         await LoadEventBookingsAsync();
         ClearSelection();
 
@@ -435,58 +438,28 @@
         await RememberClubAsync(club);
     }
 
-    private void OnSearchKeyDown(KeyboardEventArgs args)
-    {
-        if (args.Key is "Enter" or "NumpadEnter")
-        {
-            ApplyFilters();
-        }
-    }
-
-    private void ClearSearch(MouseEventArgs _)
-    {
-        _searchTerm = string.Empty;
-        ApplyFilters();
-    }
-
-    private void ApplyFilters()
-    {
-        ResetRoster();
-    }
-
     // A new cache instance re-keys the Virtualize component, so it starts again from the top.
     private void ResetRoster()
     {
-        _appliedSearchTerm = _searchTerm.Trim();
         _rosterError = null;
         _rosterCache = _selectedClub is null
             ? null
-            : CreateRosterCache(_selectedClub.Id, _appliedSearchTerm);
+            : CreateRosterCache(_selectedClub.Id);
     }
 
-    private PagedItemCache<EnrolmentRow> CreateRosterCache(Guid clubId, string search)
+    private PagedItemCache<EnrolmentRow> CreateRosterCache(Guid clubId)
     {
         var cache = new PagedItemCache<EnrolmentRow>(
             RosterPageSize,
-            (pageNumber, ct) => FetchRosterPageAsync(clubId, search, pageNumber, ct));
+            (pageNumber, ct) => FetchRosterPageAsync(clubId, pageNumber, ct));
         cache.PageLoaded += rows => _ = LoadCurrentGradesAsync(rows);
         return cache;
     }
 
-    private async Task<PageResult<EnrolmentRow>> FetchRosterPageAsync(
-        Guid clubId,
-        string search,
-        int pageNumber,
-        CancellationToken ct)
+    private async Task<PageResult<EnrolmentRow>> FetchRosterPageAsync(Guid clubId, int pageNumber, CancellationToken ct)
     {
-        var query = new List<string> { $"page={pageNumber}", $"pageSize={RosterPageSize}", $"clubId={clubId}" };
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            query.Add($"search={Uri.EscapeDataString(search)}");
-        }
-
-        var result = await Api.GetFromJsonAsync<MemberSearchApiResponse>($"grading/members?{string.Join('&', query)}", ct)
+        var query = $"page={pageNumber}&pageSize={RosterPageSize}&clubId={clubId}";
+        var result = await Api.GetFromJsonAsync<MemberSearchApiResponse>($"grading/members?{query}", ct)
             ?? new MemberSearchApiResponse();
         var rows = result.Members.Select(CreateRow).ToList();
         return new PageResult<EnrolmentRow>(rows, result.TotalCount);
@@ -519,7 +492,7 @@
         }
     }
 
-    // Reusing a selected member's row keeps its tick and ticket choice when filters change.
+    // Reusing a selected member's row keeps its tick and ticket choice when the roster reloads.
     private EnrolmentRow CreateRow(MemberSearchApiDto member) =>
         _selectedRows.TryGetValue(member.JustGoMemberId, out var selected)
             ? selected
@@ -552,7 +525,8 @@
             foreach (var row in pending)
             {
                 var found = detailById.TryGetValue(row.MemberId, out var detail);
-                row.CurrentGrade = found ? detail!.CurrentGrade : "Unknown";
+                row.CurrentGrade = found ? detail!.CurrentGrade : MemberCardText.UnknownGrade;
+                row.NextGrade = found ? detail!.NextGrade : null;
                 if (found && row.TicketId == Guid.Empty)
                 {
                     row.TicketId = FindTicketIdForGrade(detail!.NextGrade);
@@ -564,7 +538,7 @@
             Logger.LogError(ex, "Failed to load current grades for member rows");
             foreach (var row in pending.Where(row => row.CurrentGrade is null))
             {
-                row.CurrentGrade = "Unknown";
+                row.CurrentGrade = MemberCardText.UnknownGrade;
             }
         }
 
@@ -580,11 +554,27 @@
 
     private void ToggleSelected(EnrolmentRow row, bool selected)
     {
-        if (row.CanSelect)
+        if (row.CanSelect && !_enrolling)
         {
             SetSelected(row, selected);
         }
     }
+
+    private void OnMemberCardKeyDown(EnrolmentRow row, KeyboardEventArgs args)
+    {
+        if (args.Key is " " or "Enter" or "NumpadEnter")
+        {
+            ToggleSelected(row, !row.IsSelected);
+        }
+    }
+
+    private string MemberCardClass(EnrolmentRow row) =>
+        (row.IsSelected, row.CanSelect) switch
+        {
+            (true, _) => "member-card member-card--selected",
+            (false, false) => "member-card member-card--locked",
+            _ => "member-card",
+        };
 
     private void SetSelected(EnrolmentRow row, bool selected)
     {
@@ -712,19 +702,13 @@
         public string FirstName { get; init; } = string.Empty;
         public string LastName { get; init; } = string.Empty;
         public string? CurrentGrade { get; set; }
+        public string? NextGrade { get; set; }
         public Guid TicketId { get; set; }
         public bool IsSelected { get; set; }
         public RowStatus Status { get; set; }
         public string? BookedGrade { get; set; }
         public string? Error { get; set; }
         public bool CanSelect => Status is RowStatus.NotBooked or RowStatus.Failed;
-    }
-
-    private sealed class EventOption
-    {
-        public Guid Id { get; init; }
-        public string Name { get; init; } = string.Empty;
-        public DateTime? Date { get; init; }
     }
 
     private sealed class ClubOption
