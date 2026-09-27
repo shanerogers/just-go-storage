@@ -2,6 +2,7 @@ using JustGo.Grading.Components;
 using Microsoft.AspNetCore.HttpLogging;
 using MudBlazor.Services;
 using Humanizer;
+using JustGo.Grading;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,21 +22,15 @@ builder.Services.AddHttpLogging(options =>
 builder.Services.AddMudServices();
 
 builder.Services
-    .AddOptions<JustGo.Grading.GradingOptions>()
-    .BindConfiguration(JustGo.Grading.GradingOptions.SectionName)
+    .AddOptions<GradingOptions>()
+    .BindConfiguration(GradingOptions.SectionName)
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
-// Replace the 10s service-default timeouts for this client only; JustGo calls behind our API are slow.
-#pragma warning disable EXTEXP0001
 builder.Services.AddHttpClient("JustGoApi", client =>
 {
     client.BaseAddress = new Uri("https+http://api");
-})
-.AddServiceDiscovery()
-.RemoveAllResilienceHandlers()
-.AddStandardResilienceHandler(JustGo.Grading.JustGoApiResilience.Configure);
-#pragma warning restore EXTEXP0001
+}).AddServiceDiscovery();
 
 var app = builder.Build();
 
