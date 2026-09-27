@@ -104,7 +104,7 @@ public static class GradingEndpoints
 
     private static object FilterEventsByName(object result, string search)
     {
-        if (result is not System.Text.Json.JsonElement json)
+        if (result is not JsonElement json)
         {
             return result;
         }

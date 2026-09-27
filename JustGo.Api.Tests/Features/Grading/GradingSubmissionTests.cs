@@ -22,7 +22,7 @@ public sealed class GradingSubmissionTests
         builder.Services.AddSingleton(Substitute.For<IEventClient>());
         builder.Services.AddSingleton(Substitute.For<IMemberClient>());
         builder.Services.AddSingleton(Substitute.For<ICredentialClient>());
-        builder.Services.AddSingleton(Substitute.For<JustGo.Api.Features.Clubs.IClubClient>());
+        builder.Services.AddSingleton(Substitute.For<Api.Features.Clubs.IClubClient>());
         builder.Services.AddDistributedMemoryCache();
         var application = builder.Build();
 
