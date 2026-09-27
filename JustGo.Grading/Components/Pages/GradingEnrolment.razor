@@ -24,7 +24,7 @@
 
     <MudPaper Class="pa-4 mb-4" Elevation="2">
         <MudText Typo="Typo.h6" GutterBottom="true">1. Choose a grading</MudText>
-        <div class="enrolment-event-picker">
+        <div class="enrolment-picker">
             <MudSelect T="Guid" Value="_selectedEventId" ValueChanged="SelectEventAsync" Label="Event"
                        Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="@(_loadingEvents || _enrolling)"
                        Placeholder="@EnrolmentGuidance.EventPlaceholder(_loadingEvents, VisibleEvents.Count)"
@@ -55,16 +55,14 @@
     {
         <MudPaper Class="pa-4 mb-4" Elevation="2">
             <MudText Typo="Typo.h6" GutterBottom="true">2. Choose your club</MudText>
-            <MudGrid>
-                <MudItem xs="12" md="5">
-                    <MudAutocomplete T="ClubOption" Value="_selectedClub" ValueChanged="SelectClubAsync"
-                                     SearchFunc="SearchClubsAsync" ToStringFunc="@(club => club?.DisplayName)"
-                                     Label="Club" Placeholder="Start typing a club name..."
-                                     Variant="Variant.Outlined" Clearable="true" ResetValueOnEmptyText="true"
-                                     MaxItems="null" Disabled="@(_loadingClubs || _loadingEvent || _enrolling)"
-                                     Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Groups" />
-                </MudItem>
-            </MudGrid>
+            <div class="enrolment-picker">
+                <MudAutocomplete T="ClubOption" Value="_selectedClub" ValueChanged="SelectClubAsync"
+                                 SearchFunc="SearchClubsAsync" ToStringFunc="@(club => club?.DisplayName)"
+                                 Label="Club" Placeholder="Start typing a club name..."
+                                 Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" ResetValueOnEmptyText="true"
+                                 MaxItems="null" Disabled="@(_loadingClubs || _loadingEvent || _enrolling)"
+                                 Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Groups" />
+            </div>
 
             @if (_rosterCache is null)
             {

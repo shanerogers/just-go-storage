@@ -341,14 +341,14 @@ h1:focus {
     }
 }
 
-.enrolment-event-picker {
+.enrolment-picker {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.5rem 1.5rem;
 }
 
-.enrolment-event-picker > .mud-select {
+.enrolment-picker > .mud-select {
     flex: 1 1 100%;
 }
 
