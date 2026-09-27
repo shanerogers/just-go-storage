@@ -20,6 +20,16 @@ public partial class EnrolmentPickerLayoutTests
         Assert.All(pickers, tag => Assert.Contains("Margin=\"Margin.Dense\"", tag, StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void ClubPicker_DoesNotShowGuidanceBeforeAClubIsSelected()
+    {
+        var markup = File.ReadAllText(EnrolmentPagePath());
+
+        Assert.Contains("@if (_rosterCache is not null)", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Choose your club to list its members", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("<MudAlert Severity=\"Severity.Info\"", markup, StringComparison.Ordinal);
+    }
+
     private static string EnrolmentPagePath([CallerFilePath] string testFile = "")
     {
         var directory = new FileInfo(testFile).Directory;

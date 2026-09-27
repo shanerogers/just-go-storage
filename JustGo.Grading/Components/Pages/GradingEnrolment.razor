@@ -64,13 +64,7 @@
                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Groups" />
             </div>
 
-            @if (_rosterCache is null)
-            {
-                <MudAlert Severity="Severity.Info" Class="mt-4">
-                    Choose your club to list its members. More members load as you scroll.
-                </MudAlert>
-            }
-            else
+            @if (_rosterCache is not null)
             {
                 <div class="d-flex align-center justify-space-between mt-4 mb-1">
                     <MudText Typo="Typo.subtitle2">@RosterHeading</MudText>
