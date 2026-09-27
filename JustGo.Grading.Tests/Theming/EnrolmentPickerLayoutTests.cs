@@ -30,6 +30,15 @@ public partial class EnrolmentPickerLayoutTests
         Assert.DoesNotContain("<MudAlert Severity=\"Severity.Info\"", markup, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void EnrolmentPage_DoesNotShowClubAdminWarning()
+    {
+        var markup = File.ReadAllText(EnrolmentPagePath());
+
+        Assert.DoesNotContain("Intended for club admins.", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("<MudAlert Severity=\"Severity.Warning\"", markup, StringComparison.Ordinal);
+    }
+
     private static string EnrolmentPagePath([CallerFilePath] string testFile = "")
     {
         var directory = new FileInfo(testFile).Directory;
