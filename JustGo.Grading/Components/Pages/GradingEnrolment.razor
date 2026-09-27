@@ -16,7 +16,7 @@
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-4">
     <MudText Typo="Typo.h4" Class="mb-2">Enrol Members</MudText>
     <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-        Book club members onto a grading event in JustGo.
+        Book eligible club members up to 1st Gup onto a grading event in JustGo.
     </MudText>
     <MudPaper Class="pa-4 mb-4" Elevation="2">
         <MudText Typo="Typo.h6" GutterBottom="true">1. Choose a grading</MudText>
@@ -64,12 +64,20 @@
             {
                 <div class="d-flex align-center justify-space-between mt-4 mb-1">
                     <MudText Typo="Typo.subtitle2">@RosterHeading</MudText>
-                    @if (_rosterCache.TotalCount is { } total)
+                    @if (_rosterCache.IsComplete)
                     {
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">@total member(s)</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@_rosterCache.LoadedItems.Count eligible member(s)</MudText>
+                    }
+                    else if (_rosterCache.LoadedItems.Count > 0)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@_rosterCache.LoadedItems.Count eligible so far</MudText>
                     }
                 </div>
 
+                @if (_rosterError is not null && _rosterCache.LoadedItems.Count > 0)
+                {
+                    <MudAlert Severity="Severity.Error" Class="mt-2">@_rosterError</MudAlert>
+                }
                 <div class="enrolment-roster" tabindex="-1">
                     @if (IsWaitingForFirstRosterPage)
                     {
@@ -80,9 +88,18 @@
                             }
                         </div>
                     }
-                    <Virtualize @key="_rosterCache" TItem="EnrolmentRow" ItemsProvider="LoadRosterAsync"
+                    <Virtualize @ref="_rosterList" @key="_rosterCache" TItem="EnrolmentRow" ItemsProvider="LoadRosterAsync"
                                 ItemSize="84" OverscanCount="2" Context="row">
                         <ItemContent>
+                            @if (row.MemberId == Guid.Empty)
+                            {
+                                @if (!IsWaitingForFirstRosterPage)
+                                {
+                                    @MemberCardSkeleton
+                                }
+                            }
+                            else
+                            {
                             <div @key="row.MemberId" class="@MemberCardClass(row)"
                                  role="checkbox" aria-checked="@(row.IsSelected ? "true" : "false")"
                                  aria-disabled="@(!row.CanSelect || _enrolling ? "true" : "false")"
@@ -147,6 +164,7 @@
                                     }
                                 </div>
                             </div>
+                            }
                         </ItemContent>
                         <Placeholder>
                             @MemberCardSkeleton
@@ -217,7 +235,8 @@
     private HashSet<Guid> _bookedMemberIds = [];
     private readonly Dictionary<Guid, EnrolmentRow> _selectedRows = [];
     private Task _clubsLoad = Task.CompletedTask;
-    private PagedItemCache<EnrolmentRow>? _rosterCache;
+    private ProgressiveFilteredRoster<MemberSearchApiDto, EnrolmentRow>? _rosterCache;
+    private Virtualize<EnrolmentRow>? _rosterList;
 
     private HttpClient Api => HttpClientFactory.CreateClient("JustGoApi");
 
@@ -276,7 +295,11 @@
         }
     }
 
-    public void Dispose() => _disposed = true;
+    public void Dispose()
+    {
+        _disposed = true;
+        _rosterCache?.Dispose();
+    }
 
     private async Task LoadClubsInBackgroundAsync()
     {
@@ -463,63 +486,71 @@
     // A new cache instance re-keys the Virtualize component, so it starts again from the top.
     private void ResetRoster()
     {
+        _rosterCache?.Dispose();
+        _rosterList = null;
         _rosterError = null;
         _rosterCache = _selectedClub is null
             ? null
             : CreateRosterCache(_selectedClub.Id);
     }
 
-    private PagedItemCache<EnrolmentRow> CreateRosterCache(Guid clubId)
+    private ProgressiveFilteredRoster<MemberSearchApiDto, EnrolmentRow> CreateRosterCache(Guid clubId)
     {
-        var cache = new PagedItemCache<EnrolmentRow>(
+        var cache = new ProgressiveFilteredRoster<MemberSearchApiDto, EnrolmentRow>(
             RosterPageSize,
-            (pageNumber, ct) => FetchRosterPageAsync(clubId, pageNumber, ct));
-        cache.PageLoaded += rows => _ = LoadCurrentGradesAsync(rows);
+            (pageNumber, ct) => FetchRosterPageAsync(clubId, pageNumber, ct),
+            ResolveEligibleRowAsync,
+            new EnrolmentRow(),
+            Comparer<EnrolmentRow>.Create((left, right) =>
+            {
+                var surname = StringComparer.OrdinalIgnoreCase.Compare(left.LastName, right.LastName);
+                if (surname != 0)
+                {
+                    return surname;
+                }
+
+                var givenName = StringComparer.OrdinalIgnoreCase.Compare(left.FirstName, right.FirstName);
+                return givenName != 0 ? givenName : left.MemberId.CompareTo(right.MemberId);
+            }));
+        cache.Changed += () => _ = InvokeAsync(async () =>
+        {
+            if (_disposed || !ReferenceEquals(cache, _rosterCache))
+            {
+                return;
+            }
+
+            if (cache.Error is { } error)
+            {
+                Logger.LogError(error, "Failed to check club members' grades");
+                _rosterError = $"Failed to check member grades: {error.Message}";
+            }
+            if (_rosterList is not null)
+            {
+                await _rosterList.RefreshDataAsync();
+            }
+            StateHasChanged();
+        });
         return cache;
     }
 
-    private async Task<PageResult<EnrolmentRow>> FetchRosterPageAsync(Guid clubId, int pageNumber, CancellationToken ct)
+    private async Task<PageResult<MemberSearchApiDto>> FetchRosterPageAsync(Guid clubId, int pageNumber, CancellationToken ct)
     {
         var query = $"page={pageNumber}&pageSize={RosterPageSize}&clubId={clubId}";
         var result = await Api.GetFromJsonAsync<MemberSearchApiResponse>($"grading/members?{query}", ct)
-            ?? new MemberSearchApiResponse();
-        var rows = result.Members.Select(CreateRow).ToList();
-        return new PageResult<EnrolmentRow>(rows, result.TotalCount);
+            ?? throw new InvalidOperationException("The member search returned no data.");
+        return new PageResult<MemberSearchApiDto>(result.Members, result.TotalCount);
     }
 
-    private async ValueTask<ItemsProviderResult<EnrolmentRow>> LoadRosterAsync(ItemsProviderRequest request)
+    private ValueTask<ItemsProviderResult<EnrolmentRow>> LoadRosterAsync(ItemsProviderRequest request)
     {
         var cache = _rosterCache;
         if (cache is null)
         {
-            return new ItemsProviderResult<EnrolmentRow>([], 0);
+            return ValueTask.FromResult(new ItemsProviderResult<EnrolmentRow>([], 0));
         }
 
-        var wasWaitingForFirstPage = IsWaitingForFirstRosterPage;
-        try
-        {
-            var page = await cache.GetRangeAsync(request.StartIndex, request.Count, request.CancellationToken);
-            _rosterError = null;
-            return new ItemsProviderResult<EnrolmentRow>(page.Items, page.TotalCount);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to load members page starting at {StartIndex}", request.StartIndex);
-            _rosterError = $"Failed to load members: {ex.Message}";
-            Snackbar.Add(_rosterError, Severity.Error);
-            return new ItemsProviderResult<EnrolmentRow>([], cache.TotalCount ?? 0);
-        }
-        finally
-        {
-            if (wasWaitingForFirstPage && ReferenceEquals(cache, _rosterCache))
-            {
-                StateHasChanged();
-            }
-        }
+        var page = cache.GetRange(request.StartIndex, request.Count);
+        return ValueTask.FromResult(new ItemsProviderResult<EnrolmentRow>(page.Items, page.TotalCount));
     }
 
     // Reusing a selected member's row keeps its tick and ticket choice when the roster reloads.
@@ -535,47 +566,27 @@
                 Status = _bookedMemberIds.Contains(member.JustGoMemberId) ? RowStatus.AlreadyBooked : RowStatus.NotBooked,
             };
 
-    private async Task LoadCurrentGradesAsync(IReadOnlyList<EnrolmentRow> rows)
+    private async Task<EnrolmentRow?> ResolveEligibleRowAsync(MemberSearchApiDto member, CancellationToken ct)
     {
-        var pending = rows.Where(row => row.CurrentGrade is null && row.MemberId != Guid.Empty).ToList();
-        if (pending.Count == 0)
+        var detail = await Api.GetFromJsonAsync<MemberGradeApiDto>($"grading/members/{member.JustGoMemberId}/details", ct)
+            ?? throw new InvalidOperationException("The member grade lookup returned no data.");
+        if (detail.MemberId != member.JustGoMemberId)
         {
-            return;
+            throw new InvalidOperationException("The member grade lookup returned the wrong member.");
+        }
+        if (!GupEnrolmentEligibility.CanGradeUpToFirstGup(detail.CurrentGrade))
+        {
+            return null;
         }
 
-        try
+        var row = CreateRow(member);
+        row.CurrentGrade = detail.CurrentGrade;
+        row.NextGrade = detail.NextGrade;
+        if (row.TicketId == Guid.Empty)
         {
-            var memberIds = pending.Select(row => row.MemberId).Distinct().ToList();
-            var response = await Api.PostAsJsonAsync("grading/members/details", new { MemberIds = memberIds });
-            var details = response.IsSuccessStatusCode
-                ? await response.Content.ReadFromJsonAsync<List<MemberGradeApiDto>>() ?? []
-                : [];
-            var detailById = details.ToDictionary(detail => detail.MemberId);
-
-            foreach (var row in pending)
-            {
-                var found = detailById.TryGetValue(row.MemberId, out var detail);
-                row.CurrentGrade = found ? detail!.CurrentGrade : MemberCardText.UnknownGrade;
-                row.NextGrade = found ? detail!.NextGrade : null;
-                if (found && row.TicketId == Guid.Empty)
-                {
-                    row.TicketId = FindTicketIdForGrade(detail!.NextGrade);
-                }
-            }
+            row.TicketId = FindTicketIdForGrade(detail.NextGrade);
         }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to load current grades for member rows");
-            foreach (var row in pending.Where(row => row.CurrentGrade is null))
-            {
-                row.CurrentGrade = MemberCardText.UnknownGrade;
-            }
-        }
-
-        if (!_disposed)
-        {
-            await InvokeAsync(StateHasChanged);
-        }
+        return row;
     }
 
     private Guid FindTicketIdForGrade(string? gradeName) =>

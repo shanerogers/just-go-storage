@@ -38,8 +38,8 @@ public static class EnrolmentGuidance
 
     public static string NoMembersMessage(string? clubName) =>
         string.IsNullOrWhiteSpace(clubName)
-            ? "There are no members from this club to add to the grading."
-            : $"There are no members from {clubName.Trim()} to add to the grading.";
+            ? "There are no members from this club eligible to grade up to 1st Gup."
+            : $"There are no members from {clubName.Trim()} eligible to grade up to 1st Gup.";
 
     public static string DescribeSelectedEvent(Guid eventId, IReadOnlyDictionary<Guid, string> eventLabels) =>
         eventId != Guid.Empty && eventLabels.TryGetValue(eventId, out var label) ? label : string.Empty;

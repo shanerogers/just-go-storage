@@ -55,9 +55,9 @@ public class EnrolmentGuidanceTests
     }
 
     [Theory]
-    [InlineData("Miramar TKD", "There are no members from Miramar TKD to add to the grading.")]
-    [InlineData("  ", "There are no members from this club to add to the grading.")]
-    [InlineData(null, "There are no members from this club to add to the grading.")]
+    [InlineData("Miramar TKD", "There are no members from Miramar TKD eligible to grade up to 1st Gup.")]
+    [InlineData("  ", "There are no members from this club eligible to grade up to 1st Gup.")]
+    [InlineData(null, "There are no members from this club eligible to grade up to 1st Gup.")]
     public void NoMembersMessage_NamesTheClubWhenKnown(string? club, string expected)
     {
         Assert.Equal(expected, EnrolmentGuidance.NoMembersMessage(club));
