@@ -124,6 +124,71 @@ public sealed class ProgressiveFilteredRosterTests
         Assert.Equal([1], requested);
     }
 
+    [Fact]
+    public async Task ScanToEnd_ChecksRemainingPagesWithoutScrollingAndPublishesEligibleMembers()
+    {
+        var changed = new SemaphoreSlim(0);
+        var secondPage = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondPageStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var requested = new List<int>();
+        using var roster = new ProgressiveFilteredRoster<string, string>(
+            3,
+            (page, _) =>
+            {
+                requested.Add(page);
+                return Task.FromResult(new PageResult<string>(
+                    page == 1 ? ["Able", "Dan", "Baker"] : ["Charlie"], 4));
+            },
+            (name, _) =>
+            {
+                if (name == "Charlie")
+                {
+                    secondPageStarted.SetResult();
+                    return secondPage.Task;
+                }
+
+                return Task.FromResult<string?>(name == "Dan" ? null : name);
+            },
+            "Loading",
+            StringComparer.OrdinalIgnoreCase,
+            scanToEnd: true);
+        roster.Changed += () => changed.Release();
+
+        roster.GetRange(0, 1);
+        await secondPageStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(["Able", "Baker"], roster.LoadedItems);
+        Assert.False(roster.IsComplete);
+        Assert.Equal([1, 2], requested);
+
+        secondPage.SetResult("Charlie");
+        await WaitUntilAsync(() => roster.IsComplete, changed);
+        Assert.Equal(["Able", "Baker", "Charlie"], roster.LoadedItems);
+        Assert.Null(roster.Error);
+    }
+
+    [Fact]
+    public async Task ScanToEnd_ReportsFailureOnLaterPageWithoutClaimingCompletion()
+    {
+        var changed = new SemaphoreSlim(0);
+        using var roster = new ProgressiveFilteredRoster<string, string>(
+            3,
+            (page, _) => page == 1
+                ? Task.FromResult(new PageResult<string>(["Able", "Baker", "Charlie"], 4))
+                : Task.FromException<PageResult<string>>(new HttpRequestException("Next page failed")),
+            (name, _) => Task.FromResult<string?>(name),
+            "Loading",
+            StringComparer.OrdinalIgnoreCase,
+            scanToEnd: true);
+        roster.Changed += () => changed.Release();
+
+        roster.GetRange(0, 1);
+        await WaitUntilAsync(() => roster.Error is not null, changed);
+
+        Assert.Equal(["Able", "Baker", "Charlie"], roster.LoadedItems);
+        Assert.False(roster.IsComplete);
+        Assert.IsType<HttpRequestException>(roster.Error);
+    }
+
     private static ProgressiveFilteredRoster<string, string> CreateRoster(
         Func<int, CancellationToken, Task<PageResult<string>>> fetch,
         Func<string, CancellationToken, Task<string?>> resolve) =>

@@ -55,6 +55,19 @@ public partial class EnrolmentPickerLayoutTests
             && clearSelection < changeClub && changeClub < resetRoster);
     }
 
+    [Fact]
+    public void ClubRoster_ShowsOneSkeletonAndLocksBookingUntilFullyLoaded()
+    {
+        var markup = File.ReadAllText(EnrolmentPagePath());
+
+        Assert.Matches("aria-label=\"Loading club members\">\\s*@MemberCardSkeleton\\s*</div>", markup);
+        Assert.DoesNotContain("RosterSkeletonCount", markup, StringComparison.Ordinal);
+        Assert.Contains("scanToEnd: true", markup, StringComparison.Ordinal);
+        Assert.Contains("private bool IsRosterReady => _rosterCache?.IsComplete == true && _rosterCache.Error is null", markup, StringComparison.Ordinal);
+        Assert.Contains("if (row.CanSelect && IsRosterReady && !_enrolling)", markup, StringComparison.Ordinal);
+        Assert.Contains("Disabled=\"@(_selectedRows.Count == 0 || _enrolling || _loadingEvent || !IsRosterReady)\"", markup, StringComparison.Ordinal);
+    }
+
     private static string EnrolmentPagePath([CallerFilePath] string testFile = "")
     {
         var directory = new FileInfo(testFile).Directory;

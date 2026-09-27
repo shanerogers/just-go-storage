@@ -82,10 +82,7 @@
                     @if (IsWaitingForFirstRosterPage)
                     {
                         <div aria-busy="true" aria-label="Loading club members">
-                            @for (var i = 0; i < RosterSkeletonCount; i++)
-                            {
-                                @MemberCardSkeleton
-                            }
+                            @MemberCardSkeleton
                         </div>
                     }
                     <Virtualize @ref="_rosterList" @key="_rosterCache" TItem="EnrolmentRow" ItemsProvider="LoadRosterAsync"
@@ -102,8 +99,8 @@
                             {
                             <div @key="row.MemberId" class="@MemberCardClass(row)"
                                  role="checkbox" aria-checked="@(row.IsSelected ? "true" : "false")"
-                                 aria-disabled="@(!row.CanSelect || _enrolling ? "true" : "false")"
-                                 tabindex="@(row.CanSelect ? 0 : -1)"
+                                 aria-disabled="@(!row.CanSelect || !IsRosterReady || _enrolling ? "true" : "false")"
+                                 tabindex="@(row.CanSelect && IsRosterReady && !_enrolling ? 0 : -1)"
                                  @onclick="() => ToggleSelected(row, !row.IsSelected)"
                                  @onkeydown="args => OnMemberCardKeyDown(row, args)">
                                 <div class="member-card-avatar" aria-hidden="true">
@@ -135,7 +132,7 @@
                                 {
                                     <div class="member-card-ticket" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true">
                                         <MudSelect T="Guid" @bind-Value="row.TicketId" Dense="true" Margin="Margin.Dense"
-                                                   Label="Grade ticket" Variant="Variant.Outlined" Disabled="_enrolling">
+                                                   Label="Grade ticket" Variant="Variant.Outlined" Disabled="@(_enrolling || !IsRosterReady)">
                                             <MudSelectItem T="Guid" Value="Guid.Empty">Auto (next grade)</MudSelectItem>
                                             @foreach (var ticket in _tickets)
                                             {
@@ -192,12 +189,12 @@
             <div class="d-flex align-center justify-end gap-2 mt-4">
                 @if (_selectedRows.Count > 0)
                 {
-                    <MudButton Variant="Variant.Text" Color="Color.Secondary" OnClick="ClearSelection" Disabled="_enrolling">
+                    <MudButton Variant="Variant.Text" Color="Color.Secondary" OnClick="ClearSelection" Disabled="@(_enrolling || !IsRosterReady)">
                         Clear selection
                     </MudButton>
                 }
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="EnrolSelectedAsync"
-                           Disabled="@(_selectedRows.Count == 0 || _enrolling || _loadingEvent)"
+                           Disabled="@(_selectedRows.Count == 0 || _enrolling || _loadingEvent || !IsRosterReady)"
                            StartIcon="@Icons.Material.Filled.PersonAdd">
                     @if (_enrolling)
                     {
@@ -241,7 +238,7 @@
     private HttpClient Api => HttpClientFactory.CreateClient("JustGoApi");
 
     private string RosterHeading => $"{_selectedClub?.Name} members";
-    private const int RosterSkeletonCount = 6;
+    private bool IsRosterReady => _rosterCache?.IsComplete == true && _rosterCache.Error is null;
 
     // Virtualize renders nothing while its first fetch is in flight, so the page draws the skeleton itself.
     private bool IsWaitingForFirstRosterPage =>
@@ -512,7 +509,8 @@
 
                 var givenName = StringComparer.OrdinalIgnoreCase.Compare(left.FirstName, right.FirstName);
                 return givenName != 0 ? givenName : left.MemberId.CompareTo(right.MemberId);
-            }));
+            }),
+            scanToEnd: true);
         cache.Changed += () => _ = InvokeAsync(async () =>
         {
             if (_disposed || !ReferenceEquals(cache, _rosterCache))
@@ -596,7 +594,7 @@
 
     private void ToggleSelected(EnrolmentRow row, bool selected)
     {
-        if (row.CanSelect && !_enrolling)
+        if (row.CanSelect && IsRosterReady && !_enrolling)
         {
             SetSelected(row, selected);
         }
@@ -642,7 +640,7 @@
     private async Task EnrolSelectedAsync()
     {
         var selected = _selectedRows.Values.Where(row => row.CanSelect).ToList();
-        if (selected.Count == 0)
+        if (selected.Count == 0 || !IsRosterReady || _loadingEvent || _enrolling)
         {
             return;
         }

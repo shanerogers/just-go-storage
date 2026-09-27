@@ -12,6 +12,7 @@ public sealed class ProgressiveFilteredRoster<TSource, TItem> : IDisposable wher
     private readonly Func<TSource, CancellationToken, Task<TItem?>> _resolve;
     private readonly IComparer<TItem> _order;
     private readonly TItem _loadingMarker;
+    private readonly bool _scanToEnd;
     private readonly CancellationTokenSource _stop = new();
     private readonly object _gate = new();
     private readonly List<TItem> _items = [];
@@ -26,7 +27,8 @@ public sealed class ProgressiveFilteredRoster<TSource, TItem> : IDisposable wher
         Func<int, CancellationToken, Task<PageResult<TSource>>> fetchPage,
         Func<TSource, CancellationToken, Task<TItem?>> resolve,
         TItem loadingMarker,
-        IComparer<TItem> order)
+        IComparer<TItem> order,
+        bool scanToEnd = false)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
         _pageSize = pageSize;
@@ -34,6 +36,7 @@ public sealed class ProgressiveFilteredRoster<TSource, TItem> : IDisposable wher
         _resolve = resolve;
         _loadingMarker = loadingMarker;
         _order = order;
+        _scanToEnd = scanToEnd;
     }
 
     public event Action? Changed;
@@ -86,7 +89,7 @@ public sealed class ProgressiveFilteredRoster<TSource, TItem> : IDisposable wher
             if (count > 0 && !_complete && Error is null)
             {
                 _requestedCount = Math.Max(_requestedCount, startIndex + count);
-                if (_scan is null && _items.Count < _requestedCount)
+                if (_scan is null && (_scanToEnd || _items.Count < _requestedCount))
                 {
                     _scan = Task.Run(ScanAsync);
                 }
@@ -163,7 +166,7 @@ public sealed class ProgressiveFilteredRoster<TSource, TItem> : IDisposable wher
             lock (_gate)
             {
                 _scan = null;
-                if (!_disposed && !_complete && Error is null && _items.Count < _requestedCount)
+                if (!_disposed && !_complete && Error is null && (_scanToEnd || _items.Count < _requestedCount))
                 {
                     _scan = Task.Run(ScanAsync);
                 }
@@ -175,7 +178,7 @@ public sealed class ProgressiveFilteredRoster<TSource, TItem> : IDisposable wher
     {
         lock (_gate)
         {
-            return !_complete && _items.Count < _requestedCount;
+            return !_complete && !_disposed && (_scanToEnd || _items.Count < _requestedCount);
         }
     }
 
