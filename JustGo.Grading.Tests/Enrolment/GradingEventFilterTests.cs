@@ -65,12 +65,4 @@ public class GradingEventFilterTests
 
         Assert.Equal([linked], visible);
     }
-
-    [Fact]
-    public void CountPast_IgnoresAlwaysHiddenEvents()
-    {
-        GradingEventOption[] events = [Event("Past", -1), Event("Template", -1, "Template"), Event("Future", 1)];
-
-        Assert.Equal(1, GradingEventFilter.CountPast(events, Today));
-    }
 }

@@ -32,6 +32,10 @@ public static class GradingEndpoints
                 .WithName("GetGradingEvents")
                 .WithSummary("Search grading events (Gup Grading, Dan Grading, Dan Pass Incomplete)");
 
+            group.MapGet("/events/accepting-bookings", GetAcceptingBookingsEventsAsync)
+                .WithName("GetAcceptingBookingsGradingEvents")
+                .WithSummary("List Gup gradings with status 'Accepting Bookings', paging JustGo 100 events at a time");
+
             group.MapGet("/members", GetGradingMembersAsync)
                 .WithName("GetGradingMembers")
                 .WithSummary("Search members by name, event or club (paged) — fast, returns basic info only (no grades)");
@@ -100,6 +104,25 @@ public static class GradingEndpoints
         }
 
         return Results.Ok(result);
+    }
+
+    internal static async Task<IResult> GetAcceptingBookingsEventsAsync(IEventClient eventClient, CancellationToken ct)
+    {
+        var events = await AcceptingBookingsEventCollector.CollectAsync(
+            async (pageNumber, token) =>
+            {
+                var request = new FindEventsRequest
+                {
+                    PageNumber = pageNumber,
+                    PageSize = AcceptingBookingsEventCollector.PageSize,
+                    Category = GradingCategories[0],
+                };
+                var response = await eventClient.FindEventsByAttributesAsync(request, token);
+                return AcceptingBookingsEventCollector.ReadEvents(response);
+            },
+            ct);
+
+        return Results.Ok(new { totalRecords = events.Count, data = events });
     }
 
     private static object FilterEventsByName(object result, string search)

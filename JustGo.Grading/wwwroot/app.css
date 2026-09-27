@@ -241,6 +241,42 @@ h1:focus {
     box-shadow: 2px 2px 0 color-mix(in srgb, var(--mud-palette-text-primary) 12%, transparent);
 }
 
+.member-card--skeleton,
+.member-card--skeleton:hover {
+    cursor: progress;
+    border-style: dashed;
+    border-color: var(--mud-palette-lines-default);
+    transform: none;
+    box-shadow: 2px 2px 0 color-mix(in srgb, var(--mud-palette-text-primary) 8%, transparent);
+}
+
+.member-card--skeleton .member-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.member-card-skeleton-chip {
+    flex: 0 0 auto;
+    border-radius: 999px;
+}
+
+.enrolment-roster-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    height: 100%;
+    min-height: 240px;
+    padding: 2rem;
+    text-align: center;
+    color: var(--mud-palette-text-secondary);
+    border: 1px dashed var(--mud-palette-lines-default);
+    border-radius: var(--mud-default-borderradius);
+    background: var(--mud-palette-surface);
+}
+
 .member-card-avatar {
     display: grid;
     place-items: center;
@@ -303,19 +339,6 @@ h1:focus {
     .member-card-status .mud-chip {
         max-width: 6rem;
     }
-}
-
-.enrolment-step-heading {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.25rem 1.5rem;
-    margin-bottom: 0.75rem;
-}
-
-.enrolment-step-heading .mud-input-control {
-    flex: 0 0 auto;
-    margin: 0;
 }
 
 .enrolment-event-picker {

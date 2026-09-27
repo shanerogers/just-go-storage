@@ -49,7 +49,7 @@
 
             @if (_searching)
             {
-                <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mt-4" />
+                <MudProgressLinear Indeterminate="true" Color="Color.Tertiary" Class="mt-4" />
             }
 
             @if (_searchResults.Count > 0)
@@ -96,7 +96,7 @@
 
         @if (_loadingMembers)
         {
-            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+            <MudProgressLinear Indeterminate="true" Color="Color.Tertiary" Class="mb-4" />
             <MudText>Loading members...</MudText>
         }
         else
@@ -151,7 +151,7 @@
                                     <MudText Typo="Typo.caption" Color="Color.Secondary">Grade</MudText>
                                     @if (member.LoadingGrade)
                                     {
-                                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
+                                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Tertiary" />
                                     }
                                     else
                                     {

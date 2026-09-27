@@ -27,17 +27,60 @@ public class EnrolmentGuidanceTests
 
     [Theory]
     [InlineData(true, 0, "Loading gradings from JustGo…")]
-    [InlineData(false, 0, "No gradings found")]
+    [InlineData(false, 0, "No gradings are accepting bookings")]
     [InlineData(false, 3, "Select a grading…")]
     public void EventPlaceholder_ReflectsLoadState(bool isLoading, int count, string expected)
     {
         Assert.Equal(expected, EnrolmentGuidance.EventPlaceholder(isLoading, count));
     }
 
-    [Fact]
-    public void EventPlaceholder_WhenOnlyPastGradingsExist_SaysNoUpcoming()
+    [Theory]
+    [InlineData(0, "Book selected onto grading")]
+    [InlineData(1, "Book 1 member onto grading")]
+    [InlineData(4, "Book 4 members onto grading")]
+    public void BookButtonLabel_IncludesSelectedCount(int count, string expected)
     {
-        Assert.Equal("No upcoming gradings", EnrolmentGuidance.EventPlaceholder(false, 0, hiddenPastCount: 12));
+        Assert.Equal(expected, EnrolmentGuidance.BookButtonLabel(count));
+    }
+
+    [Theory]
+    [InlineData(null, null, EmptyRosterState.Loading)]
+    [InlineData(0, null, EmptyRosterState.NoMembers)]
+    [InlineData(null, "Failed to load members: timeout", EmptyRosterState.Failed)]
+    [InlineData(0, "Failed to load members: timeout", EmptyRosterState.Failed)]
+    [InlineData(null, "", EmptyRosterState.Loading)]
+    public void DescribeEmptyRoster_DistinguishesLoadingFromEmptyAndFailed(int? total, string? error, EmptyRosterState expected)
+    {
+        Assert.Equal(expected, EnrolmentGuidance.DescribeEmptyRoster(total, error));
+    }
+
+    [Theory]
+    [InlineData("Miramar TKD", "There are no members from Miramar TKD to add to the grading.")]
+    [InlineData("  ", "There are no members from this club to add to the grading.")]
+    [InlineData(null, "There are no members from this club to add to the grading.")]
+    public void NoMembersMessage_NamesTheClubWhenKnown(string? club, string expected)
+    {
+        Assert.Equal(expected, EnrolmentGuidance.NoMembersMessage(club));
+    }
+
+    [Fact]
+    public void SoleBookableEventId_WithOneEvent_ReturnsItsId()
+    {
+        var only = new GradingEventOption(Guid.NewGuid(), "Only", DateTime.Today, "Accepting Bookings");
+
+        Assert.Equal(only.Id, EnrolmentGuidance.SoleBookableEventId([only]));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    public void SoleBookableEventId_WithNoneOrSeveral_ReturnsNull(int count)
+    {
+        var events = Enumerable.Range(0, count)
+            .Select(i => new GradingEventOption(Guid.NewGuid(), $"Event {i}", DateTime.Today, "Accepting Bookings"))
+            .ToList();
+
+        Assert.Null(EnrolmentGuidance.SoleBookableEventId(events));
     }
 
     [Fact]

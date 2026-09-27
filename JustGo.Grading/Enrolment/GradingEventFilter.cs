@@ -3,8 +3,8 @@ namespace JustGo.Grading.Enrolment;
 public sealed record GradingEventOption(Guid Id, string Name, DateTime? Date, string? Status);
 
 /// <summary>
-/// Narrows the grading list to events worth booking onto. JustGo can't filter by region or by
-/// several statuses at once, so this runs over the full list the API returns.
+/// Orders the bookable grading list: upcoming events soonest first, then any past-dated events
+/// JustGo still shows as accepting bookings. Templates, drafts and cancelled events are dropped.
 /// </summary>
 public static class GradingEventFilter
 {
@@ -40,7 +40,4 @@ public static class GradingEventFilter
 
         return [.. upcoming, .. past];
     }
-
-    public static int CountPast(IEnumerable<GradingEventOption> events, DateTime today) =>
-        events.Count(evt => !IsHiddenAlways(evt) && IsPast(evt, today));
 }
