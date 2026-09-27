@@ -39,6 +39,22 @@ public partial class EnrolmentPickerLayoutTests
         Assert.DoesNotContain("<MudAlert Severity=\"Severity.Warning\"", markup, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ChangingClubs_ClearsSelectionBeforeLoadingNewRoster()
+    {
+        var markup = File.ReadAllText(EnrolmentPagePath());
+        var handler = markup.Split("private async Task SelectClubAsync(ClubOption? club)", 2)[1]
+            .Split("// A new cache instance", 2)[0];
+
+        var unchangedClub = handler.IndexOf("if (club?.Id == _selectedClub?.Id)", StringComparison.Ordinal);
+        var clearSelection = handler.IndexOf("ClearSelection();", StringComparison.Ordinal);
+        var changeClub = handler.IndexOf("_selectedClub = club;", StringComparison.Ordinal);
+        var resetRoster = handler.IndexOf("ResetRoster();", StringComparison.Ordinal);
+
+        Assert.True(unchangedClub >= 0 && unchangedClub < clearSelection
+            && clearSelection < changeClub && changeClub < resetRoster);
+    }
+
     private static string EnrolmentPagePath([CallerFilePath] string testFile = "")
     {
         var directory = new FileInfo(testFile).Directory;
