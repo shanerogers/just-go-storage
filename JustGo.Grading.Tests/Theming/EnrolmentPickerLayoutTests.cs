@@ -21,7 +21,7 @@ public partial class EnrolmentPickerLayoutTests
     }
 
     [Fact]
-    public void ClubPicker_IsAvailableBeforeEventSelection_AndRosterStartsBeforeBookingsFinish()
+    public void ClubPicker_LoadsRosterBeforeEventSelection_ButKeepsSelectionAndBookingDisabled()
     {
         var markup = File.ReadAllText(EnrolmentPagePath());
 
@@ -29,13 +29,15 @@ public partial class EnrolmentPickerLayoutTests
         Assert.Contains("await LoadEventsAsync();", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("Choose a grading above to unlock this step.", markup, StringComparison.Ordinal);
         Assert.Contains("MaxItems=\"null\" Disabled=\"@(_loadingClubs || _enrolling)\"", markup, StringComparison.Ordinal);
-        Assert.Contains("if (_selectedEventId != Guid.Empty && _selectedClub is not null && _rosterCache is not null)", markup, StringComparison.Ordinal);
-        Assert.Contains("_selectedClub is null || _selectedEventId == Guid.Empty", markup, StringComparison.Ordinal);
-        Assert.DoesNotContain("_selectedClub is null || _selectedEventId == Guid.Empty || !_eventBookingsLoaded", markup, StringComparison.Ordinal);
+        Assert.Contains("if (_selectedClub is not null && _rosterCache is not null)", markup, StringComparison.Ordinal);
+        Assert.Contains("_rosterCache = _selectedClub is null", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("_selectedClub is null || _selectedEventId == Guid.Empty", markup, StringComparison.Ordinal);
         Assert.Contains("_eventBookingsLoaded = true;", markup, StringComparison.Ordinal);
         Assert.Contains("row.CanSelect && !_enrolling", markup, StringComparison.Ordinal);
-        Assert.DoesNotContain("row.CanSelect && !_enrolling && !_loadingEvent && _eventBookingsLoaded", markup, StringComparison.Ordinal);
-        Assert.Matches(@"(?s)if \(_selectedEventId != Guid.Empty && _selectedClub is not null && _rosterCache is not null\).*?class=""enrolment-roster"".*?OnClick=""EnrolSelectedAsync"".*?</div>\s*\}\s*</MudPaper>", markup);
+        Assert.Contains("_selectedEventId != Guid.Empty && _selectedClub is not null && _rosterCache is { Error: null }", markup, StringComparison.Ordinal);
+        Assert.Contains("private bool IsRosterReady => _eventBookingsLoaded && _selectedEventId != Guid.Empty", markup, StringComparison.Ordinal);
+        Assert.Contains("_selectedEventId == Guid.Empty ? \"Choose grading\"", markup, StringComparison.Ordinal);
+        Assert.Matches(@"(?s)if \(_selectedClub is not null && _rosterCache is not null\).*?class=""enrolment-roster"".*?OnClick=""EnrolSelectedAsync"".*?</div>\s*\}\s*</MudPaper>", markup);
     }
 
     [Fact]
@@ -49,8 +51,12 @@ public partial class EnrolmentPickerLayoutTests
 
         Assert.Contains("@if (_loadingEvents)", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("@if (_loadingEvents || _loadingEvent)", markup, StringComparison.Ordinal);
-        Assert.True(eventSelection.IndexOf("ResetRoster();", StringComparison.Ordinal)
-            < eventSelection.IndexOf("await LoadEventBookingsAsync();", StringComparison.Ordinal));
+        Assert.DoesNotContain("ResetRoster();", eventSelection, StringComparison.Ordinal);
+        Assert.Contains("ClearSelection();", eventSelection, StringComparison.Ordinal);
+        Assert.Contains("row.Status = RowStatus.NotBooked;", eventSelection, StringComparison.Ordinal);
+        Assert.Contains("row.TicketId = Guid.Empty;", eventSelection, StringComparison.Ordinal);
+        Assert.Contains("row.IsDoubleGrading = false;", eventSelection, StringComparison.Ordinal);
+        Assert.Contains("await LoadEventBookingsAsync();", eventSelection, StringComparison.Ordinal);
         Assert.True(bookingLoad.IndexOf("MarkAlreadyBookedRows();", StringComparison.Ordinal)
             < bookingLoad.IndexOf("_eventBookingsLoaded = true;", StringComparison.Ordinal));
         Assert.Contains("SetSelected(row, false);", markup.Split("private void MarkAlreadyBookedRows()", 2)[1]
@@ -64,7 +70,7 @@ public partial class EnrolmentPickerLayoutTests
     {
         var markup = File.ReadAllText(EnrolmentPagePath());
 
-        Assert.Contains("&& _selectedClub is not null && _rosterCache is not null)", markup, StringComparison.Ordinal);
+        Assert.Contains("if (_selectedClub is not null && _rosterCache is not null)", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("Choose your club to list its members", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("<MudAlert Severity=\"Severity.Info\"", markup, StringComparison.Ordinal);
     }

@@ -50,7 +50,7 @@
                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Groups" />
             </div>
 
-            @if (_selectedEventId != Guid.Empty && _selectedClub is not null && _rosterCache is not null)
+            @if (_selectedClub is not null && _rosterCache is not null)
             {
                 <div class="d-flex align-center justify-space-between mt-4 mb-1">
                     <MudText Typo="Typo.subtitle2">@RosterHeading</MudText>
@@ -147,7 +147,7 @@
                                             break;
                                         default:
                                             <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small">
-                                                @(_eventBookingsLoaded ? "Not booked" : _loadingEvent ? "Checking bookings" : "Booking status unavailable")
+                                                @(_selectedEventId == Guid.Empty ? "Choose grading" : _eventBookingsLoaded ? "Not booked" : _loadingEvent ? "Checking bookings" : "Booking status unavailable")
                                             </MudChip>
                                             break;
                                     }
@@ -413,8 +413,15 @@
         _eventBookingsLoaded = false;
         _tickets = [];
         _bookedMemberIds = [];
+        foreach (var row in KnownRows)
+        {
+            row.Status = RowStatus.NotBooked;
+            row.BookedGrade = null;
+            row.Error = null;
+            row.TicketId = Guid.Empty;
+            row.IsDoubleGrading = false;
+        }
         _selectedEventId = eventId;
-        ResetRoster();
         if (EnrolmentGuidance.NeedsNavigationToEvent(new Uri(Navigation.Uri), eventId))
         {
             Navigation.NavigateTo(EnrolmentGuidance.EventPath(eventId), replace: true);
@@ -493,7 +500,7 @@
         _rosterCache?.Dispose();
         _rosterList = null;
         _rosterError = null;
-        _rosterCache = _selectedClub is null || _selectedEventId == Guid.Empty
+        _rosterCache = _selectedClub is null
             ? null
             : CreateRosterCache(_selectedClub.Id);
     }
