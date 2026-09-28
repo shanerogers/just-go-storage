@@ -33,7 +33,7 @@
                 }
             </MudSelect>
         </div>
-        @if (_loadingEvents || _loadingEvent)
+        @if (_loadingEvents)
         {
             <MudProgressLinear Indeterminate="true" Color="Color.Tertiary" Class="mt-3" />
         }
@@ -130,7 +130,7 @@
                                                                Label="@($"Double to {cardRow.DoubleGrade}")" Size="Size.Small"
                                                                Disabled="@(!CanInteractWithRow(cardRow))" />
                                                 }
-                                                else
+                                                else if (_eventBookingsLoaded)
                                                 {
                                                     <MudText Typo="Typo.caption" Color="Color.Secondary">Double grade unavailable</MudText>
                                                 }
@@ -153,7 +153,9 @@
                                             </MudTooltip>
                                             break;
                                         default:
-                                            <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small">Not booked</MudChip>
+                                            <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small">
+                                                @(_eventBookingsLoaded ? "Not booked" : _loadingEvent ? "Checking bookings" : "Booking status unavailable")
+                                            </MudChip>
                                             break;
                                     }
                                 </div>
@@ -238,7 +240,7 @@
     private bool IsRosterReady => _eventBookingsLoaded && _selectedEventId != Guid.Empty
         && _selectedClub is not null && _rosterCache?.IsComplete == true && _rosterCache.Error is null;
     private bool CanInteractWithRow(EnrolmentRow row) =>
-        row.CanSelect && !_enrolling && !_loadingEvent && _eventBookingsLoaded
+        row.CanSelect && !_enrolling
         && _selectedEventId != Guid.Empty && _selectedClub is not null && _rosterCache is { Error: null };
     private bool CanChangeRow(EnrolmentRow row) =>
         CanInteractWithRow(row) && _rosterCache is { } cache && cache.LoadedItems.Any(loaded => loaded.MemberId == row.MemberId);
@@ -416,14 +418,15 @@
     {
         ClearSelection();
         _eventBookingsLoaded = false;
-        ResetRoster();
+        _tickets = [];
+        _bookedMemberIds = [];
         _selectedEventId = eventId;
+        ResetRoster();
         if (EnrolmentGuidance.NeedsNavigationToEvent(new Uri(Navigation.Uri), eventId))
         {
             Navigation.NavigateTo(EnrolmentGuidance.EventPath(eventId), replace: true);
         }
         await LoadEventBookingsAsync();
-        ResetRoster();
     }
 
     private async Task LoadEventBookingsAsync()
@@ -439,8 +442,12 @@
 
             _tickets = ticketsTask.Result ?? [];
             _bookedMemberIds = (candidatesTask.Result ?? []).Select(candidate => candidate.MemberId).ToHashSet();
-            _eventBookingsLoaded = true;
+            foreach (var row in KnownRows)
+            {
+                row.TicketId = FindTicketIdForGrade(row.IsDoubleGrading ? row.DoubleGrade : row.NextGrade);
+            }
             MarkAlreadyBookedRows();
+            _eventBookingsLoaded = true;
         }
         catch (Exception ex)
         {
@@ -455,7 +462,7 @@
 
     private void MarkAlreadyBookedRows()
     {
-        foreach (var row in KnownRows.Where(row => row.Status is RowStatus.NotBooked && _bookedMemberIds.Contains(row.MemberId)))
+        foreach (var row in KnownRows.Where(row => row.Status is not RowStatus.Enrolled && _bookedMemberIds.Contains(row.MemberId)))
         {
             row.Status = RowStatus.AlreadyBooked;
             SetSelected(row, false);
@@ -493,7 +500,7 @@
         _rosterCache?.Dispose();
         _rosterList = null;
         _rosterError = null;
-        _rosterCache = _selectedClub is null || _selectedEventId == Guid.Empty || !_eventBookingsLoaded
+        _rosterCache = _selectedClub is null || _selectedEventId == Guid.Empty
             ? null
             : CreateRosterCache(_selectedClub.Id);
     }
