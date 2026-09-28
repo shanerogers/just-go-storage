@@ -189,6 +189,43 @@ public sealed class ProgressiveFilteredRosterTests
         Assert.IsType<HttpRequestException>(roster.Error);
     }
 
+    [Fact]
+    public async Task ScanToEnd_ReorderingKeepsSelectedMemberAndDoubleGradeChoice()
+    {
+        var changed = new SemaphoreSlim(0);
+        var earlierMember = new TaskCompletionSource<TestMember?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var selected = new TestMember("Zoey");
+        using var roster = new ProgressiveFilteredRoster<string, TestMember>(
+            2,
+            (_, _) => Task.FromResult(new PageResult<string>(["Zoey", "Amy"], 2)),
+            (name, _) => name == "Zoey" ? Task.FromResult<TestMember?>(selected) : earlierMember.Task,
+            new TestMember("Loading"),
+            Comparer<TestMember>.Create((left, right) => StringComparer.Ordinal.Compare(left.Name, right.Name)),
+            scanToEnd: true);
+        roster.Changed += () => changed.Release();
+
+        roster.GetRange(0, 2);
+        await WaitUntilAsync(() => roster.LoadedItems.Count == 1, changed);
+        Assert.Same(selected, roster.GetRange(0, 2).Items[0]);
+        selected.IsSelected = true;
+        selected.IsDoubleGrading = true;
+
+        earlierMember.SetResult(new TestMember("Amy"));
+        await WaitUntilAsync(() => roster.IsComplete, changed);
+        var reordered = roster.GetRange(0, 2).Items;
+        Assert.Equal(["Amy", "Zoey"], reordered.Select(member => member.Name));
+        Assert.Same(selected, reordered[1]);
+        Assert.True(reordered[1].IsSelected);
+        Assert.True(reordered[1].IsDoubleGrading);
+    }
+
+    private sealed class TestMember(string name)
+    {
+        public string Name { get; } = name;
+        public bool IsSelected { get; set; }
+        public bool IsDoubleGrading { get; set; }
+    }
+
     private static ProgressiveFilteredRoster<string, string> CreateRoster(
         Func<int, CancellationToken, Task<PageResult<string>>> fetch,
         Func<string, CancellationToken, Task<string?>> resolve) =>

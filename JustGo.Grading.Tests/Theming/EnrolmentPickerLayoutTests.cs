@@ -66,14 +66,28 @@ public partial class EnrolmentPickerLayoutTests
         Assert.Contains("private bool IsRosterReady => _rosterCache?.IsComplete == true && _rosterCache.Error is null", markup, StringComparison.Ordinal);
         Assert.Contains("row.CanSelect && !_enrolling && !_loadingEvent", markup, StringComparison.Ordinal);
         Assert.Contains("_rosterCache is { Error: null }", markup, StringComparison.Ordinal);
-        Assert.Contains("CanInteractWithRow(row) && _rosterCache is { } cache && cache.LoadedItems.Contains(row)", markup, StringComparison.Ordinal);
+        Assert.Contains("CanInteractWithRow(row) && _rosterCache is { } cache && cache.LoadedItems.Any(loaded => loaded.MemberId == row.MemberId)", markup, StringComparison.Ordinal);
         Assert.Contains("if (CanChangeRow(row))", markup, StringComparison.Ordinal);
-        Assert.Contains("aria-disabled=\"@(CanInteractWithRow(row) ? \"false\" : \"true\")\"", markup, StringComparison.Ordinal);
-        Assert.Contains("tabindex=\"@(CanInteractWithRow(row) ? 0 : -1)\"", markup, StringComparison.Ordinal);
-        Assert.Contains("Disabled=\"@(!CanInteractWithRow(row))\"", markup, StringComparison.Ordinal);
+        Assert.Contains("aria-disabled=\"@(CanInteractWithRow(cardRow) ? \"false\" : \"true\")\"", markup, StringComparison.Ordinal);
+        Assert.Contains("tabindex=\"@(CanInteractWithRow(cardRow) ? 0 : -1)\"", markup, StringComparison.Ordinal);
+        Assert.Contains("Disabled=\"@(!CanInteractWithRow(cardRow))\"", markup, StringComparison.Ordinal);
         Assert.Contains("OnClick=\"ClearSelection\" Disabled=\"@_enrolling\"", markup, StringComparison.Ordinal);
         Assert.Contains("Disabled=\"@(_selectedRows.Count == 0 || _enrolling || _loadingEvent || !IsRosterReady)\"", markup, StringComparison.Ordinal);
         Assert.Contains("selected.Count == 0 || !IsRosterReady || _loadingEvent || _enrolling", markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ClubRoster_ResolvesSelectedCardByMemberIdAfterReordering()
+    {
+        var markup = File.ReadAllText(EnrolmentPagePath());
+
+        Assert.Contains("@key=\"cardRow.MemberId\"", markup, StringComparison.Ordinal);
+        Assert.Contains("var cardRow = SelectedRowOrDefault(row);", markup, StringComparison.Ordinal);
+        Assert.Contains("_selectedRows.GetValueOrDefault(row.MemberId) ?? row", markup, StringComparison.Ordinal);
+        Assert.Contains("cache.LoadedItems.Any(loaded => loaded.MemberId == row.MemberId)", markup, StringComparison.Ordinal);
+        Assert.Contains("aria-checked=\"@(cardRow.IsSelected ? \"true\" : \"false\")\"", markup, StringComparison.Ordinal);
+        Assert.Contains("Value=\"cardRow.IsDoubleGrading\"", markup, StringComparison.Ordinal);
+        Assert.Contains("ValueChanged=\"requested => SetDoubleGrade(cardRow, requested)\"", markup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -84,7 +98,7 @@ public partial class EnrolmentPickerLayoutTests
         Assert.Contains("<MudSwitch T=\"bool\"", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("<MudCheckBox", markup, StringComparison.Ordinal);
         Assert.Contains("class=\"member-card-double\"", markup, StringComparison.Ordinal);
-        Assert.Contains("ValueChanged=\"requested => SetDoubleGrade(row, requested)\"", markup, StringComparison.Ordinal);
+        Assert.Contains("ValueChanged=\"requested => SetDoubleGrade(cardRow, requested)\"", markup, StringComparison.Ordinal);
         Assert.Contains("row.TicketId = FindTicketIdForGrade(requested ? row.DoubleGrade : row.NextGrade);", markup, StringComparison.Ordinal);
         Assert.Contains("row.IsDoubleGrading,", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("Label=\"Grade ticket\"", markup, StringComparison.Ordinal);

@@ -97,30 +97,31 @@
                             }
                             else
                             {
-                            <div @key="row.MemberId" class="@MemberCardClass(row)"
-                                 role="checkbox" aria-checked="@(row.IsSelected ? "true" : "false")"
-                                 aria-disabled="@(CanInteractWithRow(row) ? "false" : "true")"
-                                 tabindex="@(CanInteractWithRow(row) ? 0 : -1)"
-                                 @onclick="() => ToggleSelected(row, !row.IsSelected)"
-                                 @onkeydown="args => OnMemberCardKeyDown(row, args)">
+                            var cardRow = SelectedRowOrDefault(row);
+                            <div @key="cardRow.MemberId" class="@MemberCardClass(cardRow)"
+                                 role="checkbox" aria-checked="@(cardRow.IsSelected ? "true" : "false")"
+                                 aria-disabled="@(CanInteractWithRow(cardRow) ? "false" : "true")"
+                                 tabindex="@(CanInteractWithRow(cardRow) ? 0 : -1)"
+                                 @onclick="() => ToggleSelected(cardRow, !cardRow.IsSelected)"
+                                 @onkeydown="args => OnMemberCardKeyDown(cardRow, args)">
                                 <div class="member-card-avatar" aria-hidden="true">
-                                    @if (row.IsSelected)
+                                    @if (cardRow.IsSelected)
                                     {
                                         <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" />
                                     }
                                     else
                                     {
-                                        @MemberCardText.Initials(row.FirstName, row.LastName)
+                                        @MemberCardText.Initials(cardRow.FirstName, cardRow.LastName)
                                     }
                                 </div>
                                 <div class="member-card-body">
-                                    <div class="member-card-name">@MemberCardText.FullName(row.FirstName, row.LastName)</div>
+                                    <div class="member-card-name">@MemberCardText.FullName(cardRow.FirstName, cardRow.LastName)</div>
                                     <div class="member-card-meta">
                                         <div class="member-card-grade-info">
-                                            <span>#@row.MemberNumber</span>
+                                            <span>#@cardRow.MemberNumber</span>
                                             <span aria-hidden="true">·</span>
                                             @if (MemberCardText.GradeProgression(
-                                                row.CurrentGrade, row.IsDoubleGrading ? row.DoubleGrade : row.NextGrade) is { } grades)
+                                                cardRow.CurrentGrade, cardRow.IsDoubleGrading ? cardRow.DoubleGrade : cardRow.NextGrade) is { } grades)
                                             {
                                                 <span>@grades</span>
                                             }
@@ -129,15 +130,15 @@
                                                 <MudSkeleton Width="8rem" />
                                             }
                                         </div>
-                                        @if (row.IsSelected)
+                                        @if (cardRow.IsSelected)
                                         {
                                             <div class="member-card-double" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true">
-                                                @if (CanRequestDoubleGrade(row))
+                                                @if (CanRequestDoubleGrade(cardRow))
                                                 {
-                                                    <MudSwitch T="bool" Value="row.IsDoubleGrading"
-                                                               ValueChanged="requested => SetDoubleGrade(row, requested)"
-                                                               Label="@($"Double to {row.DoubleGrade}")" Size="Size.Small"
-                                                               Disabled="@(!CanInteractWithRow(row))" />
+                                                    <MudSwitch T="bool" Value="cardRow.IsDoubleGrading"
+                                                               ValueChanged="requested => SetDoubleGrade(cardRow, requested)"
+                                                               Label="@($"Double to {cardRow.DoubleGrade}")" Size="Size.Small"
+                                                               Disabled="@(!CanInteractWithRow(cardRow))" />
                                                 }
                                                 else
                                                 {
@@ -148,16 +149,16 @@
                                     </div>
                                 </div>
                                 <div class="member-card-status">
-                                    @switch (row.Status)
+                                    @switch (cardRow.Status)
                                     {
                                         case RowStatus.AlreadyBooked:
                                             <MudChip T="string" Color="Color.Info" Size="Size.Small">Already booked</MudChip>
                                             break;
                                         case RowStatus.Enrolled:
-                                            <MudChip T="string" Color="Color.Success" Size="Size.Small">Booked @row.BookedGrade</MudChip>
+                                            <MudChip T="string" Color="Color.Success" Size="Size.Small">Booked @cardRow.BookedGrade</MudChip>
                                             break;
                                         case RowStatus.Failed:
-                                            <MudTooltip Text="@row.Error">
+                                            <MudTooltip Text="@cardRow.Error">
                                                 <MudChip T="string" Color="Color.Error" Size="Size.Small">Failed</MudChip>
                                             </MudTooltip>
                                             break;
@@ -248,7 +249,7 @@
     private bool CanInteractWithRow(EnrolmentRow row) =>
         row.CanSelect && !_enrolling && !_loadingEvent && _rosterCache is { Error: null };
     private bool CanChangeRow(EnrolmentRow row) =>
-        CanInteractWithRow(row) && _rosterCache is { } cache && cache.LoadedItems.Contains(row);
+        CanInteractWithRow(row) && _rosterCache is { } cache && cache.LoadedItems.Any(loaded => loaded.MemberId == row.MemberId);
 
     // Virtualize renders nothing while its first fetch is in flight, so the page draws the skeleton itself.
     private bool IsWaitingForFirstRosterPage =>
@@ -561,6 +562,9 @@
         var page = cache.GetRange(request.StartIndex, request.Count);
         return ValueTask.FromResult(new ItemsProviderResult<EnrolmentRow>(page.Items, page.TotalCount));
     }
+
+    private EnrolmentRow SelectedRowOrDefault(EnrolmentRow row) =>
+        _selectedRows.GetValueOrDefault(row.MemberId) ?? row;
 
     // Reusing a selected member's row keeps its tick and ticket choice when the roster reloads.
     private EnrolmentRow CreateRow(MemberSearchApiDto member) =>
