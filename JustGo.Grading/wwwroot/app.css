@@ -337,6 +337,14 @@ h1:focus {
     color: var(--mud-palette-text-secondary);
 }
 
+.member-card-double .mud-switch-base.mud-checked + .mud-switch-track {
+    background-color: var(--retro-orange);
+}
+
+.member-card-double .mud-switch-base.mud-checked .mud-switch-thumb-small {
+    background-color: var(--retro-orange-ink);
+}
+
 .member-card-status {
     flex: 0 0 auto;
 }

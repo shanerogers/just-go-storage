@@ -101,6 +101,8 @@ public partial class EnrolmentPickerLayoutTests
         Assert.Matches(@"(?s)\.member-card\s*\{[^}]*height: 112px;", styles);
         Assert.Matches(@"(?s)\.member-card-meta\s*\{[^}]*flex-wrap: wrap;", styles);
         Assert.Matches(@"(?s)\.member-card-double \.mud-typography\s*\{[^}]*font-size: 0\.75rem;", styles);
+        Assert.Matches(@"(?s)\.member-card-double \.mud-switch-base\.mud-checked \+ \.mud-switch-track\s*\{[^}]*background-color: var\(--retro-orange\);", styles);
+        Assert.Matches(@"(?s)\.member-card-double \.mud-switch-base\.mud-checked \.mud-switch-thumb-small\s*\{[^}]*background-color: var\(--retro-orange-ink\);", styles);
         Assert.Contains(".member-card:not(.member-card--skeleton) .member-card-status", styles, StringComparison.Ordinal);
     }
 
