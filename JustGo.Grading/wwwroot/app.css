@@ -197,12 +197,12 @@ h1:focus {
     background: var(--mud-palette-background-gray);
 }
 
-/* Fixed 84px slot (76px card + 8px gap) to match Virtualize ItemSize. */
+/* Fixed 120px slot (112px card + 8px gap) to match Virtualize ItemSize. */
 .member-card {
     display: flex;
     align-items: center;
     gap: 0.875rem;
-    height: 76px;
+    height: 112px;
     margin-bottom: 8px;
     padding: 0 1rem;
     border: 1px solid var(--mud-palette-lines-default);
@@ -311,11 +311,30 @@ h1:focus {
 .member-card-meta {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 0.5rem;
     font-size: 0.75rem;
     color: var(--mud-palette-text-secondary);
-    white-space: nowrap;
-    overflow: hidden;
+}
+
+.member-card-grade-info {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.member-card-double {
+    cursor: default;
+}
+
+.member-card-double .mud-input-control {
+    margin: 0;
+}
+
+.member-card-double .mud-typography {
+    font-size: 0.75rem;
+    color: var(--mud-palette-text-secondary);
 }
 
 .member-card-status {
@@ -323,6 +342,29 @@ h1:focus {
 }
 
 @media (max-width: 599px) {
+    .member-card:not(.member-card--skeleton) {
+        position: relative;
+        padding: 0.5rem;
+    }
+
+    .member-card:not(.member-card--skeleton) .member-card-avatar {
+        display: none;
+    }
+
+    .member-card:not(.member-card--skeleton) .member-card-name {
+        padding-right: 6rem;
+    }
+
+    .member-card:not(.member-card--skeleton) .member-card-meta {
+        row-gap: 0;
+    }
+
+    .member-card:not(.member-card--skeleton) .member-card-status {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+    }
+
     .member-card-status .mud-chip {
         max-width: 6rem;
     }

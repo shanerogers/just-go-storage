@@ -73,11 +73,27 @@ public partial class EnrolmentPickerLayoutTests
     {
         var markup = File.ReadAllText(EnrolmentPagePath());
 
+        Assert.Contains("<MudSwitch T=\"bool\"", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("<MudCheckBox", markup, StringComparison.Ordinal);
+        Assert.Contains("class=\"member-card-double\"", markup, StringComparison.Ordinal);
         Assert.Contains("ValueChanged=\"requested => SetDoubleGrade(row, requested)\"", markup, StringComparison.Ordinal);
         Assert.Contains("row.TicketId = FindTicketIdForGrade(requested ? row.DoubleGrade : row.NextGrade);", markup, StringComparison.Ordinal);
         Assert.Contains("row.IsDoubleGrading,", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("Label=\"Grade ticket\"", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("SetTicket(", markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Booking_CardMetadataWrapsSwitchAndMatchesVirtualizedItemHeight()
+    {
+        var markup = File.ReadAllText(EnrolmentPagePath());
+        var styles = File.ReadAllText(Path.Combine(Path.GetDirectoryName(EnrolmentPagePath())!, "..", "..", "wwwroot", "app.css"));
+
+        Assert.Contains("ItemSize=\"120\"", markup, StringComparison.Ordinal);
+        Assert.Matches(@"(?s)\.member-card\s*\{[^}]*height: 112px;", styles);
+        Assert.Matches(@"(?s)\.member-card-meta\s*\{[^}]*flex-wrap: wrap;", styles);
+        Assert.Matches(@"(?s)\.member-card-double \.mud-typography\s*\{[^}]*font-size: 0\.75rem;", styles);
+        Assert.Contains(".member-card:not(.member-card--skeleton) .member-card-status", styles, StringComparison.Ordinal);
     }
 
     private static string EnrolmentPagePath([CallerFilePath] string testFile = "")

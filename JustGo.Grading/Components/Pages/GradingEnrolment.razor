@@ -86,7 +86,7 @@
                         </div>
                     }
                     <Virtualize @ref="_rosterList" @key="_rosterCache" TItem="EnrolmentRow" ItemsProvider="LoadRosterAsync"
-                                ItemSize="84" OverscanCount="2" Context="row">
+                                ItemSize="120" OverscanCount="2" Context="row">
                         <ItemContent>
                             @if (row.MemberId == Guid.Empty)
                             {
@@ -116,34 +116,36 @@
                                 <div class="member-card-body">
                                     <div class="member-card-name">@MemberCardText.FullName(row.FirstName, row.LastName)</div>
                                     <div class="member-card-meta">
-                                        <span>#@row.MemberNumber</span>
-                                        <span aria-hidden="true">·</span>
-                                        @if (MemberCardText.GradeProgression(
-                                            row.CurrentGrade, row.IsDoubleGrading ? row.DoubleGrade : row.NextGrade) is { } grades)
-                                        {
-                                            <span>@grades</span>
-                                        }
-                                        else
-                                        {
-                                            <MudSkeleton Width="8rem" />
-                                        }
-                                    </div>
-                                    @if (row.IsSelected)
-                                    {
-                                        <div @onclick:stopPropagation="true" @onkeydown:stopPropagation="true">
-                                            @if (CanRequestDoubleGrade(row))
+                                        <div class="member-card-grade-info">
+                                            <span>#@row.MemberNumber</span>
+                                            <span aria-hidden="true">·</span>
+                                            @if (MemberCardText.GradeProgression(
+                                                row.CurrentGrade, row.IsDoubleGrading ? row.DoubleGrade : row.NextGrade) is { } grades)
                                             {
-                                                <MudCheckBox T="bool" Value="row.IsDoubleGrading"
-                                                             ValueChanged="requested => SetDoubleGrade(row, requested)"
-                                                             Label="@($"Double to {row.DoubleGrade}")" Dense="true" Size="Size.Small"
-                                                             Disabled="@(_enrolling || !IsRosterReady)" />
+                                                <span>@grades</span>
                                             }
                                             else
                                             {
-                                                <MudText Typo="Typo.caption" Color="Color.Secondary">Double grade unavailable</MudText>
+                                                <MudSkeleton Width="8rem" />
                                             }
                                         </div>
-                                    }
+                                        @if (row.IsSelected)
+                                        {
+                                            <div class="member-card-double" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true">
+                                                @if (CanRequestDoubleGrade(row))
+                                                {
+                                                    <MudSwitch T="bool" Value="row.IsDoubleGrading"
+                                                               ValueChanged="requested => SetDoubleGrade(row, requested)"
+                                                               Label="@($"Double to {row.DoubleGrade}")" Size="Size.Small"
+                                                               Disabled="@(_enrolling || !IsRosterReady)" />
+                                                }
+                                                else
+                                                {
+                                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Double grade unavailable</MudText>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
                                 </div>
                                 <div class="member-card-status">
                                     @switch (row.Status)
