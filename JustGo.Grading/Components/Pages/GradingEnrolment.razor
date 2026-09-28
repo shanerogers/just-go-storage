@@ -120,20 +120,13 @@
                                                 <MudSkeleton Width="8rem" />
                                             }
                                         </div>
-                                        @if (cardRow.IsSelected)
+                                        @if (cardRow.IsSelected && CanRequestDoubleGrade(cardRow))
                                         {
                                             <div class="member-card-double" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true">
-                                                @if (CanRequestDoubleGrade(cardRow))
-                                                {
-                                                    <MudSwitch T="bool" Value="cardRow.IsDoubleGrading"
-                                                               ValueChanged="requested => SetDoubleGrade(cardRow, requested)"
-                                                               Label="@($"Double to {cardRow.DoubleGrade}")" Size="Size.Small"
-                                                               Disabled="@(!CanInteractWithRow(cardRow))" />
-                                                }
-                                                else if (_eventBookingsLoaded)
-                                                {
-                                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Double grade unavailable</MudText>
-                                                }
+                                                <MudSwitch T="bool" Value="cardRow.IsDoubleGrading"
+                                                           ValueChanged="requested => SetDoubleGrade(cardRow, requested)"
+                                                           Label="@($"Double to {cardRow.DoubleGrade}")" Size="Size.Small"
+                                                           Disabled="@(!CanInteractWithRow(cardRow))" />
                                             </div>
                                         }
                                     </div>

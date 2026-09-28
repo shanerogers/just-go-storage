@@ -137,6 +137,8 @@ public partial class EnrolmentPickerLayoutTests
 
         Assert.Contains("<MudSwitch T=\"bool\"", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("<MudCheckBox", markup, StringComparison.Ordinal);
+        Assert.Contains("@if (cardRow.IsSelected && CanRequestDoubleGrade(cardRow))", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Double grade unavailable", markup, StringComparison.Ordinal);
         Assert.Contains("class=\"member-card-double\"", markup, StringComparison.Ordinal);
         Assert.Contains("ValueChanged=\"requested => SetDoubleGrade(cardRow, requested)\"", markup, StringComparison.Ordinal);
         Assert.Contains("row.TicketId = FindTicketIdForGrade(requested ? row.DoubleGrade : row.NextGrade);", markup, StringComparison.Ordinal);
