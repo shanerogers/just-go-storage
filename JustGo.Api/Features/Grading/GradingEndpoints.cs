@@ -71,7 +71,7 @@ public static class GradingEndpoints
             // Intended for club admins; access control is not yet enforced (role TBD).
             group.MapPost("/events/{eventId:guid}/enrolments", EnrolMembersAsync)
                 .WithName("EnrolGradingMembers")
-                .WithSummary("Book members onto a grading event, skipping members who are already booked");
+                .WithSummary("Book members onto Gup grade tickets (including requested double grades), skipping those already booked");
 
             return app;
         }
@@ -869,6 +869,30 @@ public static class GradingEndpoints
         IMemberClient memberClient,
         CancellationToken ct)
     {
+        if (item.IsDoubleGrading)
+        {
+            var memberForDouble = await memberClient.GetMemberAsync(item.MemberId, ct);
+            var doubleGrade = Grade.FromCredentials(memberForDouble.Credentials).Double;
+            if (doubleGrade is null || !doubleGrade.IsGup)
+            {
+                return (null, "A double grade must stay within Gup gradings (up to 1st Gup).");
+            }
+
+            var doubleTicket = tickets.FirstOrDefault(ticket =>
+                string.Equals(ResolveGradeDefinition(ticket.TicketName), doubleGrade.Name, StringComparison.OrdinalIgnoreCase));
+            if (doubleTicket is null)
+            {
+                return (null, $"No ticket for the requested double grade ({doubleGrade.Name}) is available on this grading.");
+            }
+
+            if (item.TicketId is { } requestedTicketId && requestedTicketId != Guid.Empty && requestedTicketId != doubleTicket.Id)
+            {
+                return (null, $"The selected ticket does not match the requested double grade ({doubleGrade.Name}).");
+            }
+
+            return (doubleTicket, null);
+        }
+
         if (item.TicketId is { } ticketId && ticketId != Guid.Empty)
         {
             var selected = tickets.FirstOrDefault(ticket => ticket.Id == ticketId);

@@ -19,6 +19,8 @@ public sealed class GradingEnrolmentTests
     private static readonly Guid FifthGupTicketId = Guid.NewGuid();
     private static readonly Guid FourthGupTicketId = Guid.NewGuid();
     private static readonly Guid NinthGupTicketId = Guid.NewGuid();
+    private static readonly Guid EighthGupTicketId = Guid.NewGuid();
+    private static readonly Guid FirstGupTicketId = Guid.NewGuid();
 
     [Fact]
     public void MapGradingEndpoints_RegistersEnrolmentRoute()
@@ -103,6 +105,113 @@ public sealed class GradingEnrolmentTests
         Assert.Equal(GradingEnrolmentOutcome.Enrolled, detail.Outcome);
         Assert.Equal("9th Gup", detail.GradeName);
         Assert.Equal(NinthGupTicketId, detail.TicketId);
+    }
+
+    [Fact]
+    public async Task EnrolMembersAsync_RequestDoubleGrade_BooksTheTwoGradesUpGupTicket()
+    {
+        var memberId = Guid.NewGuid();
+        var eventClient = CreateEventClient();
+        eventClient.AddEventCandidateAsync(Arg.Any<EventCandidateCreateRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new EventCandidateCreatedResponse { BookingId = Guid.NewGuid() });
+        var memberClient = Substitute.For<IMemberClient>();
+        memberClient.GetMemberAsync(memberId, Arg.Any<CancellationToken>())
+            .Returns(new MemberDetailDto { Id = memberId, Credentials = [] });
+
+        var response = await EnrolAsync(
+            [new GradingEnrolmentItem { MemberId = memberId, IsDoubleGrading = true, TicketId = EighthGupTicketId }],
+            eventClient, memberClient);
+
+        var detail = Assert.Single(response.Details);
+        Assert.Equal(GradingEnrolmentOutcome.Enrolled, detail.Outcome);
+        Assert.Equal(EighthGupTicketId, detail.TicketId);
+        Assert.Equal("8th Gup", detail.GradeName);
+        await eventClient.Received(1).AddEventCandidateAsync(
+            Arg.Is<EventCandidateCreateRequest>(request => request.MemberId == memberId && request.TicketId == EighthGupTicketId),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task EnrolMembersAsync_DoubleGradeWithoutMatchingTicket_DoesNotBookTheNextGrade()
+    {
+        var memberId = Guid.NewGuid();
+        var eventClient = CreateEventClient();
+        var memberClient = CreateMemberClientWithGrade(memberId, "5th Gup");
+
+        var response = await EnrolAsync(
+            [new GradingEnrolmentItem { MemberId = memberId, IsDoubleGrading = true }],
+            eventClient, memberClient);
+
+        var detail = Assert.Single(response.Details);
+        Assert.Equal(GradingEnrolmentOutcome.Failed, detail.Outcome);
+        Assert.Contains("3rd Gup", detail.Error);
+        await eventClient.DidNotReceive().AddEventCandidateAsync(Arg.Any<EventCandidateCreateRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task EnrolMembersAsync_ThirdGupCanDoubleGradeToFirstGup()
+    {
+        var memberId = Guid.NewGuid();
+        var eventClient = CreateEventClient();
+        eventClient.AddEventCandidateAsync(Arg.Any<EventCandidateCreateRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new EventCandidateCreatedResponse { BookingId = Guid.NewGuid() });
+        var memberClient = CreateMemberClientWithGrade(memberId, "3rd Gup");
+
+        var response = await EnrolAsync(
+            [new GradingEnrolmentItem { MemberId = memberId, IsDoubleGrading = true }],
+            eventClient, memberClient);
+
+        Assert.Equal(GradingEnrolmentOutcome.Enrolled, Assert.Single(response.Details).Outcome);
+        await eventClient.Received(1).AddEventCandidateAsync(
+            Arg.Is<EventCandidateCreateRequest>(request => request.TicketId == FirstGupTicketId),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task EnrolMembersAsync_DoubleGradeCannotCrossIntoDan()
+    {
+        var memberId = Guid.NewGuid();
+        var eventClient = CreateEventClient();
+        var memberClient = CreateMemberClientWithGrade(memberId, "2nd Gup");
+
+        var response = await EnrolAsync(
+            [new GradingEnrolmentItem { MemberId = memberId, IsDoubleGrading = true }],
+            eventClient, memberClient);
+
+        Assert.Equal(GradingEnrolmentOutcome.Failed, Assert.Single(response.Details).Outcome);
+        await eventClient.DidNotReceive().AddEventCandidateAsync(Arg.Any<EventCandidateCreateRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task EnrolMembersAsync_FirstGupCannotRequestDoubleGrade()
+    {
+        var memberId = Guid.NewGuid();
+        var eventClient = CreateEventClient();
+        var memberClient = CreateMemberClientWithGrade(memberId, "1st Gup");
+
+        var response = await EnrolAsync(
+            [new GradingEnrolmentItem { MemberId = memberId, IsDoubleGrading = true }],
+            eventClient, memberClient);
+
+        Assert.Equal(GradingEnrolmentOutcome.Failed, Assert.Single(response.Details).Outcome);
+        await eventClient.DidNotReceive().AddEventCandidateAsync(Arg.Any<EventCandidateCreateRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task EnrolMembersAsync_DoubleGradeRejectsMismatchedTicket()
+    {
+        var memberId = Guid.NewGuid();
+        var eventClient = CreateEventClient();
+        var memberClient = Substitute.For<IMemberClient>();
+        memberClient.GetMemberAsync(memberId, Arg.Any<CancellationToken>())
+            .Returns(new MemberDetailDto { Id = memberId, Credentials = [] });
+
+        var response = await EnrolAsync(
+            [new GradingEnrolmentItem { MemberId = memberId, IsDoubleGrading = true, TicketId = NinthGupTicketId }],
+            eventClient, memberClient);
+
+        Assert.Equal(GradingEnrolmentOutcome.Failed, Assert.Single(response.Details).Outcome);
+        await eventClient.DidNotReceive().AddEventCandidateAsync(Arg.Any<EventCandidateCreateRequest>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -242,6 +351,8 @@ public sealed class GradingEnrolmentTests
                 Data =
                 [
                     new EventTicketDto { Id = NinthGupTicketId, TicketName = "9th Gup Grading" },
+                    new EventTicketDto { Id = EighthGupTicketId, TicketName = "8th Gup Grading" },
+                    new EventTicketDto { Id = FirstGupTicketId, TicketName = "1st Gup Grading" },
                     new EventTicketDto { Id = FifthGupTicketId, TicketName = "5th Gup Grading" },
                     new EventTicketDto { Id = FourthGupTicketId, TicketName = "4th Gup Grading" },
                 ],

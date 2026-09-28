@@ -318,24 +318,11 @@ h1:focus {
     overflow: hidden;
 }
 
-.member-card-ticket {
-    flex: 0 0 13rem;
-    cursor: default;
-}
-
-.member-card-ticket .mud-input-control {
-    margin-top: 0;
-}
-
 .member-card-status {
     flex: 0 0 auto;
 }
 
 @media (max-width: 599px) {
-    .member-card-ticket {
-        flex-basis: 9rem;
-    }
-
     .member-card-status .mud-chip {
         max-width: 6rem;
     }

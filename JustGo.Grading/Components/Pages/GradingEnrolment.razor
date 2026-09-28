@@ -118,7 +118,8 @@
                                     <div class="member-card-meta">
                                         <span>#@row.MemberNumber</span>
                                         <span aria-hidden="true">·</span>
-                                        @if (MemberCardText.GradeProgression(row.CurrentGrade, row.NextGrade) is { } grades)
+                                        @if (MemberCardText.GradeProgression(
+                                            row.CurrentGrade, row.IsDoubleGrading ? row.DoubleGrade : row.NextGrade) is { } grades)
                                         {
                                             <span>@grades</span>
                                         }
@@ -127,20 +128,23 @@
                                             <MudSkeleton Width="8rem" />
                                         }
                                     </div>
-                                </div>
-                                @if (row.IsSelected)
-                                {
-                                    <div class="member-card-ticket" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true">
-                                        <MudSelect T="Guid" @bind-Value="row.TicketId" Dense="true" Margin="Margin.Dense"
-                                                   Label="Grade ticket" Variant="Variant.Outlined" Disabled="@(_enrolling || !IsRosterReady)">
-                                            <MudSelectItem T="Guid" Value="Guid.Empty">Auto (next grade)</MudSelectItem>
-                                            @foreach (var ticket in _tickets)
+                                    @if (row.IsSelected)
+                                    {
+                                        <div @onclick:stopPropagation="true" @onkeydown:stopPropagation="true">
+                                            @if (CanRequestDoubleGrade(row))
                                             {
-                                                <MudSelectItem T="Guid" Value="@ticket.TicketId">@(ticket.GradeName ?? ticket.TicketName)</MudSelectItem>
+                                                <MudCheckBox T="bool" Value="row.IsDoubleGrading"
+                                                             ValueChanged="requested => SetDoubleGrade(row, requested)"
+                                                             Label="@($"Double to {row.DoubleGrade}")" Dense="true" Size="Size.Small"
+                                                             Disabled="@(_enrolling || !IsRosterReady)" />
                                             }
-                                        </MudSelect>
-                                    </div>
-                                }
+                                            else
+                                            {
+                                                <MudText Typo="Typo.caption" Color="Color.Secondary">Double grade unavailable</MudText>
+                                            }
+                                        </div>
+                                    }
+                                </div>
                                 <div class="member-card-status">
                                     @switch (row.Status)
                                     {
@@ -581,6 +585,7 @@
         var row = CreateRow(member);
         row.CurrentGrade = detail.CurrentGrade;
         row.NextGrade = detail.NextGrade;
+        row.DoubleGrade = detail.DoubleGrade;
         if (row.TicketId == Guid.Empty)
         {
             row.TicketId = FindTicketIdForGrade(detail.NextGrade);
@@ -591,6 +596,27 @@
     private Guid FindTicketIdForGrade(string? gradeName) =>
         _tickets.FirstOrDefault(ticket => string.Equals(ticket.GradeName, gradeName, StringComparison.OrdinalIgnoreCase))?.TicketId
         ?? Guid.Empty;
+
+    private bool CanRequestDoubleGrade(EnrolmentRow row) =>
+        GupEnrolmentEligibility.CanRequestDoubleGrade(row.CurrentGrade, row.DoubleGrade)
+        && FindTicketIdForGrade(row.DoubleGrade) != Guid.Empty;
+
+    private void SetDoubleGrade(EnrolmentRow row, bool requested)
+    {
+        if (!IsRosterReady || _enrolling || !row.CanSelect)
+        {
+            return;
+        }
+
+        if (requested && !CanRequestDoubleGrade(row))
+        {
+            Snackbar.Add("No Gup ticket for this member's double grade is available on this grading.", Severity.Error);
+            return;
+        }
+
+        row.IsDoubleGrading = requested;
+        row.TicketId = FindTicketIdForGrade(requested ? row.DoubleGrade : row.NextGrade);
+    }
 
     private void ToggleSelected(EnrolmentRow row, bool selected)
     {
@@ -656,6 +682,7 @@
                 {
                     MemberId = row.MemberId,
                     TicketId = row.TicketId == Guid.Empty ? (Guid?)null : row.TicketId,
+                    row.IsDoubleGrading,
                 }),
             };
 
@@ -743,6 +770,8 @@
         public string LastName { get; init; } = string.Empty;
         public string? CurrentGrade { get; set; }
         public string? NextGrade { get; set; }
+        public string? DoubleGrade { get; set; }
+        public bool IsDoubleGrading { get; set; }
         public Guid TicketId { get; set; }
         public bool IsSelected { get; set; }
         public RowStatus Status { get; set; }
@@ -783,6 +812,7 @@
         public Guid MemberId { get; set; }
         public string CurrentGrade { get; set; } = string.Empty;
         public string NextGrade { get; set; } = string.Empty;
+        public string DoubleGrade { get; set; } = string.Empty;
     }
 
     private sealed class EnrolmentApiResponse

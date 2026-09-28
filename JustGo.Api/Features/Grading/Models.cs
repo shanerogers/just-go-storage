@@ -131,6 +131,9 @@ public sealed class GradingEnrolmentItem
 
     /// <summary>Grade ticket to book. When omitted, the ticket matching the member's next grade is used.</summary>
     public Guid? TicketId { get; init; }
+
+    /// <summary>Request the Gup ticket two grades above the member's current grade instead of the next grade.</summary>
+    public bool IsDoubleGrading { get; init; }
 }
 
 /// <summary>Request body for POST /grading/events/{eventId}/enrolments.</summary>

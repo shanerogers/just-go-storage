@@ -18,4 +18,11 @@ public static class GupEnrolmentEligibility
 
     public static bool CanGradeUpToFirstGup(string? currentGrade) =>
         currentGrade is not null && EligibleCurrentGrades.Contains(currentGrade);
+
+    public static bool CanRequestDoubleGrade(string? currentGrade, string? doubleGrade) =>
+        CanGradeUpToFirstGup(currentGrade)
+        && doubleGrade is not null
+        && (string.Equals(doubleGrade, "1st Gup", StringComparison.OrdinalIgnoreCase)
+            || (!string.Equals(doubleGrade, "UnGraded", StringComparison.OrdinalIgnoreCase)
+                && EligibleCurrentGrades.Contains(doubleGrade)));
 }

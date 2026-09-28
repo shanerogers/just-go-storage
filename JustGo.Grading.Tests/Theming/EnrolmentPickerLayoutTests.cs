@@ -68,6 +68,18 @@ public partial class EnrolmentPickerLayoutTests
         Assert.Contains("Disabled=\"@(_selectedRows.Count == 0 || _enrolling || _loadingEvent || !IsRosterReady)\"", markup, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Booking_DoubleChoiceUsesDoubleGradeTicketAndSendsIntent()
+    {
+        var markup = File.ReadAllText(EnrolmentPagePath());
+
+        Assert.Contains("ValueChanged=\"requested => SetDoubleGrade(row, requested)\"", markup, StringComparison.Ordinal);
+        Assert.Contains("row.TicketId = FindTicketIdForGrade(requested ? row.DoubleGrade : row.NextGrade);", markup, StringComparison.Ordinal);
+        Assert.Contains("row.IsDoubleGrading,", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Label=\"Grade ticket\"", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetTicket(", markup, StringComparison.Ordinal);
+    }
+
     private static string EnrolmentPagePath([CallerFilePath] string testFile = "")
     {
         var directory = new FileInfo(testFile).Directory;
