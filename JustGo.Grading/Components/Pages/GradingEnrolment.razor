@@ -22,7 +22,7 @@
         <MudText Typo="Typo.h6" GutterBottom="true">1. Choose a grading</MudText>
         <div class="enrolment-picker">
             <MudSelect T="Guid" Value="_selectedEventId" ValueChanged="SelectEventAsync" Label="Event"
-                       Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="@(_loadingEvents || _enrolling)"
+                       Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="@(_loadingEvents || _loadingEvent || _enrolling)"
                        Placeholder="@EnrolmentGuidance.EventPlaceholder(_loadingEvents, VisibleEvents.Count)"
                        ToStringFunc="@(id => EnrolmentGuidance.DescribeSelectedEvent(id, _eventLabels))"
                        AdornmentIcon="@Icons.Material.Filled.EmojiEvents" Adornment="Adornment.Start"
@@ -39,28 +39,18 @@
         }
     </MudPaper>
 
-    @if (_selectedEventId == Guid.Empty)
-    {
-        <MudPaper Class="pa-4 mb-4 enrolment-step-locked" Elevation="0">
-            <MudText Typo="Typo.h6">2. Choose your club</MudText>
-            <MudText Typo="Typo.body2" Color="Color.Secondary">Choose a grading above to unlock this step.</MudText>
-        </MudPaper>
-    }
-
-    @if (_selectedEventId != Guid.Empty)
-    {
-        <MudPaper Class="pa-4 mb-4" Elevation="2">
+    <MudPaper Class="pa-4 mb-4" Elevation="2">
             <MudText Typo="Typo.h6" GutterBottom="true">2. Choose your club</MudText>
             <div class="enrolment-picker">
                 <MudAutocomplete T="ClubOption" Value="_selectedClub" ValueChanged="SelectClubAsync"
                                  SearchFunc="SearchClubsAsync" ToStringFunc="@(club => club?.DisplayName)"
                                  Label="Club" Placeholder="Start typing a club name..."
                                  Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" ResetValueOnEmptyText="true"
-                                 MaxItems="null" Disabled="@(_loadingClubs || _loadingEvent || _enrolling)"
+                                 MaxItems="null" Disabled="@(_loadingClubs || _enrolling)"
                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Groups" />
             </div>
 
-            @if (_rosterCache is not null)
+            @if (_selectedEventId != Guid.Empty && _selectedClub is not null && _rosterCache is not null)
             {
                 <div class="d-flex align-center justify-space-between mt-4 mb-1">
                     <MudText Typo="Typo.subtitle2">@RosterHeading</MudText>
@@ -191,7 +181,6 @@
                         </EmptyContent>
                     </Virtualize>
                 </div>
-            }
 
             <div class="d-flex align-center justify-end gap-2 mt-4">
                 @if (_selectedRows.Count > 0)
@@ -210,8 +199,8 @@
                     @EnrolmentGuidance.BookButtonLabel(_selectedRows.Count)
                 </MudButton>
             </div>
-        </MudPaper>
-    }
+            }
+    </MudPaper>
 </MudContainer>
 
 @code {
@@ -222,6 +211,7 @@
 
     private bool _loadingEvents;
     private bool _loadingEvent;
+    private bool _eventBookingsLoaded;
     private bool _loadingClubs;
     private bool _enrolling;
     private bool _disposed;
@@ -245,9 +235,11 @@
     private HttpClient Api => HttpClientFactory.CreateClient("JustGoApi");
 
     private string RosterHeading => $"{_selectedClub?.Name} members";
-    private bool IsRosterReady => _rosterCache?.IsComplete == true && _rosterCache.Error is null;
+    private bool IsRosterReady => _eventBookingsLoaded && _selectedEventId != Guid.Empty
+        && _selectedClub is not null && _rosterCache?.IsComplete == true && _rosterCache.Error is null;
     private bool CanInteractWithRow(EnrolmentRow row) =>
-        row.CanSelect && !_enrolling && !_loadingEvent && _rosterCache is { Error: null };
+        row.CanSelect && !_enrolling && !_loadingEvent && _eventBookingsLoaded
+        && _selectedEventId != Guid.Empty && _selectedClub is not null && _rosterCache is { Error: null };
     private bool CanChangeRow(EnrolmentRow row) =>
         CanInteractWithRow(row) && _rosterCache is { } cache && cache.LoadedItems.Any(loaded => loaded.MemberId == row.MemberId);
 
@@ -422,20 +414,22 @@
 
     private async Task SelectEventAsync(Guid eventId)
     {
+        ClearSelection();
+        _eventBookingsLoaded = false;
+        ResetRoster();
         _selectedEventId = eventId;
         if (EnrolmentGuidance.NeedsNavigationToEvent(new Uri(Navigation.Uri), eventId))
         {
             Navigation.NavigateTo(EnrolmentGuidance.EventPath(eventId), replace: true);
         }
         await LoadEventBookingsAsync();
-        ClearSelection();
-
         ResetRoster();
     }
 
     private async Task LoadEventBookingsAsync()
     {
         _loadingEvent = true;
+        _eventBookingsLoaded = false;
         StateHasChanged();
         try
         {
@@ -445,6 +439,7 @@
 
             _tickets = ticketsTask.Result ?? [];
             _bookedMemberIds = (candidatesTask.Result ?? []).Select(candidate => candidate.MemberId).ToHashSet();
+            _eventBookingsLoaded = true;
             MarkAlreadyBookedRows();
         }
         catch (Exception ex)
@@ -498,7 +493,7 @@
         _rosterCache?.Dispose();
         _rosterList = null;
         _rosterError = null;
-        _rosterCache = _selectedClub is null
+        _rosterCache = _selectedClub is null || _selectedEventId == Guid.Empty || !_eventBookingsLoaded
             ? null
             : CreateRosterCache(_selectedClub.Id);
     }
