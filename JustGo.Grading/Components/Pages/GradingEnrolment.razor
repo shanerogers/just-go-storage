@@ -99,8 +99,8 @@
                             {
                             <div @key="row.MemberId" class="@MemberCardClass(row)"
                                  role="checkbox" aria-checked="@(row.IsSelected ? "true" : "false")"
-                                 aria-disabled="@(!row.CanSelect || !IsRosterReady || _enrolling ? "true" : "false")"
-                                 tabindex="@(row.CanSelect && IsRosterReady && !_enrolling ? 0 : -1)"
+                                 aria-disabled="@(CanInteractWithRow(row) ? "false" : "true")"
+                                 tabindex="@(CanInteractWithRow(row) ? 0 : -1)"
                                  @onclick="() => ToggleSelected(row, !row.IsSelected)"
                                  @onkeydown="args => OnMemberCardKeyDown(row, args)">
                                 <div class="member-card-avatar" aria-hidden="true">
@@ -137,7 +137,7 @@
                                                     <MudSwitch T="bool" Value="row.IsDoubleGrading"
                                                                ValueChanged="requested => SetDoubleGrade(row, requested)"
                                                                Label="@($"Double to {row.DoubleGrade}")" Size="Size.Small"
-                                                               Disabled="@(_enrolling || !IsRosterReady)" />
+                                                               Disabled="@(!CanInteractWithRow(row))" />
                                                 }
                                                 else
                                                 {
@@ -195,7 +195,7 @@
             <div class="d-flex align-center justify-end gap-2 mt-4">
                 @if (_selectedRows.Count > 0)
                 {
-                    <MudButton Variant="Variant.Text" Color="Color.Secondary" OnClick="ClearSelection" Disabled="@(_enrolling || !IsRosterReady)">
+                    <MudButton Variant="Variant.Text" Color="Color.Secondary" OnClick="ClearSelection" Disabled="@_enrolling">
                         Clear selection
                     </MudButton>
                 }
@@ -245,6 +245,10 @@
 
     private string RosterHeading => $"{_selectedClub?.Name} members";
     private bool IsRosterReady => _rosterCache?.IsComplete == true && _rosterCache.Error is null;
+    private bool CanInteractWithRow(EnrolmentRow row) =>
+        row.CanSelect && !_enrolling && !_loadingEvent && _rosterCache is { Error: null };
+    private bool CanChangeRow(EnrolmentRow row) =>
+        CanInteractWithRow(row) && _rosterCache is { } cache && cache.LoadedItems.Contains(row);
 
     // Virtualize renders nothing while its first fetch is in flight, so the page draws the skeleton itself.
     private bool IsWaitingForFirstRosterPage =>
@@ -605,7 +609,7 @@
 
     private void SetDoubleGrade(EnrolmentRow row, bool requested)
     {
-        if (!IsRosterReady || _enrolling || !row.CanSelect)
+        if (!CanChangeRow(row))
         {
             return;
         }
@@ -622,7 +626,7 @@
 
     private void ToggleSelected(EnrolmentRow row, bool selected)
     {
-        if (row.CanSelect && IsRosterReady && !_enrolling)
+        if (CanChangeRow(row))
         {
             SetSelected(row, selected);
         }

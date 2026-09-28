@@ -56,7 +56,7 @@ public partial class EnrolmentPickerLayoutTests
     }
 
     [Fact]
-    public void ClubRoster_ShowsOneSkeletonAndLocksBookingUntilFullyLoaded()
+    public void ClubRoster_AllowsLoadedRowsWhileScanningButLocksBookingUntilFullyLoaded()
     {
         var markup = File.ReadAllText(EnrolmentPagePath());
 
@@ -64,8 +64,16 @@ public partial class EnrolmentPickerLayoutTests
         Assert.DoesNotContain("RosterSkeletonCount", markup, StringComparison.Ordinal);
         Assert.Contains("scanToEnd: true", markup, StringComparison.Ordinal);
         Assert.Contains("private bool IsRosterReady => _rosterCache?.IsComplete == true && _rosterCache.Error is null", markup, StringComparison.Ordinal);
-        Assert.Contains("if (row.CanSelect && IsRosterReady && !_enrolling)", markup, StringComparison.Ordinal);
+        Assert.Contains("row.CanSelect && !_enrolling && !_loadingEvent", markup, StringComparison.Ordinal);
+        Assert.Contains("_rosterCache is { Error: null }", markup, StringComparison.Ordinal);
+        Assert.Contains("CanInteractWithRow(row) && _rosterCache is { } cache && cache.LoadedItems.Contains(row)", markup, StringComparison.Ordinal);
+        Assert.Contains("if (CanChangeRow(row))", markup, StringComparison.Ordinal);
+        Assert.Contains("aria-disabled=\"@(CanInteractWithRow(row) ? \"false\" : \"true\")\"", markup, StringComparison.Ordinal);
+        Assert.Contains("tabindex=\"@(CanInteractWithRow(row) ? 0 : -1)\"", markup, StringComparison.Ordinal);
+        Assert.Contains("Disabled=\"@(!CanInteractWithRow(row))\"", markup, StringComparison.Ordinal);
+        Assert.Contains("OnClick=\"ClearSelection\" Disabled=\"@_enrolling\"", markup, StringComparison.Ordinal);
         Assert.Contains("Disabled=\"@(_selectedRows.Count == 0 || _enrolling || _loadingEvent || !IsRosterReady)\"", markup, StringComparison.Ordinal);
+        Assert.Contains("selected.Count == 0 || !IsRosterReady || _loadingEvent || _enrolling", markup, StringComparison.Ordinal);
     }
 
     [Fact]
