@@ -76,8 +76,8 @@ public sealed class MemberClientTests
             Guid.Parse("e54f6726-597f-46d9-8341-1a89b59f3384"),
             CancellationToken.None);
 
-        var organisation = Assert.Single(member.Clubs!);
-        Assert.Equal("Berhampore TKD", organisation.ClubName);
+        var organisation = Assert.Single(member.Organisations!);
+        Assert.Equal("Berhampore TKD", organisation.OrganisationName);
         Assert.Equal("Club Admin", organisation.Roles);
         Assert.True(organisation.IsAdmin);
         Assert.True(organisation.IsPrimary);

@@ -114,13 +114,13 @@ public sealed class MemberMembershipDto
 /// <summary>
 /// Organisation membership held by a member. Maps <c>ClubMemberDtoV2_2</c>.
 /// </summary>
-public sealed class MemberDetailClubDto
+public sealed class MemberDetailOrganisationDto
 {
     [JsonPropertyName("id")]
     public Guid Id { get; set; }
 
     [JsonPropertyName("organisationName")]
-    public string? ClubName { get; set; }
+    public string? OrganisationName { get; set; }
 
     [JsonPropertyName("roles")]
     public string? Roles { get; set; }
@@ -249,7 +249,7 @@ public sealed class MemberDetailDto
     public List<MemberMembershipDto>? Memberships { get; set; }
 
     [JsonPropertyName("organisations")]
-    public List<MemberDetailClubDto>? Clubs { get; set; }
+    public List<MemberDetailOrganisationDto>? Organisations { get; set; }
 
     [JsonPropertyName("credentials")]
     public List<MemberCredentialDtoV2_2>? Credentials { get; set; }
