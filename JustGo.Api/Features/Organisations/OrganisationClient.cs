@@ -31,7 +31,7 @@ public sealed class OrganisationClient(HttpClient httpClient, IOptions<JustGoOpt
     }
 
     public Task<object> GetRolesAsync(CancellationToken ct) =>
-        GetAsync<object>($"/api/{ApiVersion}/Organisation/Roles", ct);
+        GetAsync<object>($"/api/{ApiVersion}/Organisations/Roles", ct);
 
     public Task<object> GetSchemaAsync(CancellationToken ct) =>
         GetAsync<object>($"/api/{ApiVersion}/Organisation/Schema", ct);
