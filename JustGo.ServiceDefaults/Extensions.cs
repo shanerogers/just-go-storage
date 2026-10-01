@@ -1,7 +1,9 @@
+using Humanizer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
@@ -33,8 +35,15 @@ public static class Extensions
 
         builder.Services.ConfigureHttpClientDefaults(http =>
         {
-            // Turn on resilience by default
-            http.AddStandardResilienceHandler();
+            // Turn on resilience by default, with relaxed timeouts locally.
+            if (builder.Environment.IsDevelopment())
+            {
+                http.AddStandardResilienceHandler(ConfigureDevelopmentResilience);
+            }
+            else
+            {
+                http.AddStandardResilienceHandler();
+            }
 
             // Turn on service discovery by default
             http.AddServiceDiscovery();
@@ -47,6 +56,23 @@ public static class Extensions
         // });
 
         return builder;
+    }
+
+    /// <summary>
+    /// Relaxes the standard resilience handler's timeouts for local development, where upstream
+    /// sandbox dependencies can be slower than the handler's production-oriented defaults expect.
+    /// </summary>
+    private static void ConfigureDevelopmentResilience(HttpStandardResilienceOptions options)
+    {
+        // Local/sandbox dependencies (e.g. the JustGo sandbox API) are frequently much slower than
+        // the standard resilience handler's production-oriented defaults (10s attempt / 30s total)
+        // allow for. In Development, give every HttpClient more headroom so a slow upstream call
+        // fails with a real error instead of a client-side timeout that hides what actually happened.
+        options.AttemptTimeout.Timeout = 30.Seconds();
+        options.TotalRequestTimeout.Timeout = 90.Seconds();
+
+        // The circuit breaker's sampling duration must be at least double the attempt timeout.
+        options.CircuitBreaker.SamplingDuration = 60.Seconds();
     }
 
     /// <summary>

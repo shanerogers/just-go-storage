@@ -10,6 +10,9 @@
 # Ad-hoc local build/log output
 build.log
 
+# Temporary isolated build-validation output (used to compile without touching a running app's locked files)
+.build-validation/
+
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/
@@ -56,3 +59,5 @@ CodeCoverage/
 TestResult.xml
 nunit-*.xml
 node_modules/
+# Playwright CLI output (may contain credentials)
+.playwright-cli/

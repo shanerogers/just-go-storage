@@ -1,8 +1,12 @@
+using System.Text.Json;
+using JustGo.Api.Features.Clubs;
 using JustGo.Api.Features.Credentials;
 using JustGo.Api.Features.Events;
 using JustGo.Api.Features.Members;
+using JustGo.Integrations.JustGo.Features.Clubs.Models;
 using JustGo.Integrations.JustGo.Features.Credentials.Models;
 using JustGo.Integrations.JustGo.Features.Events.Models;
+using Microsoft.Extensions.Caching.Distributed;
 
 namespace JustGo.Api.Features.Grading;
 
@@ -28,9 +32,17 @@ public static class GradingEndpoints
                 .WithName("GetGradingEvents")
                 .WithSummary("Search grading events (Gup Grading, Dan Grading, Dan Pass Incomplete)");
 
+            group.MapGet("/events/accepting-bookings", GetAcceptingBookingsEventsAsync)
+                .WithName("GetAcceptingBookingsGradingEvents")
+                .WithSummary("List Gup gradings with status 'Accepting Bookings', paging JustGo 100 events at a time");
+
             group.MapGet("/members", GetGradingMembersAsync)
                 .WithName("GetGradingMembers")
-                .WithSummary("Search members by name — fast, returns basic info only (no grades)");
+                .WithSummary("Search members by name, event or club (paged) — fast, returns basic info only (no grades)");
+
+            group.MapGet("/clubs", GetGradingClubsAsync)
+                .WithName("GetGradingClubs")
+                .WithSummary("List active clubs, sorted by name, for choosing whose members to enrol (cached 12h)");
 
             group.MapGet("/events/{eventId:guid}/tickets", GetEventTicketsAsync)
                 .WithName("GetGradingEventTickets")
@@ -55,6 +67,11 @@ public static class GradingEndpoints
             group.MapPost("/submit", SubmitGradingAsync)
                 .WithName("SubmitGrading")
                 .WithSummary("Capture grading outcomes, create missing JustGo event bookings, and issue credentials");
+
+            // Intended for club admins; access control is not yet enforced (role TBD).
+            group.MapPost("/events/{eventId:guid}/enrolments", EnrolMembersAsync)
+                .WithName("EnrolGradingMembers")
+                .WithSummary("Book members onto Gup grade tickets (including requested double grades), skipping those already booked");
 
             return app;
         }
@@ -89,9 +106,28 @@ public static class GradingEndpoints
         return Results.Ok(result);
     }
 
+    internal static async Task<IResult> GetAcceptingBookingsEventsAsync(IEventClient eventClient, CancellationToken ct)
+    {
+        var events = await AcceptingBookingsEventCollector.CollectAsync(
+            async (pageNumber, token) =>
+            {
+                var request = new FindEventsRequest
+                {
+                    PageNumber = pageNumber,
+                    PageSize = AcceptingBookingsEventCollector.PageSize,
+                    Category = GradingCategories[0],
+                };
+                var response = await eventClient.FindEventsByAttributesAsync(request, token);
+                return AcceptingBookingsEventCollector.ReadEvents(response);
+            },
+            ct);
+
+        return Results.Ok(new { totalRecords = events.Count, data = events });
+    }
+
     private static object FilterEventsByName(object result, string search)
     {
-        if (result is not System.Text.Json.JsonElement json)
+        if (result is not JsonElement json)
         {
             return result;
         }
@@ -118,10 +154,11 @@ public static class GradingEndpoints
         };
     }
 
-    private static async Task<IResult> GetGradingMembersAsync(
+    internal static async Task<IResult> GetGradingMembersAsync(
         IMemberClient memberClient,
         CancellationToken ct,
         Guid? eventId = null,
+        Guid? clubId = null,
         string? search = null,
         int page = 1,
         int pageSize = 50)
@@ -136,9 +173,9 @@ public static class GradingEndpoints
             page = 1;
         }
 
-        if (eventId is null && string.IsNullOrWhiteSpace(search))
+        if (eventId is null && clubId is null && string.IsNullOrWhiteSpace(search))
         {
-            return Results.BadRequest("Either eventId or search must be provided.");
+            return Results.BadRequest("Either eventId, clubId or search must be provided.");
         }
 
         // JustGo only supports LastName search — extract the last word as the surname
@@ -155,6 +192,7 @@ public static class GradingEndpoints
             PageNumber = page,
             PageSize = pageSize,
             EventId = eventId,
+            ClubId = clubId,
             LastName = string.IsNullOrWhiteSpace(lastName) ? null : lastName,
         };
 
@@ -186,6 +224,91 @@ public static class GradingEndpoints
             TotalCount = memberSearchResponse.TotalRecords,
         });
     }
+
+    private const int ClubPageSize = 100;
+    private const int MaxClubPages = 50;
+    internal const string ClubListCacheKey = "grading:clubs:active:v1";
+    private static readonly DistributedCacheEntryOptions ClubListCacheOptions = new()
+    {
+        AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(12),
+    };
+
+    // JustGo's organisation search is slow and flaky, and the club list rarely changes, so it's cached.
+    internal static async Task<IResult> GetGradingClubsAsync(
+        IClubClient clubClient,
+        IDistributedCache cache,
+        CancellationToken ct)
+    {
+        var cached = await cache.GetStringAsync(ClubListCacheKey, ct);
+        if (cached is not null && JsonSerializer.Deserialize<List<GradingClubDto>>(cached) is { Count: > 0 } cachedClubs)
+        {
+            return Results.Ok(cachedClubs);
+        }
+
+        var clubs = await FetchActiveClubsAsync(clubClient, ct);
+        if (clubs.Count > 0)
+        {
+            await cache.SetStringAsync(ClubListCacheKey, JsonSerializer.Serialize(clubs), ClubListCacheOptions, ct);
+        }
+
+        return Results.Ok(clubs);
+    }
+
+    private static async Task<List<GradingClubDto>> FetchActiveClubsAsync(IClubClient clubClient, CancellationToken ct)
+    {
+        var clubs = new List<GradingClubDto>();
+
+        for (var pageNumber = 1; pageNumber <= MaxClubPages; pageNumber++)
+        {
+            var response = await clubClient.FindClubsByAttributesAsync(
+                new FindClubsRequest { PageNumber = pageNumber, PageSize = ClubPageSize },
+                ct);
+            var (pageClubs, rowCount) = ParseActiveClubs(response);
+            clubs.AddRange(pageClubs);
+
+            if (rowCount < ClubPageSize)
+            {
+                break;
+            }
+        }
+
+        return clubs
+            .DistinctBy(club => club.Id)
+            .OrderBy(club => club.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static (List<GradingClubDto> Clubs, int RowCount) ParseActiveClubs(object response)
+    {
+        if (response is not JsonElement json ||
+            !json.TryGetProperty("data", out var data) ||
+            data.ValueKind != JsonValueKind.Array)
+        {
+            return ([], 0);
+        }
+
+        var clubs = data.EnumerateArray()
+            .Where(IsActiveClub)
+            .Select(item => new GradingClubDto
+            {
+                Id = item.TryGetProperty("id", out var id) && id.TryGetGuid(out var clubId) ? clubId : Guid.Empty,
+                Name = GetJsonString(item, "organisationName"),
+                Town = GetJsonString(item, "organisationTown"),
+            })
+            .Where(club => club.Id != Guid.Empty && !string.IsNullOrWhiteSpace(club.Name))
+            .ToList();
+
+        return (clubs, data.GetArrayLength());
+    }
+
+    private static bool IsActiveClub(JsonElement item) =>
+        string.Equals(GetJsonString(item, "organisationType"), "Club", StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(GetJsonString(item, "organisationStatus"), "Active", StringComparison.OrdinalIgnoreCase);
+
+    private static string GetJsonString(JsonElement item, string propertyName) =>
+        item.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString() ?? string.Empty
+            : string.Empty;
 
     private static async Task<IResult> GetEventTicketsAsync(
         Guid eventId,
@@ -592,6 +715,217 @@ public static class GradingEndpoints
             Details = details,
         });
     }
+
+    private const int MaxEnrolmentMembersPerRequest = 100;
+
+    internal static async Task<IResult> EnrolMembersAsync(
+        Guid eventId,
+        GradingEnrolmentRequest request,
+        IEventClient eventClient,
+        IMemberClient memberClient,
+        ILoggerFactory loggerFactory,
+        CancellationToken ct)
+    {
+        var validationError = ValidateEnrolmentRequest(eventId, request);
+        if (validationError is not null)
+        {
+            return Results.BadRequest(validationError);
+        }
+
+        var logger = loggerFactory.CreateLogger("JustGo.Api.Features.Grading.GradingEndpoints");
+        var tickets = await GetAllEventTicketsAsync(eventClient, eventId, ct);
+        var existingCandidates = await GetAllEventCandidatesAsync(eventClient, eventId, ct);
+        var bookedMemberIds = existingCandidates.Select(candidate => candidate.CandidateId).ToHashSet();
+
+        var details = new List<GradingEnrolmentStatus>();
+        foreach (var item in request.Members)
+        {
+            var status = bookedMemberIds.Contains(item.MemberId)
+                ? CreateAlreadyEnrolledStatus(item, existingCandidates, tickets)
+                : await EnrolMemberAsync(eventId, item, tickets, eventClient, memberClient, logger, ct);
+
+            if (status.Outcome is GradingEnrolmentOutcome.Enrolled)
+            {
+                bookedMemberIds.Add(item.MemberId);
+            }
+
+            details.Add(status);
+        }
+
+        return Results.Ok(new GradingEnrolmentResponse
+        {
+            Enrolled = details.Count(detail => detail.Outcome is GradingEnrolmentOutcome.Enrolled),
+            AlreadyEnrolled = details.Count(detail => detail.Outcome is GradingEnrolmentOutcome.AlreadyEnrolled),
+            Failed = details.Count(detail => detail.Outcome is GradingEnrolmentOutcome.Failed),
+            Details = details,
+        });
+    }
+
+    private static string? ValidateEnrolmentRequest(Guid eventId, GradingEnrolmentRequest request)
+    {
+        if (eventId == Guid.Empty)
+        {
+            return "A valid eventId is required.";
+        }
+
+        if (request.Members.Count == 0)
+        {
+            return "At least one member is required.";
+        }
+
+        if (request.Members.Count > MaxEnrolmentMembersPerRequest)
+        {
+            return $"Maximum {MaxEnrolmentMembersPerRequest} members per request.";
+        }
+
+        return request.Members.Any(member => member.MemberId == Guid.Empty)
+            ? "Every member must have a valid memberId."
+            : null;
+    }
+
+    private static GradingEnrolmentStatus CreateAlreadyEnrolledStatus(
+        GradingEnrolmentItem item,
+        IEnumerable<EventCandidateDto> existingCandidates,
+        IEnumerable<EventTicketDto> tickets)
+    {
+        var existing = existingCandidates.FirstOrDefault(candidate => candidate.CandidateId == item.MemberId);
+        var ticket = tickets.FirstOrDefault(t => t.Id == existing?.TicketId);
+
+        return new GradingEnrolmentStatus
+        {
+            MemberId = item.MemberId,
+            TicketId = existing?.TicketId,
+            BookingId = existing?.BookingId,
+            GradeName = ResolveGradeDefinition(existing?.CourseName) ?? ResolveGradeDefinition(ticket?.TicketName),
+            Outcome = GradingEnrolmentOutcome.AlreadyEnrolled,
+            Error = "Member is already booked onto this grading.",
+        };
+    }
+
+    private static async Task<GradingEnrolmentStatus> EnrolMemberAsync(
+        Guid eventId,
+        GradingEnrolmentItem item,
+        IReadOnlyList<EventTicketDto> tickets,
+        IEventClient eventClient,
+        IMemberClient memberClient,
+        ILogger logger,
+        CancellationToken ct)
+    {
+        EventTicketDto ticket;
+        try
+        {
+            var resolution = await ResolveEnrolmentTicketAsync(item, tickets, memberClient, ct);
+            if (resolution.Error is not null)
+            {
+                return CreateFailedEnrolmentStatus(item, item.TicketId, gradeName: null, resolution.Error);
+            }
+
+            ticket = resolution.Ticket!;
+        }
+        catch (Exception ex)
+        {
+            return CreateFailedEnrolmentStatus(
+                item,
+                item.TicketId,
+                gradeName: null,
+                $"Failed to load member details from JustGo to choose a grade ticket: {GetErrorMessage(ex)}");
+        }
+
+        var gradeName = ResolveGradeDefinition(ticket.TicketName);
+        try
+        {
+            var booking = await eventClient.AddEventCandidateAsync(new EventCandidateCreateRequest
+            {
+                MemberId = item.MemberId,
+                TicketId = ticket.Id,
+            }, ct);
+
+            logger.LogInformation(
+                "Enrolled member {MemberId} onto grading event {EventId} with ticket {TicketId} (booking {BookingId}).",
+                item.MemberId,
+                eventId,
+                ticket.Id,
+                booking.BookingId);
+
+            return new GradingEnrolmentStatus
+            {
+                MemberId = item.MemberId,
+                TicketId = ticket.Id,
+                GradeName = gradeName,
+                BookingId = booking.BookingId,
+                Outcome = GradingEnrolmentOutcome.Enrolled,
+            };
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to enrol member {MemberId} onto grading event {EventId}.", item.MemberId, eventId);
+            return CreateFailedEnrolmentStatus(item, ticket.Id, gradeName, GetErrorMessage(ex));
+        }
+    }
+
+    private static async Task<(EventTicketDto? Ticket, string? Error)> ResolveEnrolmentTicketAsync(
+        GradingEnrolmentItem item,
+        IReadOnlyList<EventTicketDto> tickets,
+        IMemberClient memberClient,
+        CancellationToken ct)
+    {
+        if (item.IsDoubleGrading)
+        {
+            var memberForDouble = await memberClient.GetMemberAsync(item.MemberId, ct);
+            var doubleGrade = Grade.FromCredentials(memberForDouble.Credentials).Double;
+            if (doubleGrade is null || !doubleGrade.IsGup)
+            {
+                return (null, "A double grade must stay within Gup gradings (up to 1st Gup).");
+            }
+
+            var doubleTicket = tickets.FirstOrDefault(ticket =>
+                string.Equals(ResolveGradeDefinition(ticket.TicketName), doubleGrade.Name, StringComparison.OrdinalIgnoreCase));
+            if (doubleTicket is null)
+            {
+                return (null, $"No ticket for the requested double grade ({doubleGrade.Name}) is available on this grading.");
+            }
+
+            if (item.TicketId is { } requestedTicketId && requestedTicketId != Guid.Empty && requestedTicketId != doubleTicket.Id)
+            {
+                return (null, $"The selected ticket does not match the requested double grade ({doubleGrade.Name}).");
+            }
+
+            return (doubleTicket, null);
+        }
+
+        if (item.TicketId is { } ticketId && ticketId != Guid.Empty)
+        {
+            var selected = tickets.FirstOrDefault(ticket => ticket.Id == ticketId);
+            return selected is null
+                ? (null, "The selected grade ticket was not found for this event.")
+                : (selected, null);
+        }
+
+        var member = await memberClient.GetMemberAsync(item.MemberId, ct);
+        var nextGrade = Grade.FromCredentials(member.Credentials).Next;
+        var matching = nextGrade is null
+            ? null
+            : tickets.FirstOrDefault(ticket =>
+                string.Equals(ResolveGradeDefinition(ticket.TicketName), nextGrade.Name, StringComparison.OrdinalIgnoreCase));
+
+        return matching is null
+            ? (null, $"No grade ticket matches the member's next grade ({nextGrade?.Name ?? "none"}). Choose a ticket.")
+            : (matching, null);
+    }
+
+    private static GradingEnrolmentStatus CreateFailedEnrolmentStatus(
+        GradingEnrolmentItem item,
+        Guid? ticketId,
+        string? gradeName,
+        string error) =>
+        new()
+        {
+            MemberId = item.MemberId,
+            TicketId = ticketId,
+            GradeName = gradeName,
+            Outcome = GradingEnrolmentOutcome.Failed,
+            Error = error,
+        };
 
     private static string? ValidateGradingResult(GradingResultItem item)
     {
