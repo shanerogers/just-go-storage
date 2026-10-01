@@ -37,7 +37,8 @@ public sealed class MemberClient(HttpClient httpClient, IOptions<JustGoOptions> 
 
         if (request.ClubId is not null)
         {
-            query["ClubId"] = request.ClubId.Value.ToString();
+            // JustGo v2.2 filters members by club through its OrganisationId parameter; ClubId is ignored upstream.
+            query["OrganisationId"] = request.ClubId.Value.ToString();
         }
 
         if (request.CredentialId is not null)

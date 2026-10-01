@@ -9,7 +9,7 @@ namespace JustGo.Api.Features.Grading;
 /// </summary>
 public sealed class Grade : SmartEnum<Grade>
 {
-    // UnGraded — no credential yet. Rank -1 so .Next = TenthGup.
+    // Sentinel for a grade below 10th Gup when navigating backwards from a 10th Gup ticket.
     public static readonly Grade UnGraded = new("UnGraded", -1);
 
     // Gup grades (colour belts) — ranks 0–9
@@ -74,13 +74,13 @@ public sealed class Grade : SmartEnum<Grade>
 
     /// <summary>
     /// Resolves the highest active grade from a member's credentials.
-    /// Returns <see cref="UnGraded"/> if no grade credential is found.
+    /// Members without an active grade credential are treated as 10th Gup.
     /// </summary>
     public static Grade FromCredentials(IEnumerable<MemberCredentialDtoV2_2>? credentials)
     {
         if (credentials is null)
         {
-            return UnGraded;
+            return TenthGup;
         }
 
         Grade? highest = null;
@@ -108,7 +108,7 @@ public sealed class Grade : SmartEnum<Grade>
             }
         }
 
-        return highest ?? UnGraded;
+        return highest ?? TenthGup;
     }
 
     /// <summary>

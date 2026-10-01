@@ -1,19 +1,124 @@
 html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-family: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+}
+
+:root {
+    --retro-orange: #FDBA74;
+    --retro-orange-ink: #431407;
+    --retro-bevel: inset 1px 1px 0 rgba(255, 255, 255, 0.4), inset -1px -1px 0 rgba(0, 0, 0, 0.3);
+    --retro-drop: 2px 2px 0 rgba(0, 0, 0, 0.2);
+    --retro-drop-hover: 3px 3px 0 rgba(0, 0, 0, 0.3);
+    --retro-box-shadow: 3px 3px 0 color-mix(in srgb, var(--mud-palette-text-primary) 22%, transparent);
+}
+
+::selection {
+    background: var(--retro-orange);
+    color: var(--retro-orange-ink);
 }
 
 a, .btn-link {
-    color: #006bb7;
+    color: var(--mud-palette-text-primary);
+    text-decoration-color: var(--retro-orange);
+    text-underline-offset: 3px;
+}
+
+/* Bevelled "pixel" buttons */
+.mud-button-filled {
+    border: 1px solid rgba(0, 0, 0, 0.6);
+    box-shadow: var(--retro-bevel), var(--retro-drop) !important;
+    transition: box-shadow 80ms ease, transform 80ms ease;
+}
+
+.mud-button-filled:hover {
+    box-shadow: var(--retro-bevel), var(--retro-drop-hover) !important;
+}
+
+.mud-button-filled:active {
+    box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.3) !important;
+    transform: translate(1px, 1px);
+}
+
+.mud-button-filled.mud-button-filled-primary,
+.mud-button-filled.mud-button-filled-tertiary {
+    background-color: var(--retro-orange);
+    color: var(--retro-orange-ink);
+    border-color: var(--retro-orange-ink);
+}
+
+.mud-button-filled.mud-button-filled-primary:hover,
+.mud-button-filled.mud-button-filled-tertiary:hover {
+    background-color: #FB923C;
+}
+
+.mud-button-outlined {
+    border-radius: var(--mud-default-borderradius);
+}
+
+/* Boxes: solid 1px borders and hard offset shading instead of soft elevation */
+.mud-paper:not(.mud-appbar):not(.mud-drawer):not(.mud-popover),
+.mud-card,
+.mud-dialog,
+.mud-table,
+.enrolment-roster {
+    border: 1px solid var(--mud-palette-lines-default);
+    box-shadow: var(--retro-box-shadow) !important;
+}
+
+.mud-appbar {
+    box-shadow: none !important;
+    border-bottom: 1px solid var(--mud-palette-lines-default);
+}
+
+.mud-drawer {
+    box-shadow: none !important;
+    border-right: 1px solid var(--mud-palette-lines-default);
+}
+
+/* Outline, not border: the popover and its inner list share the same max-height,
+   so a border would overflow by 2px and add a second scrollbar. */
+.mud-popover {
+    outline: 1px solid var(--mud-palette-lines-default);
+    box-shadow: var(--retro-box-shadow) !important;
+}
+
+/* Boxed table headers and striped rows */
+.mud-table-head .mud-table-cell {
+    background: var(--mud-palette-background-gray);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.mud-table-body .mud-table-row:nth-of-type(even) {
+    background: var(--mud-palette-table-striped);
+}
+
+.mud-table-body .mud-table-row.mud-table-row-selected,
+.mud-selected-item {
+    background: color-mix(in srgb, var(--retro-orange) 35%, transparent) !important;
+}
+
+.mud-nav-link.active {
+    background: color-mix(in srgb, var(--retro-orange) 14%, transparent) !important;
+    box-shadow: inset 3px 0 0 var(--retro-orange);
+}
+
+.mud-nav-link.active .mud-nav-link-icon {
+    color: var(--retro-orange);
+}
+
+.mud-chip {
+    border-radius: var(--mud-default-borderradius);
 }
 
 .btn-primary {
-    color: #fff;
-    background-color: #1b6ec2;
-    border-color: #1861ac;
+    color: var(--retro-orange-ink);
+    background-color: var(--retro-orange);
+    border-color: var(--retro-orange-ink);
 }
 
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+  box-shadow: 0 0 0 2px var(--retro-orange);
 }
 
 .content {
@@ -63,3 +168,236 @@ h1:focus {
     background-color: rgba(0, 0, 0, 0.5) !important;
 }
 
+.grading-record-list {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.grading-record-card {
+    min-width: 0;
+}
+
+.grading-record-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.grading-record-controls > * {
+    flex: 1 1 8rem;
+    min-width: 0;
+}
+
+.enrolment-roster {
+    /* Shorter than one 10-member page (840px) so scrolling fetches the next page. */
+    height: 520px;
+    overflow-y: auto;
+    padding: 0.5rem;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--mud-default-borderradius);
+    background: var(--mud-palette-background-gray);
+}
+
+/* Fixed 120px slot (112px card + 8px gap) to match Virtualize ItemSize. */
+.member-card {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    height: 112px;
+    margin-bottom: 8px;
+    padding: 0 1rem;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--mud-default-borderradius);
+    background: var(--mud-palette-surface);
+    box-shadow: 2px 2px 0 color-mix(in srgb, var(--mud-palette-text-primary) 12%, transparent);
+    cursor: pointer;
+    transition: transform 80ms ease, box-shadow 80ms ease, border-color 80ms ease;
+}
+
+.member-card:hover {
+    border-color: var(--mud-palette-text-primary);
+    transform: translate(-1px, -1px);
+    box-shadow: 3px 3px 0 color-mix(in srgb, var(--mud-palette-text-primary) 22%, transparent);
+}
+
+.member-card:focus-visible {
+    outline: 2px solid var(--retro-orange);
+    outline-offset: 2px;
+}
+
+.member-card--selected {
+    border-color: var(--retro-orange);
+    background: color-mix(in srgb, var(--retro-orange) 12%, var(--mud-palette-surface));
+    box-shadow: inset 4px 0 0 var(--retro-orange), 2px 2px 0 color-mix(in srgb, var(--retro-orange) 45%, transparent);
+}
+
+.member-card--locked {
+    cursor: default;
+    opacity: 0.65;
+}
+
+.member-card--locked:hover {
+    border-color: var(--mud-palette-lines-default);
+    transform: none;
+    box-shadow: 2px 2px 0 color-mix(in srgb, var(--mud-palette-text-primary) 12%, transparent);
+}
+
+.member-card--skeleton,
+.member-card--skeleton:hover {
+    cursor: progress;
+    border-style: dashed;
+    border-color: var(--mud-palette-lines-default);
+    transform: none;
+    box-shadow: 2px 2px 0 color-mix(in srgb, var(--mud-palette-text-primary) 8%, transparent);
+}
+
+.member-card--skeleton .member-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.member-card-skeleton-chip {
+    flex: 0 0 auto;
+    border-radius: 999px;
+}
+
+.enrolment-roster-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    height: 100%;
+    min-height: 240px;
+    padding: 2rem;
+    text-align: center;
+    color: var(--mud-palette-text-secondary);
+    border: 1px dashed var(--mud-palette-lines-default);
+    border-radius: var(--mud-default-borderradius);
+    background: var(--mud-palette-surface);
+}
+
+.member-card-avatar {
+    display: grid;
+    place-items: center;
+    flex: 0 0 40px;
+    height: 40px;
+    border: 1px solid var(--mud-palette-text-primary);
+    border-radius: 50%;
+    font-family: var(--retro-heading-font, inherit);
+    font-weight: 700;
+    font-size: 0.875rem;
+    background: var(--mud-palette-background-gray);
+}
+
+.member-card--selected .member-card-avatar {
+    border-color: var(--retro-orange-ink, #431407);
+    background: var(--retro-orange);
+    color: var(--retro-orange-ink, #431407);
+}
+
+.member-card-body {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.member-card-name {
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.member-card-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+.member-card-grade-info {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.member-card-double {
+    cursor: default;
+}
+
+.member-card-double .mud-input-control {
+    margin: 0;
+}
+
+.member-card-double .mud-typography {
+    font-size: 0.75rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+.member-card-double .mud-switch-base.mud-checked + .mud-switch-track {
+    background-color: var(--retro-orange);
+}
+
+.member-card-double .mud-switch-base.mud-checked .mud-switch-thumb-small {
+    background-color: var(--retro-orange-ink);
+}
+
+.member-card-status {
+    flex: 0 0 auto;
+}
+
+@media (max-width: 599px) {
+    .member-card:not(.member-card--skeleton) {
+        position: relative;
+        padding: 0.5rem;
+    }
+
+    .member-card:not(.member-card--skeleton) .member-card-avatar {
+        display: none;
+    }
+
+    .member-card:not(.member-card--skeleton) .member-card-name {
+        padding-right: 6rem;
+    }
+
+    .member-card:not(.member-card--skeleton) .member-card-meta {
+        row-gap: 0;
+    }
+
+    .member-card:not(.member-card--skeleton) .member-card-status {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+    }
+
+    .member-card-status .mud-chip {
+        max-width: 6rem;
+    }
+}
+
+.enrolment-picker {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1.5rem;
+}
+
+.enrolment-picker > .mud-select {
+    flex: 1 1 100%;
+}
+
+.mud-paper.enrolment-step-locked {
+    border: 1px dashed var(--mud-palette-lines-default);
+    box-shadow: none !important;
+    background: transparent;
+    opacity: 0.7;
+}
+
+@media (max-width: 599px) {
+    .grading-record-controls {
+        flex-direction: column;
+    }
+}

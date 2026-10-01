@@ -1,0 +1,845 @@
+@page "/grading/enrol"
+@page "/grading/enrol/{RouteEventId:guid}"
+@using JustGo.Grading.Enrolment
+@using JustGo.Grading.Models
+@using JustGo.Grading.Paging
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@implements IDisposable
+@inject IHttpClientFactory HttpClientFactory
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject ProtectedLocalStorage BrowserStorage
+@inject ILogger<GradingEnrolment> Logger
+
+<PageTitle>Enrol Members - ITKD</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-4">
+    <MudText Typo="Typo.h4" Class="mb-2">Enrol Members</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+        Book eligible club members up to 1st Gup onto a grading event in JustGo.
+    </MudText>
+    <MudPaper Class="pa-4 mb-4" Elevation="2">
+        <MudText Typo="Typo.h6" GutterBottom="true">1. Choose a grading</MudText>
+        <div class="enrolment-picker">
+            <MudSelect T="Guid" Value="_selectedEventId" ValueChanged="SelectEventAsync" Label="Event"
+                       Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="@(_loadingEvents || _loadingEvent || _enrolling)"
+                       Placeholder="@EnrolmentGuidance.EventPlaceholder(_loadingEvents, VisibleEvents.Count)"
+                       ToStringFunc="@(id => EnrolmentGuidance.DescribeSelectedEvent(id, _eventLabels))"
+                       AdornmentIcon="@Icons.Material.Filled.EmojiEvents" Adornment="Adornment.Start"
+                       AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
+                @foreach (var evt in VisibleEvents)
+                {
+                    <MudSelectItem T="Guid" Value="@evt.Id">@EnrolmentGuidance.FormatEventLabel(evt.Name, evt.Date)</MudSelectItem>
+                }
+            </MudSelect>
+        </div>
+        @if (_loadingEvents)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Tertiary" Class="mt-3" />
+        }
+    </MudPaper>
+
+    <MudPaper Class="pa-4 mb-4" Elevation="2">
+            <MudText Typo="Typo.h6" GutterBottom="true">2. Choose your club</MudText>
+            <div class="enrolment-picker">
+                <MudAutocomplete T="ClubOption" Value="_selectedClub" ValueChanged="SelectClubAsync"
+                                 SearchFunc="SearchClubsAsync" ToStringFunc="@(club => club?.DisplayName)"
+                                 Label="Club" Placeholder="Start typing a club name..."
+                                 Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" ResetValueOnEmptyText="true"
+                                 MaxItems="null" Disabled="@(_loadingClubs || _enrolling)"
+                                 Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Groups" />
+            </div>
+
+            @if (_selectedClub is not null && _rosterCache is not null)
+            {
+                <div class="d-flex align-center justify-space-between mt-4 mb-1">
+                    <MudText Typo="Typo.subtitle2">@RosterHeading</MudText>
+                    @if (_rosterCache.IsComplete)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@_rosterCache.LoadedItems.Count eligible member(s)</MudText>
+                    }
+                    else if (_rosterCache.LoadedItems.Count > 0)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@_rosterCache.LoadedItems.Count eligible so far</MudText>
+                    }
+                </div>
+
+                @if (_rosterError is not null && _rosterCache.LoadedItems.Count > 0)
+                {
+                    <MudAlert Severity="Severity.Error" Class="mt-2">@_rosterError</MudAlert>
+                }
+                <div class="enrolment-roster" tabindex="-1">
+                    @if (IsWaitingForFirstRosterPage)
+                    {
+                        <div aria-busy="true" aria-label="Loading club members">
+                            @MemberCardSkeleton
+                        </div>
+                    }
+                    <Virtualize @ref="_rosterList" @key="_rosterCache" TItem="EnrolmentRow" ItemsProvider="LoadRosterAsync"
+                                ItemSize="120" OverscanCount="2" Context="row">
+                        <ItemContent>
+                            @if (row.MemberId == Guid.Empty)
+                            {
+                                @if (!IsWaitingForFirstRosterPage)
+                                {
+                                    @MemberCardSkeleton
+                                }
+                            }
+                            else
+                            {
+                            var cardRow = SelectedRowOrDefault(row);
+                            <div @key="cardRow.MemberId" class="@MemberCardClass(cardRow)"
+                                 role="checkbox" aria-checked="@(cardRow.IsSelected ? "true" : "false")"
+                                 aria-disabled="@(CanInteractWithRow(cardRow) ? "false" : "true")"
+                                 tabindex="@(CanInteractWithRow(cardRow) ? 0 : -1)"
+                                 @onclick="() => ToggleSelected(cardRow, !cardRow.IsSelected)"
+                                 @onkeydown="args => OnMemberCardKeyDown(cardRow, args)">
+                                <div class="member-card-avatar" aria-hidden="true">
+                                    @if (cardRow.IsSelected)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" />
+                                    }
+                                    else
+                                    {
+                                        @MemberCardText.Initials(cardRow.FirstName, cardRow.LastName)
+                                    }
+                                </div>
+                                <div class="member-card-body">
+                                    <div class="member-card-name">@MemberCardText.FullName(cardRow.FirstName, cardRow.LastName)</div>
+                                    <div class="member-card-meta">
+                                        <div class="member-card-grade-info">
+                                            <span>#@cardRow.MemberNumber</span>
+                                            <span aria-hidden="true">·</span>
+                                            @if (MemberCardText.GradeProgression(
+                                                cardRow.CurrentGrade, cardRow.IsDoubleGrading ? cardRow.DoubleGrade : cardRow.NextGrade) is { } grades)
+                                            {
+                                                <span>@grades</span>
+                                            }
+                                            else
+                                            {
+                                                <MudSkeleton Width="8rem" />
+                                            }
+                                        </div>
+                                        @if (cardRow.IsSelected && CanRequestDoubleGrade(cardRow))
+                                        {
+                                            <div class="member-card-double" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true">
+                                                <MudSwitch T="bool" Value="cardRow.IsDoubleGrading"
+                                                           ValueChanged="requested => SetDoubleGrade(cardRow, requested)"
+                                                           Label="@($"Double to {cardRow.DoubleGrade}")" Size="Size.Small"
+                                                           Disabled="@(!CanInteractWithRow(cardRow))" />
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                                <div class="member-card-status">
+                                    @switch (cardRow.Status)
+                                    {
+                                        case RowStatus.AlreadyBooked:
+                                            <MudChip T="string" Color="Color.Info" Size="Size.Small">Already booked</MudChip>
+                                            break;
+                                        case RowStatus.Enrolled:
+                                            <MudChip T="string" Color="Color.Success" Size="Size.Small">Booked @cardRow.BookedGrade</MudChip>
+                                            break;
+                                        case RowStatus.Failed:
+                                            <MudTooltip Text="@cardRow.Error">
+                                                <MudChip T="string" Color="Color.Error" Size="Size.Small">Failed</MudChip>
+                                            </MudTooltip>
+                                            break;
+                                        default:
+                                            <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small">
+                                                @(_selectedEventId == Guid.Empty ? "Choose grading" : _eventBookingsLoaded ? "Not booked" : _loadingEvent ? "Checking bookings" : "Booking status unavailable")
+                                            </MudChip>
+                                            break;
+                                    }
+                                </div>
+                            </div>
+                            }
+                        </ItemContent>
+                        <Placeholder>
+                            @MemberCardSkeleton
+                        </Placeholder>
+                        <EmptyContent>
+                            @switch (EnrolmentGuidance.DescribeEmptyRoster(_rosterCache?.TotalCount, _rosterError))
+                            {
+                                case EmptyRosterState.Loading:
+                                    break;
+                                case EmptyRosterState.Failed:
+                                    <MudAlert Severity="Severity.Error" Class="ma-2">@_rosterError</MudAlert>
+                                    break;
+                                default:
+                                    <div class="enrolment-roster-empty">
+                                        <MudIcon Icon="@Icons.Material.Outlined.GroupOff" Size="Size.Large" Color="Color.Secondary" />
+                                        <MudText Typo="Typo.body1">@EnrolmentGuidance.NoMembersMessage(_selectedClub?.Name)</MudText>
+                                    </div>
+                                    break;
+                            }
+                        </EmptyContent>
+                    </Virtualize>
+                </div>
+
+            <div class="d-flex align-center justify-end gap-2 mt-4">
+                @if (_selectedRows.Count > 0)
+                {
+                    <MudButton Variant="Variant.Text" Color="Color.Secondary" OnClick="ClearSelection" Disabled="@_enrolling">
+                        Clear selection
+                    </MudButton>
+                }
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="EnrolSelectedAsync"
+                           Disabled="@(_selectedRows.Count == 0 || _enrolling || _loadingEvent || !IsRosterReady)"
+                           StartIcon="@Icons.Material.Filled.PersonAdd">
+                    @if (_enrolling)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    }
+                    @EnrolmentGuidance.BookButtonLabel(_selectedRows.Count)
+                </MudButton>
+            </div>
+            }
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private const int RosterPageSize = 10;
+    private const string RememberedClubKey = "grading.enrol.clubId";
+
+    [Parameter] public Guid? RouteEventId { get; set; }
+
+    private bool _loadingEvents;
+    private bool _loadingEvent;
+    private bool _eventBookingsLoaded;
+    private bool _loadingClubs;
+    private bool _enrolling;
+    private bool _disposed;
+    private string? _rosterError;
+    private Guid _selectedEventId;
+    private ClubOption? _selectedClub;
+    private List<GradingEventOption> _allEvents = [];
+    private Dictionary<Guid, string> _eventLabels = [];
+
+    private IReadOnlyList<GradingEventOption> VisibleEvents =>
+        GradingEventFilter.SelectVisible(_allEvents, includePast: true, DateTime.Today, _selectedEventId);
+
+    private List<ClubOption> _clubs = [];
+    private List<EventTicketApiDto> _tickets = [];
+    private HashSet<Guid> _bookedMemberIds = [];
+    private readonly Dictionary<Guid, EnrolmentRow> _selectedRows = [];
+    private Task _clubsLoad = Task.CompletedTask;
+    private ProgressiveFilteredRoster<MemberSearchApiDto, EnrolmentRow>? _rosterCache;
+    private Virtualize<EnrolmentRow>? _rosterList;
+
+    private HttpClient Api => HttpClientFactory.CreateClient("JustGoApi");
+
+    private string RosterHeading => $"{_selectedClub?.Name} members";
+    private bool IsRosterReady => _eventBookingsLoaded && _selectedEventId != Guid.Empty
+        && _selectedClub is not null && _rosterCache?.IsComplete == true && _rosterCache.Error is null;
+    private bool CanInteractWithRow(EnrolmentRow row) =>
+        row.CanSelect && !_enrolling
+        && _selectedEventId != Guid.Empty && _selectedClub is not null && _rosterCache is { Error: null };
+    private bool CanChangeRow(EnrolmentRow row) =>
+        CanInteractWithRow(row) && _rosterCache is { } cache && cache.LoadedItems.Any(loaded => loaded.MemberId == row.MemberId);
+
+    // Virtualize renders nothing while its first fetch is in flight, so the page draws the skeleton itself.
+    private bool IsWaitingForFirstRosterPage =>
+        _rosterCache is not null
+        && EnrolmentGuidance.DescribeEmptyRoster(_rosterCache.TotalCount, _rosterError) == EmptyRosterState.Loading;
+
+    private static readonly RenderFragment MemberCardSkeleton =
+        @<div class="member-card member-card--skeleton" aria-hidden="true">
+            <MudSkeleton SkeletonType="SkeletonType.Circle" Width="40px" Height="40px" Animation="Animation.Wave" />
+            <div class="member-card-body">
+                <MudSkeleton Width="45%" Height="1.1rem" Animation="Animation.Wave" />
+                <MudSkeleton Width="30%" Height="0.9rem" Animation="Animation.Wave" />
+            </div>
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="84px" Height="24px" Animation="Animation.Wave" Class="member-card-skeleton-chip" />
+        </div>;
+
+    private IEnumerable<EnrolmentRow> KnownRows =>
+        (_rosterCache?.LoadedItems ?? Enumerable.Empty<EnrolmentRow>()).Concat(_selectedRows.Values).Distinct();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Clubs come from a slow JustGo call, so the grading list must not wait for them.
+        _clubsLoad = LoadClubsInBackgroundAsync();
+        await LoadEventsAsync();
+
+        if (RouteEventId is not { } eventId)
+        {
+            if (EnrolmentGuidance.SoleBookableEventId(VisibleEvents) is { } onlyEventId)
+            {
+                await SelectEventAsync(onlyEventId);
+            }
+
+            return;
+        }
+
+        if (_allEvents.Any(evt => evt.Id == eventId))
+        {
+            await SelectEventAsync(eventId);
+        }
+        else if (!_loadingEvents && _allEvents.Count > 0)
+        {
+            Snackbar.Add("That grading isn't accepting bookings, so members can't be booked onto it here.", Severity.Warning);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await RestoreRememberedClubAsync();
+        }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _rosterCache?.Dispose();
+    }
+
+    private async Task LoadClubsInBackgroundAsync()
+    {
+        await LoadClubsAsync();
+        if (!_disposed)
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadEventsAsync()
+    {
+        _loadingEvents = true;
+        try
+        {
+            var response = await Api.GetAsync("grading/events/accepting-bookings");
+            if (!response.IsSuccessStatusCode)
+            {
+                Snackbar.Add($"Failed to load grading events (HTTP {(int)response.StatusCode}).", Severity.Error);
+                return;
+            }
+
+            var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+            _allEvents = ParseEventOptions(json);
+            _eventLabels = _allEvents.ToDictionary(evt => evt.Id, evt => EnrolmentGuidance.FormatEventLabel(evt.Name, evt.Date));
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load grading events");
+            Snackbar.Add($"Failed to load grading events: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loadingEvents = false;
+        }
+    }
+
+    private async Task LoadClubsAsync()
+    {
+        _loadingClubs = true;
+        try
+        {
+            _clubs = await Api.GetFromJsonAsync<List<ClubOption>>("grading/clubs") ?? [];
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load clubs");
+            Snackbar.Add("Couldn't load the club list from JustGo. Start typing in Club to try again.", Severity.Error);
+        }
+        finally
+        {
+            _loadingClubs = false;
+        }
+    }
+
+    private async Task RestoreRememberedClubAsync()
+    {
+        try
+        {
+            await _clubsLoad;
+            var remembered = await BrowserStorage.GetAsync<Guid>(RememberedClubKey);
+            var club = remembered.Success ? _clubs.FirstOrDefault(c => c.Id == remembered.Value) : null;
+            if (club is not null && _selectedClub is null)
+            {
+                _selectedClub = club;
+                ResetRoster();
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            // A missing or unreadable remembered club should never block the page.
+            Logger.LogWarning(ex, "Could not restore the remembered club");
+        }
+    }
+
+    private async Task RememberClubAsync(ClubOption? club)
+    {
+        try
+        {
+            if (club is null)
+            {
+                await BrowserStorage.DeleteAsync(RememberedClubKey);
+            }
+            else
+            {
+                await BrowserStorage.SetAsync(RememberedClubKey, club.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not remember the selected club");
+        }
+    }
+
+    private static List<GradingEventOption> ParseEventOptions(JsonElement json)
+    {
+        if (!json.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        return data.EnumerateArray()
+            .Select(item => new GradingEventOption(
+                Id: item.TryGetProperty("id", out var id) && id.TryGetGuid(out var guid) ? guid : Guid.Empty,
+                Name: item.TryGetProperty("eventName", out var name) ? name.GetString() ?? string.Empty : string.Empty,
+                Date: item.TryGetProperty("startDate", out var date) && date.TryGetDateTime(out var parsed) ? parsed : null,
+                Status: item.TryGetProperty("status", out var status) ? status.GetString() : null))
+            .Where(evt => evt.Id != Guid.Empty)
+            .ToList();
+    }
+
+    private async Task SelectEventAsync(Guid eventId)
+    {
+        ClearSelection();
+        _eventBookingsLoaded = false;
+        _tickets = [];
+        _bookedMemberIds = [];
+        foreach (var row in KnownRows)
+        {
+            row.Status = RowStatus.NotBooked;
+            row.BookedGrade = null;
+            row.Error = null;
+            row.TicketId = Guid.Empty;
+            row.IsDoubleGrading = false;
+        }
+        _selectedEventId = eventId;
+        if (EnrolmentGuidance.NeedsNavigationToEvent(new Uri(Navigation.Uri), eventId))
+        {
+            Navigation.NavigateTo(EnrolmentGuidance.EventPath(eventId), replace: true);
+        }
+        await LoadEventBookingsAsync();
+    }
+
+    private async Task LoadEventBookingsAsync()
+    {
+        _loadingEvent = true;
+        _eventBookingsLoaded = false;
+        StateHasChanged();
+        try
+        {
+            var ticketsTask = Api.GetFromJsonAsync<List<EventTicketApiDto>>($"grading/events/{_selectedEventId}/tickets");
+            var candidatesTask = Api.GetFromJsonAsync<List<BookedCandidateApiDto>>($"grading/events/{_selectedEventId}/candidates");
+            await Task.WhenAll(ticketsTask, candidatesTask);
+
+            _tickets = ticketsTask.Result ?? [];
+            _bookedMemberIds = (candidatesTask.Result ?? []).Select(candidate => candidate.MemberId).ToHashSet();
+            foreach (var row in KnownRows)
+            {
+                row.TicketId = FindTicketIdForGrade(row.IsDoubleGrading ? row.DoubleGrade : row.NextGrade);
+            }
+            MarkAlreadyBookedRows();
+            _eventBookingsLoaded = true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load bookings for event {EventId}", _selectedEventId);
+            Snackbar.Add($"Failed to load event bookings: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loadingEvent = false;
+        }
+    }
+
+    private void MarkAlreadyBookedRows()
+    {
+        foreach (var row in KnownRows.Where(row => row.Status is not RowStatus.Enrolled && _bookedMemberIds.Contains(row.MemberId)))
+        {
+            row.Status = RowStatus.AlreadyBooked;
+            SetSelected(row, false);
+        }
+    }
+
+    private async Task<IEnumerable<ClubOption>> SearchClubsAsync(string? text, CancellationToken ct)
+    {
+        if (_clubs.Count == 0 && !_loadingClubs)
+        {
+            await LoadClubsAsync();
+        }
+
+        return string.IsNullOrWhiteSpace(text)
+            ? _clubs
+            : _clubs.Where(club => club.DisplayName.Contains(text.Trim(), StringComparison.OrdinalIgnoreCase));
+    }
+
+    private async Task SelectClubAsync(ClubOption? club)
+    {
+        if (club?.Id == _selectedClub?.Id)
+        {
+            return;
+        }
+
+        ClearSelection();
+        _selectedClub = club;
+        ResetRoster();
+        await RememberClubAsync(club);
+    }
+
+    // A new cache instance re-keys the Virtualize component, so it starts again from the top.
+    private void ResetRoster()
+    {
+        _rosterCache?.Dispose();
+        _rosterList = null;
+        _rosterError = null;
+        _rosterCache = _selectedClub is null
+            ? null
+            : CreateRosterCache(_selectedClub.Id);
+    }
+
+    private ProgressiveFilteredRoster<MemberSearchApiDto, EnrolmentRow> CreateRosterCache(Guid clubId)
+    {
+        var cache = new ProgressiveFilteredRoster<MemberSearchApiDto, EnrolmentRow>(
+            RosterPageSize,
+            (pageNumber, ct) => FetchRosterPageAsync(clubId, pageNumber, ct),
+            ResolveEligibleRowAsync,
+            new EnrolmentRow(),
+            Comparer<EnrolmentRow>.Create((left, right) =>
+            {
+                var surname = StringComparer.OrdinalIgnoreCase.Compare(left.LastName, right.LastName);
+                if (surname != 0)
+                {
+                    return surname;
+                }
+
+                var givenName = StringComparer.OrdinalIgnoreCase.Compare(left.FirstName, right.FirstName);
+                return givenName != 0 ? givenName : left.MemberId.CompareTo(right.MemberId);
+            }),
+            scanToEnd: true);
+        cache.Changed += () => _ = InvokeAsync(async () =>
+        {
+            if (_disposed || !ReferenceEquals(cache, _rosterCache))
+            {
+                return;
+            }
+
+            if (cache.Error is { } error)
+            {
+                Logger.LogError(error, "Failed to check club members' grades");
+                _rosterError = $"Failed to check member grades: {error.Message}";
+            }
+            if (_rosterList is not null)
+            {
+                await _rosterList.RefreshDataAsync();
+            }
+            StateHasChanged();
+        });
+        return cache;
+    }
+
+    private async Task<PageResult<MemberSearchApiDto>> FetchRosterPageAsync(Guid clubId, int pageNumber, CancellationToken ct)
+    {
+        var query = $"page={pageNumber}&pageSize={RosterPageSize}&clubId={clubId}";
+        var result = await Api.GetFromJsonAsync<MemberSearchApiResponse>($"grading/members?{query}", ct)
+            ?? throw new InvalidOperationException("The member search returned no data.");
+        return new PageResult<MemberSearchApiDto>(result.Members, result.TotalCount);
+    }
+
+    private ValueTask<ItemsProviderResult<EnrolmentRow>> LoadRosterAsync(ItemsProviderRequest request)
+    {
+        var cache = _rosterCache;
+        if (cache is null)
+        {
+            return ValueTask.FromResult(new ItemsProviderResult<EnrolmentRow>([], 0));
+        }
+
+        var page = cache.GetRange(request.StartIndex, request.Count);
+        return ValueTask.FromResult(new ItemsProviderResult<EnrolmentRow>(page.Items, page.TotalCount));
+    }
+
+    private EnrolmentRow SelectedRowOrDefault(EnrolmentRow row) =>
+        _selectedRows.GetValueOrDefault(row.MemberId) ?? row;
+
+    // Reusing a selected member's row keeps its tick and ticket choice when the roster reloads.
+    private EnrolmentRow CreateRow(MemberSearchApiDto member) =>
+        _selectedRows.TryGetValue(member.JustGoMemberId, out var selected)
+            ? selected
+            : new EnrolmentRow
+            {
+                MemberId = member.JustGoMemberId,
+                MemberNumber = member.MemberId,
+                FirstName = member.FirstName,
+                LastName = member.LastName,
+                Status = _bookedMemberIds.Contains(member.JustGoMemberId) ? RowStatus.AlreadyBooked : RowStatus.NotBooked,
+            };
+
+    private async Task<EnrolmentRow?> ResolveEligibleRowAsync(MemberSearchApiDto member, CancellationToken ct)
+    {
+        var detail = await Api.GetFromJsonAsync<MemberGradeApiDto>($"grading/members/{member.JustGoMemberId}/details", ct)
+            ?? throw new InvalidOperationException("The member grade lookup returned no data.");
+        if (detail.MemberId != member.JustGoMemberId)
+        {
+            throw new InvalidOperationException("The member grade lookup returned the wrong member.");
+        }
+        if (!GupEnrolmentEligibility.CanGradeUpToFirstGup(detail.CurrentGrade))
+        {
+            return null;
+        }
+
+        var row = CreateRow(member);
+        row.CurrentGrade = detail.CurrentGrade;
+        row.NextGrade = detail.NextGrade;
+        row.DoubleGrade = detail.DoubleGrade;
+        if (row.TicketId == Guid.Empty)
+        {
+            row.TicketId = FindTicketIdForGrade(detail.NextGrade);
+        }
+        return row;
+    }
+
+    private Guid FindTicketIdForGrade(string? gradeName) =>
+        _tickets.FirstOrDefault(ticket => string.Equals(ticket.GradeName, gradeName, StringComparison.OrdinalIgnoreCase))?.TicketId
+        ?? Guid.Empty;
+
+    private bool CanRequestDoubleGrade(EnrolmentRow row) =>
+        GupEnrolmentEligibility.CanRequestDoubleGrade(row.CurrentGrade, row.DoubleGrade)
+        && FindTicketIdForGrade(row.DoubleGrade) != Guid.Empty;
+
+    private void SetDoubleGrade(EnrolmentRow row, bool requested)
+    {
+        if (!CanChangeRow(row))
+        {
+            return;
+        }
+
+        if (requested && !CanRequestDoubleGrade(row))
+        {
+            Snackbar.Add("No Gup ticket for this member's double grade is available on this grading.", Severity.Error);
+            return;
+        }
+
+        row.IsDoubleGrading = requested;
+        row.TicketId = FindTicketIdForGrade(requested ? row.DoubleGrade : row.NextGrade);
+    }
+
+    private void ToggleSelected(EnrolmentRow row, bool selected)
+    {
+        if (CanChangeRow(row))
+        {
+            SetSelected(row, selected);
+        }
+    }
+
+    private void OnMemberCardKeyDown(EnrolmentRow row, KeyboardEventArgs args)
+    {
+        if (args.Key is " " or "Enter" or "NumpadEnter")
+        {
+            ToggleSelected(row, !row.IsSelected);
+        }
+    }
+
+    private string MemberCardClass(EnrolmentRow row) =>
+        (row.IsSelected, row.CanSelect) switch
+        {
+            (true, _) => "member-card member-card--selected",
+            (false, false) => "member-card member-card--locked",
+            _ => "member-card",
+        };
+
+    private void SetSelected(EnrolmentRow row, bool selected)
+    {
+        row.IsSelected = selected;
+        if (selected)
+        {
+            _selectedRows[row.MemberId] = row;
+        }
+        else
+        {
+            _selectedRows.Remove(row.MemberId);
+        }
+    }
+
+    private void ClearSelection()
+    {
+        foreach (var row in _selectedRows.Values.ToList())
+        {
+            SetSelected(row, false);
+        }
+    }
+
+    private async Task EnrolSelectedAsync()
+    {
+        var selected = _selectedRows.Values.Where(row => row.CanSelect).ToList();
+        if (selected.Count == 0 || !IsRosterReady || _loadingEvent || _enrolling)
+        {
+            return;
+        }
+
+        _enrolling = true;
+        StateHasChanged();
+
+        try
+        {
+            var request = new
+            {
+                Members = selected.Select(row => new
+                {
+                    MemberId = row.MemberId,
+                    TicketId = row.TicketId == Guid.Empty ? (Guid?)null : row.TicketId,
+                    row.IsDoubleGrading,
+                }),
+            };
+
+            var response = await Api.PostAsJsonAsync($"grading/events/{_selectedEventId}/enrolments", request);
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Booking failed (HTTP {(int)response.StatusCode}). {body}", Severity.Error);
+                return;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<EnrolmentApiResponse>()
+                ?? throw new InvalidOperationException("The grading API returned an empty response.");
+            ApplyEnrolmentResults(result);
+            ShowEnrolmentSummary(result);
+            await LoadEventBookingsAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to enrol members onto event {EventId}", _selectedEventId);
+            Snackbar.Add($"Booking failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _enrolling = false;
+        }
+    }
+
+    private void ApplyEnrolmentResults(EnrolmentApiResponse result)
+    {
+        var rowsById = KnownRows.GroupBy(row => row.MemberId).ToDictionary(group => group.Key, group => group.ToList());
+        foreach (var detail in result.Details)
+        {
+            if (!rowsById.TryGetValue(detail.MemberId, out var rows))
+            {
+                continue;
+            }
+
+            foreach (var row in rows)
+            {
+                row.Error = detail.Error;
+                row.BookedGrade = detail.GradeName;
+                row.Status = detail.Outcome switch
+                {
+                    "Enrolled" => RowStatus.Enrolled,
+                    "AlreadyEnrolled" => RowStatus.AlreadyBooked,
+                    _ => RowStatus.Failed,
+                };
+                SetSelected(row, row.Status is RowStatus.Failed && row.IsSelected);
+            }
+        }
+    }
+
+    private void ShowEnrolmentSummary(EnrolmentApiResponse result)
+    {
+        if (result.Enrolled > 0)
+        {
+            Snackbar.Add($"Booked {result.Enrolled} member(s) onto the grading.", Severity.Success);
+        }
+
+        if (result.AlreadyEnrolled > 0)
+        {
+            Snackbar.Add($"{result.AlreadyEnrolled} member(s) were already booked and were skipped.", Severity.Info);
+        }
+
+        if (result.Failed > 0)
+        {
+            Snackbar.Add($"{result.Failed} member(s) could not be booked. Failed rows stay selected so you can retry.", Severity.Error);
+        }
+    }
+
+    private enum RowStatus
+    {
+        NotBooked,
+        AlreadyBooked,
+        Enrolled,
+        Failed,
+    }
+
+    private sealed class EnrolmentRow
+    {
+        public Guid MemberId { get; init; }
+        public string MemberNumber { get; init; } = string.Empty;
+        public string FirstName { get; init; } = string.Empty;
+        public string LastName { get; init; } = string.Empty;
+        public string? CurrentGrade { get; set; }
+        public string? NextGrade { get; set; }
+        public string? DoubleGrade { get; set; }
+        public bool IsDoubleGrading { get; set; }
+        public Guid TicketId { get; set; }
+        public bool IsSelected { get; set; }
+        public RowStatus Status { get; set; }
+        public string? BookedGrade { get; set; }
+        public string? Error { get; set; }
+        public bool CanSelect => Status is RowStatus.NotBooked or RowStatus.Failed;
+    }
+
+    private sealed class ClubOption
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Town { get; set; } = string.Empty;
+        public string DisplayName => string.IsNullOrWhiteSpace(Town) ? Name : $"{Name} ({Town})";
+    }
+
+    private sealed class BookedCandidateApiDto
+    {
+        public Guid MemberId { get; set; }
+    }
+
+    private sealed class MemberSearchApiResponse
+    {
+        public List<MemberSearchApiDto> Members { get; set; } = [];
+        public int TotalCount { get; set; }
+    }
+
+    private sealed class MemberSearchApiDto
+    {
+        public Guid JustGoMemberId { get; set; }
+        public string MemberId { get; set; } = string.Empty;
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+    }
+
+    private sealed class MemberGradeApiDto
+    {
+        public Guid MemberId { get; set; }
+        public string CurrentGrade { get; set; } = string.Empty;
+        public string NextGrade { get; set; } = string.Empty;
+        public string DoubleGrade { get; set; } = string.Empty;
+    }
+
+    private sealed class EnrolmentApiResponse
+    {
+        public int Enrolled { get; set; }
+        public int AlreadyEnrolled { get; set; }
+        public int Failed { get; set; }
+        public List<EnrolmentStatusApiDto> Details { get; set; } = [];
+    }
+
+    private sealed class EnrolmentStatusApiDto
+    {
+        public Guid MemberId { get; set; }
+        public string? GradeName { get; set; }
+        public string Outcome { get; set; } = string.Empty;
+        public string? Error { get; set; }
+    }
+}

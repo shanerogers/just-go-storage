@@ -18,11 +18,13 @@ internal static class JustGoClientExtensions
 {
     public static IServiceCollection AddJustGoClient(this IServiceCollection services)
     {
-        services.AddHttpClient("JustGoAuth", (sp, client) =>
-       {
-           var opts = sp.GetRequiredService<IOptions<JustGoOptions>>().Value;
-           client.BaseAddress = new Uri(opts.BaseUrl);
-       });
+        services
+            .AddHttpClient("JustGoAuth", (sp, client) =>
+            {
+                var opts = sp.GetRequiredService<IOptions<JustGoOptions>>().Value;
+                client.BaseAddress = new Uri(opts.BaseUrl);
+            })
+            .AddHttpMessageHandler<JustGoTelemetryHandler>();
 
        services
             .AddOptions<JustGoOptions>()
@@ -33,6 +35,7 @@ internal static class JustGoClientExtensions
         services
             .AddTransient<JustGoAuthHandler>()
             .AddTransient<JustGoResponseLoggingHandler>()
+            .AddTransient<JustGoTelemetryHandler>()
             .AddTransient<IJustGoTokenService, JustGoTokenService>();
 
         IHttpClientBuilder[] httpClientBuilders =
@@ -54,8 +57,13 @@ internal static class JustGoClientExtensions
         {
             builder
                 .AddHttpMessageHandler<JustGoAuthHandler>()
-                .AddHttpMessageHandler<JustGoResponseLoggingHandler>();
+                .AddHttpMessageHandler<JustGoResponseLoggingHandler>()
+                .AddHttpMessageHandler<JustGoTelemetryHandler>();
         }
+
+        services.AddOpenTelemetry()
+            .WithMetrics(metrics => metrics.AddMeter(JustGoTelemetryHandler.TelemetryName))
+            .WithTracing(tracing => tracing.AddSource(JustGoTelemetryHandler.TelemetryName));
 
         return services;
 

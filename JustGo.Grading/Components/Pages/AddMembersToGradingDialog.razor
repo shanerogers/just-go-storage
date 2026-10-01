@@ -25,7 +25,7 @@
 
         @if (_searching)
         {
-            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mt-4" />
+            <MudProgressLinear Indeterminate="true" Color="Color.Tertiary" Class="mt-4" />
         }
 
         @if (_searchResults.Count > 0)
@@ -51,7 +51,7 @@
                     <MudTd>
                         @if (context.CurrentGrade is null)
                         {
-                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Tertiary" />
                         }
                         else
                         {
@@ -61,7 +61,7 @@
                     <MudTd>
                         @if (context.NextGrade is null)
                         {
-                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Tertiary" />
                         }
                         else
                         {
